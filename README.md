@@ -3,11 +3,11 @@
 # ✈️ FAI.EV.ENGINEER
 ### *Enterprise AI-Powered First Article Inspection Platform*
 
-[![Version](https://img.shields.io/badge/Version-v1.0_Baseline-blue.svg?style=for-the-badge&logo=git)](file:///c:/Users/hy376/OneDrive/Desktop/System%20Design/FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Status](https://img.shields.io/badge/Status-Approved_SSOT-emerald.svg?style=for-the-badge&logo=checkmark)](file:///c:/Users/hy376/OneDrive/Desktop/System%20Design/FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Compliance](https://img.shields.io/badge/Compliance-SAE_AS9102_Rev_B%2FC-orange.svg?style=for-the-badge&logo=shield)](file:///c:/Users/hy376/OneDrive/Desktop/System%20Design/FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Form Factor](https://img.shields.io/badge/Platform-Desktop_B2B_SaaS-purple.svg?style=for-the-badge&logo=electron)](file:///c:/Users/hy376/OneDrive/Desktop/System%20Design/FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Owner](https://img.shields.io/badge/Product_Owner-Harsh_Yadav-black.svg?style=for-the-badge&logo=person)](file:///c:/Users/hy376/OneDrive/Desktop/System%20Design/FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Version](https://img.shields.io/badge/Version-v1.0_Baseline-blue.svg?style=for-the-badge&logo=git)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Status](https://img.shields.io/badge/Status-Approved_SSOT-emerald.svg?style=for-the-badge&logo=checkmark)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Compliance](https://img.shields.io/badge/Compliance-SAE_AS9102_Rev_B%2FC-orange.svg?style=for-the-badge&logo=shield)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Form Factor](https://img.shields.io/badge/Platform-Desktop_B2B_SaaS-purple.svg?style=for-the-badge&logo=electron)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Owner](https://img.shields.io/badge/Product_Owner-Harsh_Yadav-black.svg?style=for-the-badge&logo=person)](./FAI.EV.ENGINEER_MASTER_PRD.md)
 
 <p align="center">
   <b>Postman for Engineering Drawings</b> — Automating First Article Inspection (FAI) for Aerospace, Automotive, Medical Devices, and Precision Machine Shops.
