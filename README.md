@@ -19,19 +19,16 @@
 
 > [!IMPORTANT]
 > **SINGLE SOURCE OF TRUTH (SSOT)**  
-> This repository contains the complete enterprise product and engineering blueprint for **FAI.EV.ENGINEER** (Product Owner: **Harsh Yadav**).  
+> This repository contains the official Master Product Requirements Document for **FAI.EV.ENGINEER** (Product Owner: **Harsh Yadav**).  
 > All requirements build strictly upon the SAE AS9102 (Rev B/C) standard and ASME Y14.5 GD&T drafting specifications.
 
 ---
 
-## 📌 Repository Documentation Index
+## 📌 Repository Core Document
 
 | File | Purpose | Description |
 | :--- | :--- | :--- |
-| 📄 [`FAI.EV.ENGINEER_MASTER_PRD.md`](./FAI.EV.ENGINEER_MASTER_PRD.md) | **Master PRD (SSOT)** | Complete Product Requirements Document in Harsh's exact 7-part executive format. |
-| 🏗️ [`B2B_SaaS_Production_System_Design.md`](./B2B_SaaS_Production_System_Design.md) | **System Architecture** | Staff SRE architecture spec (PostgreSQL RLS, Istio mTLS, SRE SLI/SLO burn alerts). |
-| 📋 [`Phase_0_Engineering_Review.md`](./Phase_0_Engineering_Review.md) | **Gap Analysis & RTM** | Requirement Traceability Matrix, ITAR Risk Register, and NFR specifications. |
-| 📄 [`NOTION_MASTER_PRD.md`](./NOTION_MASTER_PRD.md) | **Notion Copy-Paste PRD** | Copy-paste optimized PRD version with Notion database property blocks. |
+| 📄 [`FAI.EV.ENGINEER_MASTER_PRD.md`](./FAI.EV.ENGINEER_MASTER_PRD.md) | **Master PRD (SSOT)** | Official Product Requirements Document in Harsh Yadav's 7-part executive format. |
 
 ---
 
@@ -43,7 +40,7 @@ flowchart LR
         Time["⚡ >85% Reduction in FAI Setup Time (8h -> <20m)"]
         Acc["🎯 ≥95% AI Extraction Accuracy"]
         Proc["⏱️ <30s Average Drawing Processing Time"]
-        Sec["🔒 Zero ITAR Data Leakage & Session Isolation"]
+        Sec["🔒 Zero Data Loss & Session Isolation"]
     end
 ```
 
@@ -127,4 +124,4 @@ flowchart TD
 
 > [!NOTE]
 > **Repository Owner:** Harsh Yadav (Lead Product Owner)  
-> **Repository Status:** Ready for Engineering Review & Phase 1 Execution
+> **Repository Status:** Single PRD SSOT Baseline Established
