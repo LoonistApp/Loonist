@@ -24,11 +24,12 @@
 
 ---
 
-## 📌 Repository Core Document
+## 📌 Repository Documentation Index
 
 | File | Purpose | Description |
 | :--- | :--- | :--- |
 | 📄 [`FAI.EV.ENGINEER_MASTER_PRD.md`](./FAI.EV.ENGINEER_MASTER_PRD.md) | **Master PRD (SSOT)** | Official Product Requirements Document in Harsh Yadav's 7-part executive format. |
+| 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Business Domain Analysis** | Domain Model, Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
 
 ---
 
