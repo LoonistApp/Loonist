@@ -24,97 +24,127 @@ FAI.EV.ENGINEER automates drawing ballooning, feature extraction, and report com
 
 ---
 
-## 2. System Architecture Topology & 5-Layer Clean Architecture
+## 2. Architectural Views & C4 Diagrams
 
-To ensure strict separation of concerns, testability, and long-term maintainability, FAI.EV.ENGINEER enforces a 5-tier Clean Layered Architecture:
+### 2.1 C4 Context Diagram (Level 1)
+
+The Context Diagram defines the system boundary of FAI.EV.ENGINEER within its operating environment.
 
 ```mermaid
 flowchart TD
-    subgraph Presentation ["1. Presentation Layer (PySide6 UI)"]
-        UI_Window["QMainWindow 3-Pane Workspace"]
-        UI_Canvas["QGraphicsView Blueprint Canvas"]
+    User["Quality / Manufacturing Engineer"]
+    
+    subgraph System_Boundary ["System Boundary"]
+        App["FAI.EV.ENGINEER Desktop Platform (Standalone Python App)"]
+    end
+    
+    subgraph Environment ["Local Operating Environment"]
+        LocalFiles["Local Workstation Disk (.afai Projects, Blueprints)"]
+        Exports["Export Targets (AS9102 Excel Workbooks & Ballooned PDFs)"]
+        CMM["Shop Floor Tools (Caliper / CMM Measurement Input)"]
+    end
+
+    User <--> App
+    App <--> LocalFiles
+    App --> Exports
+    CMM --> App
+```
+
+---
+
+### 2.2 C4 Container Diagram (Level 2)
+
+The Container Diagram details the high-level technical containers that make up the desktop application.
+
+```mermaid
+flowchart TD
+    subgraph Presentation_Container ["1. Presentation Container (PySide6 / Qt 6)"]
+        UI_Shell["QMainWindow Workspace Shell"]
+        UI_Canvas["QGraphicsView Viewport Engine (60 FPS)"]
         UI_Grid["QTableView Feature Inspector Grid"]
     end
 
-    subgraph Application ["2. Application Services Layer (Workflows)"]
-        Services["ProjectService | DrawingService | CharacteristicService | AIOrchestrator | ExportService"]
+    subgraph Core_Container ["2. Application Core Container"]
+        Services["Application Services (ProjectSvc, DrawingSvc, CharSvc, ExportSvc)"]
+        Orchestrator["AIOrchestrator & BackgroundJobManager"]
     end
 
-    subgraph Domain ["3. Core Domain Layer (Business Logic)"]
-        Entities["Entities & Aggregates: Project, Part, Drawing, Characteristic, Balloon, Measurement"]
+    subgraph Local_AI_Container ["3. Local AI Engine Container"]
+        OCR_Engine["Local Neural OCR Engine (ONNX Runtime)"]
+        GDT_Engine["ASME Y14.5 GD&T AST Parser"]
+        Orbit_Engine["Spatial R-Tree Balloon Orbiting Engine"]
     end
 
-    subgraph Engines ["Specialized Domain Engines"]
-        ValEng["Validation Engine (AS9102 Audit Rules)"]
-        AIEng["Decomposed Local AI Engine (OCR, GD&T Parser, Spatial R-Tree Orbit)"]
+    subgraph Storage_Security_Container ["4. Storage & Security Container"]
+        SQLCipher["SQLCipher Encrypted Database (AES-256)"]
+        AuditLedger["Cryptographic SHA-256 Audit Ledger"]
+        PackageMgr[".afai File Package Serializer"]
     end
 
-    subgraph Repositories ["4. Repository Layer (Data Access Abstraction)"]
-        Repos["ProjectRepo | DrawingRepo | CharacteristicRepo | BalloonRepo | AuditRepo"]
+    subgraph Export_Container ["5. Compliance & Export Container"]
+        ExcelComp["OpenPyXL AS9102 Form 1/2/3 Compiler"]
+        PDFStamper["PyMuPDF Vector PDF Overlay Stamper"]
     end
 
-    subgraph Infrastructure ["5. Infrastructure & Security Tier (Drivers & Storage)"]
-        Drivers["SQLCipher DB (AES-256) | PyMuPDF Engine | ONNX Runtime | Security | Logging | Recovery"]
-    end
-
-    Presentation --> Application
-    Application --> Domain
-    Application <--> Engines
-    Application --> Repositories
-    Repositories --> Infrastructure
+    Presentation_Container <--> Core_Container
+    Core_Container <--> Local_AI_Container
+    Core_Container <--> Storage_Security_Container
+    Core_Container --> Export_Container
 ```
 
-### 2.1 Architectural Dependency Rules
+---
+
+### 2.3 Deployment Diagram
+
+The Deployment Diagram illustrates how the executable application runs on an air-gapped Windows workstation.
+
+```mermaid
+flowchart TD
+    subgraph Workstation ["Air-Gapped Windows Workstation Host"]
+        
+        subgraph Bundle ["Executable Application Bundle (FAI_EV_ENGINEER.exe)"]
+            PyRuntime["Python 3.11 Embedded Runtime"]
+            QtDLLs["PySide6 / Qt 6 Dynamic Libraries"]
+            ONNXDLLs["ONNX Runtime Engine DLLs"]
+            AppCode["Nuitka / PyInstaller Compiled Core Modules"]
+        end
+
+        subgraph LocalDisk ["Workstation Local Disk"]
+            ProjectFiles["Project Archives (*.afai Files)"]
+            EncryptedDB["Encrypted SQLite Database (*.sqlite.enc)"]
+            Reports["AS9102 Output Workbooks (.xlsx & .pdf)"]
+            Logs["Quad-Channel Logs (App, Audit, Crash, Perf)"]
+        end
+    end
+
+    Bundle <--> LocalDisk
+```
+
+---
+
+## 3. Subsystem Architecture & 5-Layer Clean Model
+
+### 3.1 5-Layer Clean Architecture
+
+```mermaid
+flowchart TD
+    Layer1["1. Presentation Layer (PySide6 UI)"]
+    Layer2["2. Application Services Layer (Workflows & Orchestration)"]
+    Layer3["3. Core Domain Layer (Pure Business Entities & Rules)"]
+    Layer4["4. Repository Layer (Data Access Abstractions)"]
+    Layer5["5. Infrastructure Layer (Drivers, Encryption, Storage)"]
+
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
+    Layer4 --> Layer5
+```
+
+### 3.2 Architectural Dependency Rules
 - **Unidirectional Downward Dependency:** Presentation Layer -> Application Services Layer -> Domain Layer -> Repository Layer -> Infrastructure Layer.
 - **Domain Layer Independence:** The Domain Layer contains zero dependencies on PySide6 UI, SQLCipher databases, or third-party drivers.
 - **UI Isolation:** The Presentation Layer accesses system logic exclusively through Application Services.
 - **Infrastructure Decoupling:** Third-party libraries (PyMuPDF, ONNX Runtime, SQLCipher) are encapsulated behind abstract interfaces.
-
----
-
-## 3. Subsystem & Component Decomposition
-
-### 3.1 Presentation Layer (PySide6 GUI Framework)
-- **Main Window (`QMainWindow`):** Manages Postman-style multi-pane workspace (`QDockWidget`, `QSplitter`), global navigation, menus, and application styling.
-- **Blueprint Canvas (`QGraphicsView`):** Hardware-accelerated viewport providing 60 FPS interactive panning, zooming, and vector layer rendering.
-- **Feature Inspector Grid (`QTableView`):** Interactive inspection table rendering nominal values, upper/lower tolerances, measured results, and visual confidence warning badges for extractions below 95% confidence.
-- **Notification System:** Displays toast alerts, background job progress bars, and validation warning banners.
-
-### 3.2 Application Services Layer
-- **Project & Drawing Services:** Coordinates opening, saving, and managing project hierarchy (Organization -> Project -> Part -> Revision -> Drawing).
-- **Characteristic & Balloon Services:** Manages feature creation, manual overrides, leader line positioning, and balloon sequence renumbering.
-- **AI Orchestrator:** Manages background execution of neural OCR, GD&T AST parsing, and spatial balloon placement across non-blocking worker threads.
-- **Export & Import Engines:** Compiles validated inspection data into SAE AS9102 Form 1, Form 2, and Form 3 Excel workbooks and ballooned vector PDFs, and manages file imports.
-- **Background Job Manager:** Controls background worker threads (`QThread`), task queues, job cancellation, and progress signals.
-- **Settings & Undo/Redo Services:** Manages application preferences, AI confidence thresholds, user action history stacks, and theme settings.
-
-### 3.3 Decomposed Local AI Engine Subsystem
-- **OCR Engine:** Local neural network text detection and recognition model executing via ONNX Runtime.
-- **Geometry Analyzer:** Detects blueprint vector lines, title block regions, and dimension leader lines.
-- **Feature Detector:** Classifies extracted text strings into linear, angular, radial, and bilateral engineering callouts.
-- **GD&T Parser:** Parses ASME Y14.5 Feature Control Frames into structured Abstract Syntax Trees (AST).
-- **Confidence Engine:** Evaluates extraction probability scores and flags items below 95% confidence for human review.
-- **Balloon Placement Engine:** Calculates collision-free balloon coordinates using a 2D spatial R-Tree index (`rtree` & `shapely`).
-
-### 3.4 Validation & Business Rules Subsystem
-- **Sequence Auditor:** Ensures unique, continuous balloon numbering across single and multi-page engineering drawings.
-- **Tolerance Inspector:** Calculates upper/lower limit boundaries and evaluates PASS/FAIL inspection status.
-- **Export Readiness Gate:** Audits that 100% of Form 3 characteristics are approved and measured before allowing report export.
-
-### 3.5 Repository Layer
-- **Project Repository:** Data access interface and SQLCipher implementation for project structure persistence.
-- **Drawing Repository:** CRUD operations for drawing package metadata and sheet records.
-- **Characteristic & Balloon Repositories:** Persistence layer for extracted feature attributes, GD&T ASTs, and balloon vector coordinates.
-- **Audit Repository:** Append-only persistence for cryptographic SHA-256 hash-chain audit entries.
-
-### 3.6 Infrastructure & Security Layer
-- **SQLCipher Storage Engine:** Encrypted SQLite database engine providing AES-256 encryption at rest.
-- **PyMuPDF Driver Engine:** Sub-millisecond PDF vector extraction and high-DPI rasterization driver.
-- **ONNX Runtime Driver:** Local CPU-optimized neural network inference engine.
-- **Security Services:** AES-256 payload encryption, SHA-256 hashing, and digital signature validation.
-- **Logging Framework:** Quad-channel logging system separating App, Audit, Crash, and Performance logs.
-- **Cache & Recovery Managers:** Multi-level caching (render, OCR, thumbnail) and background auto-save crash recovery.
-- **File Manager:** `.afai` package serialization, project backups, and safe atomic file writes.
 
 ---
 
@@ -133,9 +163,27 @@ Projects are saved as single, self-contained `.afai` (Automated First Article In
 
 ---
 
-## 5. Integration Protocols, Events & Workflow Sequences
+## 5. Processing Pipelines & Cross-Component Interactions
 
-### 5.1 End-to-End Processing & AI Sequence
+### 5.1 AI Processing Pipeline Diagram
+
+The AI Processing Pipeline transforms raw drawing pages into structured engineering characteristics and collision-free balloon coordinates.
+
+```mermaid
+flowchart LR
+    PDF["1. Vector / Scanned PDF Page Stream"] --> PyMuPDF["2. PyMuPDF Vector & Image Layer Extractor"]
+    PyMuPDF --> OCR["3. ONNX Neural OCR Engine (Text Detection & Recognition)"]
+    OCR --> Classifier["4. Feature Detector (Linear, Angular, Radial Callouts)"]
+    OCR --> GDTP["5. ASME Y14.5 GD&T AST Parser"]
+    Classifier & GDTP --> Orbit["6. Spatial R-Tree Balloon Orbiting Engine"]
+    Orbit --> Output["7. Extracted Characteristics & Collision-Free Balloons"]
+```
+
+---
+
+### 5.2 Cross-Component Interaction Diagram (Auto-Balloon Sequence)
+
+This key sequence diagram details how requests flow across layers during explicit "Auto Ballooning".
 
 ```mermaid
 sequenceDiagram
@@ -143,28 +191,55 @@ sequenceDiagram
     actor Engineer as Quality Engineer
     participant UI as PySide6 Viewport & Grid
     participant Svc as AIOrchestrator
-    participant AI as Decomposed Local AI Engine
+    participant AI as Local AI Pipeline
     participant Val as Validation Engine
-    participant Repo as Repository Layer
-    participant Storage as SQLCipher Database
+    participant Repo as CharacteristicRepo
+    participant DB as SQLCipher Database
 
     Engineer->>UI: 1. Click "Auto Balloon" Button
-    UI->>Svc: 2. Request AI Feature Extraction
-    Svc->>AI: 3. Execute Local ONNX OCR, GD&T AST Parsing & R-Tree Orbiting
-    AI-->>Svc: 4. Return Extracted Features & Collision-Free Balloons
-    Svc->>Val: 5. Audit Balloon Sequences & Tolerance Limits
-    Val-->>Svc: 6. Validation Gate Passed
-    Svc->>Repo: 7. Save Characteristics & Balloons
-    Repo->>Storage: 8. Write AES-256 Encrypted Transaction
-    Svc-->>UI: 9. Hydrate Viewport Overlays & Inspector Grid
-    UI-->>Engineer: 10. Display Numbered Balloons on Drawing Sheet
+    UI->>Svc: 2. Trigger Extraction Request (drawing_id)
+    Svc->>AI: 3. Dispatch Job to Local AI Pipeline (Background QThread)
+    AI->>AI: 4. Execute Neural OCR, GD&T AST Parsing & R-Tree Orbiting
+    AI-->>Svc: 5. Return Extracted Characteristics & Balloon Coordinates
+    Svc->>Val: 6. Audit Balloon Sequences & Limit Boundaries
+    Val-->>Svc: 7. Validation Gate Passed
+    Svc->>Repo: 8. Save Characteristics & Balloons
+    Repo->>DB: 9. Write AES-256 Encrypted DB Transaction
+    Svc-->>UI: 10. Hydrate Viewport Overlays & Inspector Grid
+    UI-->>Engineer: 11. Display Numbered Balloons on Drawing Sheet
 ```
 
 ---
 
-## 6. Core Technology Stack & Architecture Trade-Off Matrix
+## 6. High-Level Error Handling & Recovery Strategy
 
-### 6.1 Core Technology Stack
+### 6.1 Resilience & Error Fallback Flowchart
+
+```mermaid
+flowchart TD
+    Fault["System Error Event"] --> Choice{"Error Category"}
+    
+    Choice -- "OCR / AI Timeout" --> Fallback1["Fallback to Manual Crop Inspector Grid & Notify User"]
+    Choice -- "Corrupt / Invalid PDF" --> Fallback2["Abort Ingestion, Log Crash Event & Prompt Re-upload"]
+    Choice -- "DB Lock / Encryption Error" --> Fallback3["Trigger RecoveryManager Backup Restore & Log Error"]
+    Choice -- "Export Validation Error" --> Fallback4["Block Export & Highlight Failing Items in Inspector Grid"]
+```
+
+### 6.2 Error Handling & Recovery Strategy Matrix
+
+| Error Condition | Subsystem Responsible | Detection & Fallback Strategy | User & System Impact |
+| :--- | :--- | :--- | :--- |
+| **OCR / AI Extraction Failure** | Local AI Engine | ONNX timeout handler catches failure; falls back to raw vector text extraction. | User receives toast alert; features highlighted for manual audit in Inspector Grid. |
+| **Corrupt / Unsupported PDF** | Infrastructure Tier | PyMuPDF exception handler catches invalid stream; aborts job safely. | Drawing ingestion stops; user prompted to supply a valid PDF file. |
+| **Database Encryption / Lock Error** | Storage & Security | SQLCipher lock handler catches exception; `RecoveryManager` restores auto-save snapshot. | Unsaved changes restored from local auto-save backup; zero data corruption. |
+| **AS9102 Export Validation Gate Failure** | Validation Engine | `ValidationEngine` checks completeness; blocks export if mandatory fields or measurements are missing. | Export button disabled; incomplete items highlighted in yellow/red on the grid. |
+| **Application Crash** | Infrastructure Tier | Crash handler captures stack trace to `crash.log`; saves emergency project recovery snapshot. | Upon restart, `RecoveryManager` prompts user to restore last session state. |
+
+---
+
+## 7. Core Technology Stack & Architecture Trade-Off Matrix
+
+### 7.1 Core Technology Stack
 
 | Architecture Layer | Selected Technology | Purpose & Role |
 | :--- | :--- | :--- |
@@ -177,7 +252,7 @@ sequenceDiagram
 
 ---
 
-### 6.2 Architecture Trade-Off Matrix
+### 7.2 Architecture Trade-Off Matrix
 
 | Design Area | Option Selected | Alternative Considered | Engineering Trade-off Rationale |
 | :--- | :--- | :--- | :--- |
@@ -189,19 +264,19 @@ sequenceDiagram
 
 ---
 
-## 7. Non-Functional Requirements & Architecture Sign-Off
+## 8. Non-Functional Requirements & Architecture Sign-Off
 
-### 7.1 Performance & Reliability Targets
+### 8.1 Performance & Reliability Targets
 - **Viewport Rendering:** Responsive interactive rendering optimized for large engineering drawings on supported hardware.
 - **AI Extraction Latency:** Performance target defined for reference hardware and representative drawing sets.
 - **UI Responsiveness:** Under 2 seconds user interaction response time across all editing workflows.
 - **Data Security & Air-Gap:** 100% local processing with zero external network connectivity.
 
-### 7.2 Architecture Sign-Off Checklist
-- [x] Section 1: Business Problem, Functional Scope & Architectural Principles baseline established.
-- [x] Section 2: 5-Layer Clean Architecture topology and dependency rules established.
-- [x] Section 3: Subsystem decomposition (UI, Services, Domain, Repositories, AI Engine, Validation) specified.
-- [x] Section 4: Encrypted SQLCipher database, SHA-256 audit ledger, and `.afai` package spec defined.
-- [x] Section 5: Domain Event catalog, system workflows, and error handling strategies specified.
-- [x] Section 6: Core technology stack and architecture trade-off matrix documented.
-- [x] Section 7: Non-functional requirements, performance targets, and sign-off baseline completed.
+### 8.2 Architecture Sign-Off Checklist
+- [x] C4 Context Diagram (Level 1) included.
+- [x] C4 Container Diagram (Level 2) included.
+- [x] Deployment Diagram included.
+- [x] Cross-Component Interaction Diagram (Auto-Balloon Sequence) included.
+- [x] AI Processing Pipeline Diagram included.
+- [x] High-Level Error Handling & Recovery Strategy included.
+- [x] Document approved for detailed Low-Level Design (LLD).
