@@ -1,0 +1,212 @@
+# FAI.EV.ENGINEER — Complete 5-Stage System Architecture Blueprint
+
+### Comprehensive Stage-by-Stage Visual Architecture & Workflow Specification
+
+This master document breaks down the complete architecture of **`FAI.EV.ENGINEER`** into 5 distinct, crystal-clear stage blueprints matching the enterprise multi-tenant SaaS architecture.
+
+---
+
+## 🔐 STAGE 1: Multi-Tenant Enterprise Auth & Edge Gateway Architecture
+
+```mermaid
+flowchart TD
+    subgraph Zone1 ["Zone 1: Public Internet & Subdomain Ingress"]
+        Subdomain["🌐 Tenant Entrypoint\nhttps://{tenant_slug}.faiev.engineer"]
+        WAF["🛡️ Cloudflare Enterprise WAF\n(DDoS Mitigation & TLS 1.3 Termination)"]
+        Ingress["☸️ NGINX Ingress Controller\n(mTLS Routing & Token Bucket Rate Limiting)"]
+    end
+
+    subgraph Zone2 ["Zone 2: Edge Authentication & Session Verification"]
+        EdgeAuth["⚡ Next.js Edge Auth Middleware"]
+        RedisSession[("⚡ Redis Enterprise Session Cache\n(Sub-2ms JWT Lookup)")]
+    end
+
+    subgraph Zone3 ["Zone 3: Multi-Tenant Identity Providers"]
+        ResendMagic["📬 Resend API Engine\n(Passwordless Email Magic Links)"]
+        SAMLJackson["🛡️ SAML 2.0 Jackson Proxy\n(Okta / Azure AD Enterprise SSO)"]
+        OAuth2["🔑 OAuth2 Providers\n(Google Workspace & Microsoft 365)"]
+    end
+
+    subgraph Zone4 ["Zone 4: Application Context & RLS Isolation"]
+        AuthGateway["🔐 NextAuth.js v5 / Better-Auth Gateway"]
+        PrismaMiddleware["⚙️ Prisma Tenant Context Middleware\n(Injects SET LOCAL app.current_tenant_id)"]
+        PostgresRLS[("🐘 AWS Aurora PostgreSQL\n(Row-Level Security Tenant Isolation)")]
+    end
+
+    Subdomain --> WAF --> Ingress --> EdgeAuth
+    EdgeAuth <-->|Sub-2ms Token Verification| RedisSession
+    EdgeAuth --> AuthGateway
+
+    ResendMagic & SAMLJackson & OAuth2 --> AuthGateway
+    AuthGateway <--> RedisSession
+    AuthGateway --> PrismaMiddleware --> PostgresRLS
+```
+
+### Stage 1 Execution Flow:
+1. **Subdomain Resolution:** The client accesses their dedicated tenant URL (`acme.faiev.engineer`).
+2. **Edge Interception:** Next.js Edge Auth Middleware checks the session JWT against **Redis** in $< 2\text{ ms}$.
+3. **Multi-Tenant SSO / Magic Link:** Unauthenticated users log in via **Resend Magic Links** or enterprise **SAML 2.0 (Okta/Azure AD)**.
+4. **Database RLS Context:** Every API request injects the `tenant_id` into the PostgreSQL session, enforcing strict database Row-Level Security.
+
+---
+
+## 📄 STAGE 2: Direct PDF Ingestion & 60 FPS Viewport Architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor QE as Quality Engineer
+    participant WebApp as Next.js WebApp UI
+    participant Gateway as Node.js API Gateway
+    participant Redis as Redis Cache
+    participant S3 as AWS S3 Storage Bucket
+    participant Engine as WebGL / Canvas Viewport
+
+    QE->>WebApp: 1. Drag & Drop PDF Blueprint (e.g. Turbine_Blade_RevC.pdf)
+    WebApp->>Gateway: 2. Request Presigned Upload URL (drawing_id, file_size)
+    Gateway->>Redis: 3. Verify User JWT & Tenant Storage Quota
+    Gateway-->>WebApp: 4. Return S3 Presigned PUT URL (15-min expiration)
+    WebApp->>S3: 5. Direct Binary Upload PDF to S3 (Bypasses API Servers)
+    S3-->>WebApp: 6. Upload Complete 200 OK
+    WebApp->>Engine: 7. Initialize WebGL Viewport Engine (PDF.js Vector Core)
+    Engine-->>QE: 8. Render Blueprint at 60 FPS (Pan, Zoom, Rotate, Sheets, Layers)
+```
+
+### Stage 2 Execution Flow:
+1. **Presigned Direct Upload:** The browser requests a short-lived S3 presigned PUT URL and uploads the blueprint PDF directly to **AWS S3**, completely avoiding backend server bottlenecks.
+2. **Desktop-Grade Viewport:** The client initializes a **WebGL / Canvas rendering engine** capable of rendering multi-page vector drawings up to $3200\%$ magnification at 60 FPS with sheet navigation and layer toggling.
+
+---
+
+## ⚡ STAGE 3: Async Kafka Event Mesh, KEDA Lag Autoscaler & AI Engine Architecture
+
+```mermaid
+flowchart TD
+    subgraph Trigger_Layer ["1. Explicit Human Trigger"]
+        ClickBtn["🖱️ Quality Engineer Clicks 'Auto Balloon'\n(AI MUST NOT auto-start on upload)"]
+        APIGateway[" Node.js API Gateway"]
+    end
+
+    subgraph Messaging_Layer ["2. Kafka Event Mesh & KEDA Scaler"]
+        KafkaTopic[("📣 Apache Kafka Broker\nTopic: 'autoballoon.requested'")]
+        KEDAOperator["☸️ KEDA ScaledObject Operator\n(Monitors Kafka Consumer Group Lag)"]
+    end
+
+    subgraph Compute_Layer ["3. Autoscale AI Extraction Worker Pool"]
+        Worker1["🤖 AI Worker Container 1"]
+        Worker2["🤖 AI Worker Container 2"]
+        WorkerN["🤖 AI Worker Container N (0 -> 50 Pods)"]
+    end
+
+    subgraph Execution_Engine ["4. Deep Vision & Geometry Extraction"]
+        ONNXOCR["🔍 ONNX Neural OCR Engine\n(Linear & Angular Dimensions)"]
+        GDTAST["📐 ASME Y14.5 GD&T AST Parser\n(Datums A-Z, MMC/LMC Modifiers)"]
+        RTreeOrbit["📍 Spatial R-Tree Orbiting Algorithm\n(Collision-Free Balloon Coordinates)"]
+    end
+
+    subgraph Sync_Layer ["5. Persistence & Live Sync"]
+        PgBouncer["🔄 PgBouncer Pooler"]
+        AuroraDB[("🐘 AWS Aurora PostgreSQL + PostGIS")]
+        RedisPubSub[("⚡ Redis WebSockets PubSub")]
+        NextJSUI[" Next.js WebSockets Client"]
+    end
+
+    ClickBtn --> APIGateway --> KafkaTopic
+    KafkaTopic <--> KEDAOperator
+    KEDAOperator -->|Scales 0-50 Pods| Worker1 & Worker2 & WorkerN
+    Worker1 & Worker2 & WorkerN --> Execution_Engine
+    Execution_Engine --> PgBouncer --> AuroraDB
+    Execution_Engine --> RedisPubSub --> NextJSUI
+```
+
+### Stage 3 Execution Flow:
+1. **Explicit "Auto Balloon" Click:** Processing starts **ONLY** when the engineer explicitly clicks the button.
+2. **Kafka Event Publish:** API Gateway publishes an event to Kafka.
+3. **KEDA Consumer Lag Autoscaling:** KEDA detects event lag and dynamically scales worker containers from **0 to 50 pods**.
+4. **AI Vision Pipeline:** Workers run ONNX Neural OCR, parse ASME Y14.5 GD&T Feature Control Frames into ASTs, and compute spatial R-Tree balloon placement.
+5. **Real-time Push:** Extracted characteristics are written to PostgreSQL via **PgBouncer** and pushed to the UI via **WebSockets (Redis PubSub)**.
+
+---
+
+## 🎈 STAGE 4: Balloonist-Grade Interactive Blueprint Editor & Dual-Layer Review Architecture
+
+```mermaid
+flowchart TD
+    subgraph Editor_Workspace ["Interactive Three-Pane Editing Canvas (Next.js + WebGL)"]
+        
+        subgraph Viewport_Layer ["1. Visual Balloon Layer Editor (Canvas Pane)"]
+            DragBalloon["🎯 Drag-and-Drop Balloon Position (x_norm, y_norm)"]
+            LeaderBend["📐 Smart Bending Leader Lines (Straight, Curved, Elbow)"]
+            RenumberSeq["🔢 Auto Sequential Renumbering (Renumber #5 -> Auto shifts #6 to #N)"]
+            ShapeSelect["🏷️ Shape Customization (Circle, Square Box, Flag Triangle, Hexagon)"]
+            DeleteGap["✂️ Delete Balloon & Auto-Resolve Numbering Gaps"]
+        end
+
+        subgraph Data_Inspector ["2. Extracted-Data Feature Inspector Grid (Table Pane)"]
+            NominalEdit["✏️ Edit Nominal Values & Tolerances (Auto-Recalculates Limits)"]
+            GDTEdit["📐 Edit ASME Y14.5 GD&T Datums & Modifiers in AST Editor"]
+            ZoneCalc["📍 Auto Drawing Zone Calculation (e.g. Zone B4, C2)"]
+        end
+
+        subgraph HITL_Review ["3. Human Validation Callout (<95% Flag)"]
+            YellowBadge["⚠️ Low Confidence (<95%) Yellow Flag Callout"]
+            BitmapSnippet["🔍 Magnified Side-by-Side Visual Crop Snippet (Raw Bitmap vs AI)"]
+        end
+
+        subgraph CoEdit_Manager ["4. WebSockets Selection Lock Manager"]
+            WSSync["⚡ Multi-User Selection Lock (Highlights Balloon #12 in Orange for Co-Editors)"]
+        end
+    end
+
+    Viewport_Layer <--> Data_Inspector
+    Data_Inspector <--> HITL_Review
+    HITL_Review <--> CoEdit_Manager
+```
+
+### Stage 4 Execution Flow:
+1. **Visual Layer Manipulations:** Engineers can drag balloons, customize shapes, modify leader lines, and renumber balloons with automatic sequential cascade (`#5 -> #6`).
+2. **Data Layer Editing:** Modify nominal dimensions, upper/lower tolerances, and ASME Y14.5 GD&T AST datums directly in the Postman-style feature grid.
+3. **<95% Confidence Callout:** Low-confidence items trigger a yellow alert badge with a side-by-side visual crop callout comparing raw drawing text against AI output.
+4. **Multi-User Lock Manager:** Real-time WebSockets selection locking prevents editing collisions when multiple engineers co-edit a blueprint package.
+
+---
+
+## 📬 STAGE 5: Data Persistence, SHA-256 Audit Ledger & AS9102 Resend Export Architecture
+
+```mermaid
+flowchart LR
+    ApprovedPackage["✅ Validated Inspection Package"]
+    
+    subgraph Persistence_Subnet ["1. Database & Ledger Subnet"]
+        PgBouncer["🔄 PgBouncer Pooler"]
+        AuroraDB[("🐘 AWS Aurora PostgreSQL\n+ PostGIS Spatial Indexing")]
+        SHA256Ledger["🔒 Cryptographic SHA-256 Audit Ledger\n(Hash_n = SHA256(Hash_n-1 + User + Payload))"]
+    end
+
+    subgraph Export_Subnet ["2. AS9102 Compiler Engine"]
+        Compiler["⚙️ Compliance Compiler Engine\n(OpenPyXL & PyMuPDF)"]
+        Form1["Form 1: Part Accountability (.xlsx)"]
+        Form2["Form 2: Product Accountability (.xlsx)"]
+        Form3["Form 3: Characteristic Accountability (.xlsx)"]
+        MarkedPDF["Marked-Up Vector PDF Blueprint"]
+        CSVExport["Raw CSV Export"]
+    end
+
+    subgraph Dispatch_Subnet ["3. Storage & Transactional Email"]
+        S3Storage[("☁️ AWS S3 Storage Bucket")]
+        ResendAPI["📬 Resend Email API Engine\n(Dispatches Presigned Download Links)"]
+        UserInbox["📥 Quality Team Email Inbox"]
+    end
+
+    ApprovedPackage --> PgBouncer --> AuroraDB & SHA256Ledger
+    ApprovedPackage --> Compiler
+    Compiler --> Form1 & Form2 & Form3 & MarkedPDF & CSVExport
+    Form1 & Form2 & Form3 & MarkedPDF & CSVExport --> S3Storage
+    SHA256Ledger & S3Storage --> ResendAPI --> UserInbox
+```
+
+### Stage 5 Execution Flow:
+1. **Validation & Locking:** The Quality Engineer signs off on the validated package.
+2. **Cryptographic SHA-256 Ledger:** The edit chain is sealed with an immutable cryptographic SHA-256 hash node.
+3. **AS9102 Excel & PDF Compilation:** The compiler generates official Form 1, Form 2, and Form 3 `.xlsx` workbooks and a marked-up vector PDF.
+4. **Resend Email Delivery:** Certified artifacts are uploaded to AWS S3, and **Resend API** dispatches presigned download links directly to the team's inboxes.

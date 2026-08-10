@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAI.EV.ENGINEER - Architecture Diagrams</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .diagram-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        h2 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>FAI.EV.ENGINEER System Architecture Stages</h1>
+    <p>These diagrams illustrate the 5 operational stages from Phase 3.</p>
+
+    <div class="diagram-container">
+        <h2>Stage 1: Identity, Auth & Multi-Tenant Edge Ingress</h2>
+        <div class="mermaid">
+flowchart TD
+    subgraph Ingress ["1. Ingress & Edge Tier"]
+        Client["Client Workstation (Browser)"]
+        WAF["Cloudflare WAF"]
+        IngressProxy["NGINX Ingress Controller"]
+    end
+
+    subgraph Auth_Tier ["2. Auth & Session Management"]
+        EdgeAuth["Next.js Edge Auth Middleware"]
+        AuthService["Auth Service (NextAuth / Better-Auth)"]
+        RedisSession[("Redis Session Cache")]
+        ResendMail["Resend Email API"]
+        SAMLProxy["SAML 2.0 Jackson Proxy"]
+    end
+
+    subgraph Tenant_DB ["3. Tenant Context & Storage"]
+        PrismaMiddleware["Prisma Tenant Middleware"]
+        PostgresRLS[("AWS Aurora PostgreSQL + PostGIS (RLS)")]
+    end
+
+    Client -->|app.faiev.engineer| WAF --> IngressProxy --> EdgeAuth
+    EdgeAuth <-->|JWT Lookup <2ms| RedisSession
+    EdgeAuth --> AuthService
+    AuthService <-->|Passwordless Magic Link| ResendMail
+    AuthService <-->|Okta / Azure AD SSO| SAMLProxy
+    AuthService <-->|Session Store| RedisSession
+    AuthService --> PrismaMiddleware --> PostgresRLS
+        </div>
+    </div>
+
+    <div class="diagram-container">
+        <h2>Stage 2: Direct PDF Ingestion & Viewport Rendering</h2>
+        <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor QE as Quality Engineer
+    participant WebApp as Next.js WebApp UI
+    participant Gateway as Node.js API Gateway
+    participant Redis as Redis Cache
+    participant S3 as AWS S3 Storage Bucket
+    participant Viewport as WebGL Viewport Engine
+
+    QE->>WebApp: 1. Drop Blueprint PDF (Vector/Raster 300 DPI)
+    WebApp->>Gateway: 2. Request Presigned Upload URL
+    Gateway->>Redis: 3. Verify JWT & Storage Limits
+    Gateway-->>WebApp: 4. Return S3 Presigned PUT URL (15-min TTL)
+    WebApp->>S3: 5. Direct Binary Upload (Bypasses API Gateway)
+    S3-->>WebApp: 6. 200 OK Upload Confirmed
+    WebApp->>Viewport: 7. Init PDF.js / Canvas WebGL Renderer
+    Viewport-->>QE: 8. Render Blueprint (60 FPS Pan, Zoom, Sheets, Layers)
+        </div>
+    </div>
+
+    <div class="diagram-container">
+        <h2>Stage 3: Asynchronous AI Feature Extraction & Phased Autoscaling</h2>
+        <div class="mermaid">
+flowchart TD
+    subgraph Trigger ["1. Explicit User Action"]
+        UserClick["User Clicks 'Auto Balloon' Button"]
+        API["Node.js API Gateway"]
+    end
+
+    subgraph Queue ["2. Messaging & Autoscaling (Phased)"]
+        MessageQueue[("Message Queue\n(Beta: SQS / BullMQ | Future: Kafka)")]
+        Autoscaler["Autoscaler\n(Beta: ECS / App Service | Future: KEDA)"]
+    end
+
+    subgraph Workers ["3. Worker Pool"]
+        JobState["State: QUEUED → PROCESSING → SUCCESS/FAILED → RETRY/DLQ"]
+        Idempotency["Idempotent Execution"]
+        WorkerPool["AI Extraction Containers"]
+        ONNX["ONNX Neural OCR Engine"]
+        GDTParser["ASME Y14.5 GD&T AST Parser"]
+        RTree["Spatial R-Tree Orbiting Algorithm"]
+    end
+
+    subgraph Sync ["4. Persistence & Real-time Update"]
+        PgBouncer["PgBouncer Pooler"]
+        Postgres[("AWS Aurora PostgreSQL + PostGIS")]
+        RedisWS[("Redis WebSockets PubSub")]
+        UI["Next.js WebApp UI"]
+    end
+
+    UserClick --> API --> MessageQueue
+    MessageQueue <--> Autoscaler
+    Autoscaler -->|Autoscale Workers| JobState
+    JobState --> WorkerPool
+    WorkerPool --> Idempotency
+    Idempotency --> ONNX & GDTParser & RTree
+    WorkerPool --> PgBouncer --> Postgres
+    WorkerPool --> RedisWS --> UI
+        </div>
+    </div>
+
+    <div class="diagram-container">
+        <h2>Stage 4: Interactive Dual-Layer Blueprint Editor</h2>
+        <div class="mermaid">
+flowchart TD
+    subgraph Canvas_Layer ["1. Visual Balloon Canvas"]
+        DragBall["Drag Balloon Position (x, y)"]
+        BendingLeader["Smart Bending Leaders (Straight, Curved, Elbow)"]
+        RenumberCascade["Auto Sequential Renumbering (#5 -> shifts #6 to #N)"]
+        Shapes["Shape Options (Circle, Box, Flag Triangle, Hexagon)"]
+    end
+
+    subgraph Table_Layer ["2. Extracted Data Inspector Grid"]
+        EditNominal["Edit Nominal Values & Tolerances (Auto Limits)"]
+        EditGDT["Edit ASME Y14.5 GD&T Datums (A-Z) & Modifiers"]
+        ZoneGrid["Drawing Zone Grid Calculation (Zone B4, C2)"]
+    end
+
+    subgraph Review_Layer ["3. Low Confidence (<95%) Review"]
+        ValidationFlow["Mandatory Validation Workflow"]
+        CropCallout["Magnified Raw Bitmap vs AI Text Snippet"]
+    end
+
+    subgraph Lock_Layer ["4. Multi-User Lock Manager"]
+        WSLock["WebSockets Lock (Highlights Balloon in Orange for Co-Editors)"]
+    end
+
+    Canvas_Layer <--> Table_Layer <--> Review_Layer <--> Lock_Layer
+        </div>
+    </div>
+
+    <div class="diagram-container">
+        <h2>Stage 5: Persistence, SHA-256 Audit Ledger & AS9102 Export</h2>
+        <div class="mermaid">
+flowchart LR
+    Approved["Validated Package"]
+    
+    subgraph Storage ["1. Storage & Audit"]
+        PgBouncer["PgBouncer"]
+        Postgres[("AWS Aurora PostgreSQL + PostGIS")]
+        SHA256["Tamper-Evident SHA-256 Hash Chain Ledger"]
+    end
+
+    subgraph Compiler ["2. Compliance Compiler"]
+        Form1["Form 1 (.xlsx)"]
+        Form2["Form 2 (.xlsx)"]
+        Form3["Form 3 (.xlsx)"]
+        PDFMarked["Marked-Up PDF"]
+    end
+
+    subgraph Email ["3. Delivery"]
+        S3[("AWS S3")]
+        Resend["Resend API"]
+        Inbox["User Inbox"]
+    end
+
+    Approved --> PgBouncer --> Postgres & SHA256
+    Approved --> Compiler --> Form1 & Form2 & Form3 & PDFMarked
+    Form1 & Form2 & Form3 & PDFMarked --> S3 --> Resend --> Inbox
+        </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>

@@ -22,7 +22,7 @@ flowchart TD
 
     subgraph Tenant_DB ["3. Tenant Context & Storage"]
         PrismaMiddleware["Prisma Tenant Middleware"]
-        PostgresRLS[("AWS Aurora PostgreSQL (RLS)")]
+        PostgresRLS[("AWS Aurora PostgreSQL + PostGIS (RLS)")]
     end
 
     Client -->|app.faiev.engineer| WAF --> IngressProxy --> EdgeAuth
@@ -79,6 +79,8 @@ flowchart TD
     end
 
     subgraph Workers ["3. Worker Pool"]
+        JobState["State: QUEUED → PROCESSING → SUCCESS/FAILED → RETRY/DLQ"]
+        Idempotency["Idempotent Execution"]
         WorkerPool["AI Extraction Containers"]
         ONNX["ONNX Neural OCR Engine"]
         GDTParser["ASME Y14.5 GD&T AST Parser"]
@@ -87,22 +89,26 @@ flowchart TD
 
     subgraph Sync ["4. Persistence & Real-time Update"]
         PgBouncer["PgBouncer Pooler"]
-        Postgres[("PostgreSQL + PostGIS DB")]
+        Postgres[("AWS Aurora PostgreSQL + PostGIS")]
         RedisWS[("Redis WebSockets PubSub")]
         UI["Next.js WebApp UI"]
     end
 
     UserClick --> API --> MessageQueue
     MessageQueue <--> Autoscaler
-    Autoscaler -->|Autoscale Workers| WorkerPool
-    WorkerPool --> ONNX & GDTParser & RTree
+    Autoscaler -->|Autoscale Workers| JobState
+    JobState --> WorkerPool
+    WorkerPool --> Idempotency
+    Idempotency --> ONNX & GDTParser & RTree
     WorkerPool --> PgBouncer --> Postgres
     WorkerPool --> RedisWS --> UI
 ```
 
 ### Technical Summary
 
-We enforce a strict explicit execution rule where AI extraction runs exclusively when the user manually triggers the auto balloon process. This prevents unnecessary compute overhead during initial uploads. To handle variable workloads efficiently from day one while preparing for enterprise scale, we utilize a phased approach to messaging and scaling. The initial beta architecture employs a simpler queue and worker setup (such as AWS SQS or Redis BullMQ coupled with basic container autoscaling) to accelerate time-to-market. The system retains abstracted interfaces so that as workload demands increase, it can seamlessly transition to an enterprise-grade Apache Kafka and Kubernetes Event-driven Autoscaling (KEDA) architecture. The extraction stack itself is highly specialized. It combines an ONNX neural OCR engine for reading linear and angular dimensions with an Abstract Syntax Tree parser dedicated to ASME Y14.5 Feature Control Frames. Finally, spatial R-Tree algorithms calculate the optimal, collision-free placement for all generated balloons.
+We enforce a strict explicit execution rule where AI extraction runs exclusively when the user manually triggers the auto balloon process. This prevents unnecessary compute overhead during initial uploads. To handle variable workloads efficiently from day one while preparing for enterprise scale, we utilize a phased approach to messaging and scaling. The initial beta architecture employs a simpler queue and worker setup (such as AWS SQS or Redis BullMQ coupled with basic container autoscaling) to accelerate time-to-market. The system retains abstracted interfaces so that as workload demands increase, it can seamlessly transition to an enterprise-grade Apache Kafka and Kubernetes Event-driven Autoscaling (KEDA) architecture. 
+
+During execution, jobs are strictly tracked through explicit states (`QUEUED → PROCESSING → SUCCESS/FAILED → RETRY/DLQ`). Worker execution is fully idempotent, ensuring that in the event of a failure, retries safely process without duplicating data, and persistent failures are routed to a Dead Letter Queue (DLQ) for review. The extraction stack itself is highly specialized. It combines an ONNX neural OCR engine for reading linear and angular dimensions with an Abstract Syntax Tree parser dedicated to ASME Y14.5 Feature Control Frames. Finally, spatial R-Tree algorithms calculate the optimal, collision-free placement for all generated balloons.
 
 ## Stage 4: Interactive Dual-Layer Blueprint Editor
 
@@ -122,7 +128,7 @@ flowchart TD
     end
 
     subgraph Review_Layer ["3. Low Confidence (<95%) Review"]
-        FlagAlert["Low Confidence Yellow Flag Alert"]
+        ValidationFlow["Mandatory Validation Workflow"]
         CropCallout["Magnified Raw Bitmap vs AI Text Snippet"]
     end
 
@@ -135,7 +141,9 @@ flowchart TD
 
 ### Technical Summary
 
-The editor interface provides extensive visual controls over the blueprint. Users can intuitively drag and drop balloons, adjust bending leader paths, customize shapes, and rely on automatic cascade renumbering when items are inserted or removed. Alongside the visual canvas, a comprehensive data inspector grid allows for live property editing. Engineers can adjust nominal values, toggle symmetric or bilateral tolerances, and modify ASME Y14.5 GD&T datums, which instantly recalculates specification limits. To ensure accuracy, any AI extraction falling below a 95 percent confidence threshold triggers a prominent yellow flag alert. This prompts a human review mode that displays a magnified visual crop comparing the source PDF directly against the extracted text. Furthermore, real-time collaboration is protected by a WebSocket selection locking mechanism that prevents conflicting edits when multiple engineers are actively working on the same drawing sheet.
+The editor interface provides extensive visual controls over the blueprint. Users can intuitively drag and drop balloons, adjust bending leader paths, customize shapes, and rely on automatic cascade renumbering when items are inserted or removed. Alongside the visual canvas, a comprehensive data inspector grid allows for live property editing. Engineers can adjust nominal values, toggle symmetric or bilateral tolerances, and modify ASME Y14.5 GD&T datums, which instantly recalculates specification limits. 
+
+To ensure absolute accuracy, the system enforces an explicit AI validation workflow. Any AI extraction falling below a 95 percent confidence threshold triggers a mandatory human verification step. This blocks final approval until an engineer reviews a magnified visual crop comparing the source PDF directly against the extracted text, ensuring no low-confidence data slips into production. Furthermore, real-time collaboration is protected by a WebSocket selection locking mechanism that prevents conflicting edits when multiple engineers are actively working on the same drawing sheet.
 
 ## Stage 5: Persistence, SHA-256 Audit Ledger & AS9102 Export
 
@@ -145,8 +153,8 @@ flowchart LR
     
     subgraph Storage ["1. Storage & Audit"]
         PgBouncer["PgBouncer"]
-        Postgres[("Aurora PostgreSQL")]
-        SHA256["SHA-256 Hash Audit Ledger"]
+        Postgres[("AWS Aurora PostgreSQL + PostGIS")]
+        SHA256["Tamper-Evident SHA-256 Hash Chain Ledger"]
     end
 
     subgraph Compiler ["2. Compliance Compiler"]
@@ -169,4 +177,4 @@ flowchart LR
 
 ### Technical Summary
 
-Regulatory compliance is built into the foundation of the persistence layer. Every single edit made to a blueprint appends an immutable SHA-256 hash node to our database, guaranteeing full traceability for aerospace audits. When a package is finalized, the compliance compiler automatically generates AS9102 Form 1, Form 2, and Form 3 Excel workbooks along with raw CSV files and the fully marked-up vector PDFs. These finalized artifacts are securely stored in AWS S3, and the system immediately dispatches email notifications containing secure download links directly to the user's inbox via the Resend API.
+Regulatory compliance is built into the foundation of the persistence layer. Every single edit made to a blueprint appends an immutable node to our database. These nodes are cryptographically linked together to form a tamper-evident SHA-256 hash chain ledger, guaranteeing that any unauthorized modification immediately breaks the chain. This provides 100% legally binding traceability for aerospace audits. When a package is finalized, the compliance compiler automatically generates AS9102 Form 1, Form 2, and Form 3 Excel workbooks along with raw CSV files and the fully marked-up vector PDFs. These finalized artifacts are securely stored in AWS S3, and the system immediately dispatches email notifications containing secure download links directly to the user's inbox via the Resend API.
