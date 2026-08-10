@@ -64,7 +64,7 @@ sequenceDiagram
 
 To handle large engineering blueprints efficiently, the system utilizes direct presigned S3 URLs. This allows users to upload PDF files up to 200MB directly to storage, completely bypassing the need to route heavy binary streams through our core API servers. Once the document is ingested, our custom Canvas rendering engine takes over. Built on WebGL, the viewport renders complex vector PDF layers at a smooth 60 frames per second. It supports extreme zooming capabilities up to 3200 percent and fluid multi-sheet tab navigation for dense schematics.
 
-## Stage 3: Asynchronous AI Feature Extraction & KEDA Scaling
+## Stage 3: Asynchronous AI Feature Extraction & Phased Autoscaling
 
 ```mermaid
 flowchart TD
@@ -73,12 +73,12 @@ flowchart TD
         API["Node.js API Gateway"]
     end
 
-    subgraph Queue ["2. Messaging & Autoscaling"]
-        Kafka[("Apache Kafka Topic: autoballoon.requested")]
-        KEDA["KEDA ScaledObject Operator"]
+    subgraph Queue ["2. Messaging & Autoscaling (Phased)"]
+        MessageQueue[("Message Queue\n(Beta: SQS / BullMQ | Future: Kafka)")]
+        Autoscaler["Autoscaler\n(Beta: ECS / App Service | Future: KEDA)"]
     end
 
-    subgraph Workers ["3. Worker Pool (0 to 50 Pods)"]
+    subgraph Workers ["3. Worker Pool"]
         WorkerPool["AI Extraction Containers"]
         ONNX["ONNX Neural OCR Engine"]
         GDTParser["ASME Y14.5 GD&T AST Parser"]
@@ -92,9 +92,9 @@ flowchart TD
         UI["Next.js WebApp UI"]
     end
 
-    UserClick --> API --> Kafka
-    Kafka <--> KEDA
-    KEDA -->|Autoscale Pods| WorkerPool
+    UserClick --> API --> MessageQueue
+    MessageQueue <--> Autoscaler
+    Autoscaler -->|Autoscale Workers| WorkerPool
     WorkerPool --> ONNX & GDTParser & RTree
     WorkerPool --> PgBouncer --> Postgres
     WorkerPool --> RedisWS --> UI
@@ -102,7 +102,7 @@ flowchart TD
 
 ### Technical Summary
 
-We enforce a strict explicit execution rule where AI extraction runs exclusively when the user manually triggers the auto balloon process. This prevents unnecessary compute overhead during initial uploads. To handle variable workloads, KEDA actively monitors Kafka consumer group lag and dynamically scales our AI worker pods anywhere from zero to fifty instances. The extraction stack itself is highly specialized. It combines an ONNX neural OCR engine for reading linear and angular dimensions with an Abstract Syntax Tree parser dedicated to ASME Y14.5 Feature Control Frames. Finally, spatial R-Tree algorithms calculate the optimal, collision-free placement for all generated balloons.
+We enforce a strict explicit execution rule where AI extraction runs exclusively when the user manually triggers the auto balloon process. This prevents unnecessary compute overhead during initial uploads. To handle variable workloads efficiently from day one while preparing for enterprise scale, we utilize a phased approach to messaging and scaling. The initial beta architecture employs a simpler queue and worker setup (such as AWS SQS or Redis BullMQ coupled with basic container autoscaling) to accelerate time-to-market. The system retains abstracted interfaces so that as workload demands increase, it can seamlessly transition to an enterprise-grade Apache Kafka and Kubernetes Event-driven Autoscaling (KEDA) architecture. The extraction stack itself is highly specialized. It combines an ONNX neural OCR engine for reading linear and angular dimensions with an Abstract Syntax Tree parser dedicated to ASME Y14.5 Feature Control Frames. Finally, spatial R-Tree algorithms calculate the optimal, collision-free placement for all generated balloons.
 
 ## Stage 4: Interactive Dual-Layer Blueprint Editor
 
