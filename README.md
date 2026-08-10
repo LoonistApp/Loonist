@@ -3,10 +3,10 @@
 # ✈️ FAI.EV.ENGINEER
 ### *Enterprise AI-Powered First Article Inspection Platform*
 
-[![Version](https://img.shields.io/badge/Version-v1.0_Baseline-blue.svg?style=for-the-badge&logo=git)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Version](https://img.shields.io/badge/Version-v2.0_Browser_First-blue.svg?style=for-the-badge&logo=git)](./FAI.EV.ENGINEER_MASTER_PRD.md)
 [![Status](https://img.shields.io/badge/Status-Approved_SSOT-emerald.svg?style=for-the-badge&logo=checkmark)](./FAI.EV.ENGINEER_MASTER_PRD.md)
 [![Compliance](https://img.shields.io/badge/Compliance-SAE_AS9102_Rev_B%2FC-orange.svg?style=for-the-badge&logo=shield)](./FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Form Factor](https://img.shields.io/badge/Platform-Desktop_B2B_SaaS-purple.svg?style=for-the-badge&logo=electron)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Platform](https://img.shields.io/badge/Platform-Browser_First_B2B_SaaS-purple.svg?style=for-the-badge&logo=nextdotjs)](./FAI.EV.ENGINEER_MASTER_PRD.md)
 [![Owner](https://img.shields.io/badge/Product_Owner-Harsh_Yadav-black.svg?style=for-the-badge&logo=person)](./FAI.EV.ENGINEER_MASTER_PRD.md)
 
 <p align="center">
@@ -19,8 +19,8 @@
 
 > [!IMPORTANT]
 > **SINGLE SOURCE OF TRUTH (SSOT)**  
-> This repository contains the official Master Product Requirements Document for **FAI.EV.ENGINEER** (Product Owner: **Harsh Yadav**).  
-> All requirements build strictly upon the SAE AS9102 (Rev B/C) standard and ASME Y14.5 GD&T drafting specifications.
+> This repository contains the official Master System Architecture and PRD for **FAI.EV.ENGINEER** (Product Owner: **Harsh Yadav**).  
+> Built strictly upon SAE AS9102 (Rev B/C) standards and ASME Y14.5 GD&T drafting specifications.
 
 ---
 
@@ -28,9 +28,50 @@
 
 | File | Purpose | Description |
 | :--- | :--- | :--- |
-| 📄 [`FAI.EV.ENGINEER_MASTER_PRD.md`](./FAI.EV.ENGINEER_MASTER_PRD.md) | **Master PRD (SSOT)** | Official Product Requirements Document in Harsh Yadav's 7-part executive format. |
-| 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Business Domain Analysis** | Domain Model, Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
-| 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level Design (HLD)** | Standalone Python Architecture (PySide6 / Qt6), Subsystems, Data Flows, SQLCipher ERD, `.afai` Bundle, Nuitka Packaging. |
+| 📄 [`FAI.EV.ENGINEER_MASTER_PRD.md`](./FAI.EV.ENGINEER_MASTER_PRD.md) | **Master PRD (SSOT)** | Master Product Requirements Document in Harsh Yadav's 7-part executive format. |
+| 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Domain Analysis** | DDD Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
+| 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Diagrams, Prisma PostgreSQL Schema, Kafka Event Mesh, Docker, Kubernetes, KEDA Autoscaling, PgBouncer, and Resend Email Automation. |
+
+---
+
+## 🏛️ Master System Architecture Diagram
+
+![FAI.EV.ENGINEER Multi-Tenant System Architecture Blueprint](C:\Users\hy376\.gemini\antigravity\brain\1c296c4b-eef4-4158-ba24-a89523b57488\fai_ev_engineer_system_architecture_1786338488664.png)
+
+---
+
+## 🛠️ Production Technology Stack
+
+```mermaid
+flowchart LR
+    Frontend["🎨 Next.js (TypeScript / React 19)\nWebGL / Canvas Viewport Engine"]
+    API["⚡ Node.js / Express API Gateway"]
+    DB[("🐘 AWS Aurora PostgreSQL\nPrisma ORM + PostGIS + RLS")]
+    Pooler["🔄 PgBouncer Pooler"]
+    Cache["🚀 Redis Enterprise Cluster"]
+    Mesh["📩 Apache Kafka Event Mesh"]
+    Workers["🤖 AI Vision Workers\nKEDA Autoscaled"]
+    Mail["📬 Resend Email API"]
+    Store["☁️ AWS S3 Presigned Uploads"]
+
+    Frontend <--> API
+    API <--> Cache & Mesh & Pooler & Mail & Store
+    Mesh <--> Workers
+    Workers <--> Pooler & Store & Cache
+    Pooler <--> DB
+```
+
+| Architecture Tier | Technology Selected | Rationale |
+| :--- | :--- | :--- |
+| **Frontend UI** | **Next.js (React 19, TypeScript)** | SSR, App Router, WebGL/Canvas 60 FPS vector blueprint viewport engine. |
+| **API Gateway** | **Node.js + Express (TypeScript)** | Modular REST/GraphQL microservices, JWT/OAuth2 RBAC authentication. |
+| **Database & ORM** | **Prisma ORM + AWS Aurora PostgreSQL** | Type-safe queries, PostGIS 2D spatial indexing, Row Level Security (RLS). |
+| **DB Pooler** | **PgBouncer** | Connection multiplexing during KEDA AI worker scaling bursts. |
+| **Caching & PubSub**| **Redis Enterprise Cluster** | Session management, API response cache, rate-limiting, socket connection state. |
+| **Event Mesh** | **Apache Kafka (KRaft)** | Durable event backbone (`autoballoon.requested`, `autoballoon.completed`). |
+| **Worker Scaling** | **KEDA (Kubernetes Event Autoscaler)** | Dynamic pod scaling driven by Kafka Consumer Group Lag. |
+| **Mail Automation** | **Resend API** | Passwordless magic links, team invitations, export alerts. |
+| **Object Storage** | **AWS S3 / MinIO** | Direct presigned client uploads for vector PDF blueprints (200MB limit). |
 
 ---
 
@@ -39,91 +80,41 @@
 ```mermaid
 flowchart LR
     subgraph Highlights ["Key Platform Highlights"]
-        Time["⚡ >85% Reduction in FAI Setup Time (8h -> <20m)"]
+        Time["⚡ >85% Reduction in FAI Setup Time (8h -> <15m)"]
         Acc["🎯 ≥95% AI Extraction Accuracy"]
-        Proc["⏱️ <30s Average Drawing Processing Time"]
-        Sec["🔒 Zero Data Loss & Session Isolation"]
+        Proc["⏱️ <15s Average Drawing Processing Time"]
+        Sec["🔒 Strict Multi-Tenant Isolation & SOC2 Readiness"]
     end
 ```
 
-### Key Success Metrics
-* 🚀 **Reduce Manual Ballooning Time:** By at least **85%** (cutting setup time from 4–12 hours down to $<20$ minutes per drawing sheet).
-* 🎯 **AI Extraction Accuracy:** **$\ge 95\%$** across supported vector and scanned engineering blueprints.
-* ⚡ **Processing Latency:** Average drawing processing time **$< 30$ seconds**; UI interaction response time **$< 2$ seconds**.
-* 🛡️ **Guardrail Uptime:** System Uptime **$\ge 99.9\%$**, PDF Processing Failure Rate **$< 1\%$**, Zero data loss during processing or export.
-
 ---
 
-## 🔄 End-to-End Product Flow
+## 🔄 End-to-End Event-Driven Flow
 
 ```mermaid
 flowchart TD
-    A["1. Launch FAI.EV.ENGINEER Desktop App"] --> B["2. Auth / Google SSO Login"]
+    A["1. Launch WebApp in Browser (Next.js)"] --> B["2. Auth / SAML 2.0 / Resend Magic Link Login"]
     B --> C["3. Select Hierarchy: Organization → Project → Part → Revision → Drawing"]
-    C --> D["4. Upload Blueprint (Vector / Scanned PDF)"]
-    D --> E["5. 60 FPS Viewport Rendering & Vector Canvas Initialization"]
+    C --> D["4. Direct Upload Drawing to AWS S3 (Presigned PUT URL)"]
+    D --> E["5. WebGL / Canvas Viewport Initialization (60 FPS Pan/Zoom)"]
     E --> F["6. User Clicks 'Auto Balloon' (Explicit AI Trigger)"]
     
-    subgraph Local_AI_Pipeline ["Local AI Processing Engine"]
-        F --> F1["Title Block Extraction (AS9102 Form 1 & 2)"]
-        F --> F2["Dimension & Tolerance Parsing (Form 3)"]
-        F --> F3["ASME Y14.5 GD&T Feature Control Frame AST Parsing"]
+    subgraph Async_Event_Mesh ["Kafka Event Mesh & KEDA Worker Pool"]
+        F --> F1["Publish Event to 'autoballoon.requested' Kafka Topic"]
+        F1 --> F2["KEDA Autoscale AI Workers on Kafka Consumer Lag"]
+        F2 --> F3["ONNX Neural OCR + ASME Y14.5 GD&T AST Parsing"]
+        F3 --> F4["Spatial R-Tree Collision-Avoidance Balloon Placement"]
+        F4 --> F5["Batch Save to PostgreSQL via Prisma + PgBouncer"]
     end
     
-    F1 & F2 & F3 --> G["7. Spatial R-Tree Collision-Free Balloon Placement"]
-    G --> H["8. Postman-Style HITL Verification Grid"]
-    
-    subgraph HITL_Review ["Human Verification & Editing"]
-        H --> H1["Edit Balloon Numbers, Leaders, Visibility & Values"]
-        H --> H2["Low-Confidence Visual Crop Callout Inspection (<95%)"]
-        H --> H3["Enter Measured Caliper / CMM Results"]
-    end
-    
-    H1 & H2 & H3 --> I["9. Validation & Export (AS9102 Form 1/2/3, Excel, CSV, PDF)"]
-    I --> J["10. Encrypted Storage & Audit Logging"]
+    F5 --> G["7. Stream Live Results via WebSockets to Next.js Viewport"]
+    G --> H["8. Postman-Style HITL Verification Grid (<95% Flagged Yellow)"]
+    H --> I["9. Export Certified AS9102 Form 1/2/3 Workbooks (.xlsx, .pdf, .csv)"]
+    I --> J["10. Dispatch Email Notifications via Resend & Append SHA-256 Audit Log"]
 ```
-
----
-
-## 🖥️ Postman-Style Three-Pane Workspace
-
-```
-+-------------------------------------------------------------------------------------------------------+
-|  FAI.EV.ENGINEER  [File]  [Edit]  [View]  [Auto Balloon]  [Tools]  [Export]     [Offline Active]      |
-+-------------------------------------------------------------------------------------------------------+
-|  [Tabs]:  [+] Drawing_Rev_C.afai  |  Turbine_Blade_Form1.afai                                         |
-+-------------------+--------------------------------------------------+--------------------------------+
-| NAVIGATOR         | DRAWING CANVAS (60 FPS WebGL / SVG Overlay)      | FEATURE INSPECTOR & GRID       |
-| ----------------- | ------------------------------------------------ | ------------------------------ |
-| > Org: Acme Aerospace                                                | Balloon #14  [Confidence: 99%] |
-|  > Project: Turbine                                                 | ------------------------------ |
-|   > Part: Blade-7728                                                 | Nominal: 1.500  Unit: INCH     |
-|    > Rev: C (Active) |            +-----------------------+             | Tol: +0.005 / -0.005           |
-|                     |            |  (14) 1.500 +/- .005  |             | Limits: 1.4950 - 1.5050        |
-| LAYERS              |            +-----------------------+             | ------------------------------ |
-| [x] Balloons        |                                                  | Measured Value: [ 1.5020 ]     |
-| [x] AI Highlight    |                                                  | Status: [ PASS (GREEN) ]       |
-| [ ] Geometry        |                                                  | ------------------------------ |
-|                     |                                                  | [ Approve ] [ Edit ] [ Delete] |
-+-------------------+--------------------------------------------------+--------------------------------+
-| FEATURE TABLE GRID (Bottom Dockable)                                                                  |
-| #  | Balloon | Zone | Type      | Requirement    | Min    | Max    | Measured | Status  | Confidence |
-| ---|---------|------|-----------|----------------|--------|--------|----------|---------|------------|
-| 1  | 14      | B4   | LINEAR    | 1.500 +/- .005 | 1.4950 | 1.5050 | 1.5020   | PASS    | 99.4%      |
-| 2  | 15      | C2   | GD&T POS  | [Pos|0.002|A|B]| 0.0000 | 0.0020 | 0.0008   | PASS    | 97.1% (Warn|
-+-------------------------------------------------------------------------------------------------------+
-```
-
----
-
-## 👥 Personas & Target Industries
-
-* **Primary Daily Users:** Quality Engineers, Manufacturing Engineers, Inspection Engineers, Metrologists.
-* **Primary Buyers:** Quality Department Heads, VPs of Manufacturing, Machine Shop Owners.
-* **Target Industries:** Aerospace & Defense, Automotive, Medical Devices, Precision Manufacturing, Machine Shops.
 
 ---
 
 > [!NOTE]
 > **Repository Owner:** Harsh Yadav (Lead Product Owner)  
-> **Repository Status:** Single PRD SSOT Baseline Established
+> **Repository Status:** Master System Architecture Approved Baseline

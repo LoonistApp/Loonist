@@ -39,7 +39,7 @@ mindmap
 | **Core** | **Spatial Ballooning** | Automated placement of numbered inspection balloons with spatial R-Tree collision avoidance. | Prevents balloons from obscuring blueprint dimensions or lines. |
 | **Core** | **AS9102 Compliance** | Automated generation of Form 1 (Part Accountability), Form 2 (Product Accountability), and Form 3 (Characteristic Accountability). | Ensures 100% compliance for Boeing, Lockheed, and Airbus supplier audits. |
 | **Supporting** | **Tenant Hierarchy** | 5-tier organizational tree (`Org -> Project -> Part -> Revision -> Drawing`). | Enables multi-project enterprise asset management. |
-| **Security** | **Data Isolation** | Session-isolated processing & encrypted local storage (SQLCipher AES-256). | Meets strict ITAR/CMMC Level 2 defense compliance. |
+| **Security** | **Data Isolation** | Multi-tenant tenant ID isolation & PostgreSQL Row-Level Security (RLS) + S3 presigned URLs. | Meets strict ITAR/CMMC Level 2 defense compliance & SOC2 Type II. |
 
 ---
 
@@ -102,26 +102,27 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Engineer as Quality Engineer
-    participant App as FAI.EV.ENGINEER Desktop
-    participant AI as Local C++ AI Engine
-    participant Store as Encrypted Local Storage
+    actor Engineer as Quality Engineer (Next.js UI)
+    participant API as Node.js API Gateway
+    participant Kafka as Kafka Event Mesh
+    participant AI as Scalable AI Worker Engine
+    participant DB as Prisma / PostgreSQL (RLS)
 
-    Engineer->>App: 1. Select Org/Project/Part/Revision/Drawing
-    Engineer->>App: 2. Upload PDF Blueprint
-    App->>App: 3. Render Viewport Canvas (60 FPS)
+    Engineer->>API: 1. Select Org/Project/Part/Revision & Upload Drawing to S3
+    Engineer->>API: 2. Render WebGL Viewport Canvas (60 FPS)
     
-    Note over Engineer, App: Explicit Human Trigger
-    Engineer->>App: 4. Click "Auto Balloon" Button
-    App->>AI: 5. Trigger AI Feature Extraction Job
-    AI->>AI: 6. Detect Title Block (Form 1/2) & Tolerances/GD&T (Form 3)
-    AI->>AI: 7. Run R-Tree Spatial Collision Avoidance Balloon Placement
-    AI-->>App: 8. Return Extracted Characteristics & Balloon Coordinates
+    Note over Engineer, API: Explicit Human Trigger
+    Engineer->>API: 3. Click "Auto Balloon" Button
+    API->>Kafka: 4. Dispatch 'autoballoon.requested' Message
+    Kafka->>AI: 5. KEDA Scales Workers & Triggers AI Extraction
+    AI->>AI: 6. Parse Title Block (Form 1/2) & Tolerances/GD&T (Form 3)
+    AI->>AI: 7. Run Spatial R-Tree Collision-Avoidance Balloon Placement
+    AI->>DB: 8. Persist Extracted Characteristics & Balloons
+    AI-->>Engineer: 9. Stream Extracted Data over WebSockets to Viewport
     
-    App->>Engineer: 9. Display Feature Grid & Viewport Overlays (<95% flagged yellow)
-    Engineer->>App: 10. Edit / Renumber / Validate Characteristics & Enter Measured Values
-    Engineer->>App: 11. Trigger AS9102 Export (.xlsx / .pdf)
-    App->>Store: 12. Save Cryptographic Event Log & Project State
+    Engineer->>Engineer: 10. Edit / Renumber / Validate Characteristics & Enter Measured Values
+    Engineer->>API: 11. Trigger AS9102 Export (.xlsx / .pdf via Resend Alert)
+    API->>DB: 12. Append Cryptographic SHA-256 Audit Log Record
 ```
 
 ---

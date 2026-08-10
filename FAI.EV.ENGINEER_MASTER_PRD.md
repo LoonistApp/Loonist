@@ -1,198 +1,131 @@
-# FAI.EV.ENGINEER — PRD
+# FAI.EV.ENGINEER — Enterprise Master PRD
 
 | Attribute | Value |
 | :--- | :--- |
 | **Product Name** | `FAI.EV.ENGINEER` |
-| **Version** | v1.0 |
-| **Document Status** | Draft |
-| **Last Updated** | 23 July 2026 |
+| **Version** | v2.0 (Browser-First Enterprise SaaS Platform) |
+| **Document Status** | Approved Master Baseline PRD |
+| **Last Updated** | 10 August 2026 |
 | **Product Owner (POC)** | Harsh Yadav |
-| **Design POC** | To Be Decided |
-| **Engineering POC** | To Be Decided |
-| **Marketing POC** | To Be Decided |
-| **QA POC** | To Be Decided |
+| **Architectural Model** | Multi-Tenant Cloud SaaS + Hybrid Desktop Agent Ready |
+| **Target Infrastructure** | Containerized Kubernetes (EKS/GKE/AKS), KEDA, Kafka Event Mesh |
 
 ---
 
-## Why? (Objective)
+## 1. Why? (Objective & Business Context)
 
-### 1. Business Objectives
-* **Primary differentiation:** Affordable alternative to existing FAI ballooning solutions (Balloonist.io, 1Factory).
-* **Business model:** Subscription SaaS.
-* **Pricing:** To be decided after product development. *Call for details.*
-* **Year 1 business goals:** (To Be Decided)
+### 1.1 Business Objectives
+* **Primary Differentiation:** Modern, AI-augmented, browser-first First Article Inspection (FAI) ballooning and AS9102 Form generation platform replacing legacy desktop single-user tools (1Factory, Balloonist.io, Discus).
+* **Business Model:** Multi-Tenant B2B Subscription SaaS (Tiered Seat Licenses + Usage-based processing credits).
+* **Target Audience:** Enterprise Aerospace & Defense Tier 1/2 Suppliers, Automotive Precision Machining, Medical Device Manufacturers, ISO 9001 / AS9100 Certified Machine Shops.
+* **Year 1 Business Goals:**
+  * Achieve 99.95% system availability.
+  * Reduce manual ballooning and AS9102 report generation time by **at least 85%** (under 15 minutes per drawing package).
+  * Onboard 150+ enterprise manufacturing accounts across USA, EU, and APAC.
 
-### 2. User Objectives
-* Reduce manual ballooning effort and repetitive feature extraction.
-* Reduce transcription errors in AS9102 report creation (Form 1, Form 2, and Form 3).
-* Deliver a faster workflow with explicit human control (Auto Balloon is user-triggered).
-
----
-
-## How do we measure success?
-
-### 1. Associated OKR/Goal
-* Reduce manual FAI ballooning time by **at least 85%**.
-* Deliver an affordable SaaS for manufacturing companies.
-* Validate the product through weekly beta releases and continuous customer feedback.
-
-### 2. Success Metrics
-* AI extraction accuracy $\ge 95\%$ for supported engineering drawings.
-* Average drawing processing time $< 30$ seconds.
-* Export success rate $\ge 99\%$.
-* Weekly active beta users continue to increase over each release.
-* Positive customer feedback from pilot users.
-
-### 3. Guardrail/Do not disturb metrics (These metrics shouldn’t be negatively affected)
-* System uptime $\ge 99.9\%$.
-* PDF processing failure rate $< 1\%$.
-* Zero data loss during processing or export.
-* No degradation in AI extraction accuracy while introducing new features.
-* Average application response time remains $< 2$ seconds for normal user interactions.
-* User drawings are processed only during the active session and are not permanently stored.
-* Unauthorized users must never be able to access another organization's drawings or reports.
+### 1.2 User Objectives
+* Eliminate repetitive manual dimension extraction and balloon placement on complex PDF blueprints.
+* Eliminate human transcription errors when populating SAE AS9102 Rev B/C reports (Form 1, Form 2, Form 3).
+* Deliver a lightning-fast, postman-style interactive browser workspace with 60 FPS vector PDF pan/zoom.
+* Maintain explicit human control (*Auto Balloon* executes strictly on user demand, never auto-triggered on upload).
+* Real-time team collaboration: Quality Engineers, Shop Floor Inspectors, and QA Managers work within unified tenant projects.
 
 ---
 
-## Who are the users:
+## 2. Success Metrics & Guardrail Metrics
 
-### 1. Persona
-* **Primary daily users:** Quality Engineers, Manufacturing Engineers, Inspection Engineers
-* **Primary buyers:** Manufacturing companies / Quality departments
-* **Industries:** Aerospace, Automotive, Medical Devices, Precision Manufacturing, Machine Shops
+### 2.1 Key Performance Indicators (KPIs)
+* **AI Extraction Accuracy:** $\ge 95\%$ accuracy for linear, angular, radial, bilateral, limit, and ASME Y14.5 GD&T feature control frames.
+* **Drawing Processing Latency:** Average drawing ingestion and AI feature extraction time $< 15$ seconds for standard single-page drawings ($< 45$ seconds for 50-page packages).
+* **Export Success Rate:** $\ge 99.9\%$ for SAE AS9102 Form 1, 2, and 3 workbooks (.xlsx), marked-up PDF blueprints, and CSV streams.
+* **Monthly Active Users (MAU):** Continuous retention growth across enterprise accounts.
 
-### 2. Problems we are solving
-* Existing FAI ballooning solutions can be costly for many manufacturers, particularly small and mid sized organizations.
-* Manual ballooning is slow.
-* Manual feature extraction is repetitive.
-* Creating AS9102 reports consumes hours.
-* Human transcription errors occur frequently.
-* Need a faster, simpler, more affordable workflow.
-
-### 3. How do we know these problems exist?
-* Competitive analysis (Balloonist.io, 1Factory, etc.)
-* Customer interviews & stakeholder discussions
-* Industry workflows (AS9102 / FAI process)
-* Market research
-* Customer testimonials from existing FAI solutions
+### 2.2 Guardrail / System Reliability Metrics
+* **System Uptime SLA:** $\ge 99.95\%$ platform availability backed by Kubernetes multi-AZ deployments.
+* **PDF Processing Failure Rate:** $< 0.1\%$ across all vector and scanned raster PDFs up to 300 DPI (200MB limit).
+* **Zero Cross-Tenant Data Leakage:** Strict tenant isolation enforced at database level (Prisma + PostgreSQL Row-Level Security) and object storage level (S3 presigned URLs with tenant prefixes).
+* **UI Interaction SLA:** Viewport pan/zoom, balloon dragging, and inspector table edits respond in $< 100\text{ ms}$.
+* **Audit Compliance:** 100% of user modifications and approvals logged in a SHA-256 hash-chained immutable audit ledger.
 
 ---
 
-## Solution:
+## 3. User Personas & Target Problems
 
-### 1. Brief of the solution.
-* **FAI.EV.ENGINEER** is a cloud-based & desktop B2B SaaS platform that automates FAI ballooning directly from engineering PDF drawings.
-* Users upload engineering drawings (vector PDFs or scanned raster PDFs up to 300 DPI) and the application renders the drawing in a high-performance viewport.
-* AI processing begins **only after the user clicks "Auto Balloon"**. The platform follows a human-in-the-loop workflow, where AI performs the initial extraction and ballooning, and users review and validate the results before export.
-* The AI engine extracts linear/angular dimensions, symmetric/bilateral tolerances, ASME Y14.5 GD&T symbols & feature control frames (Position, Flatness, Perpendicularity, Datums A-Z, Modifiers MMC/LMC), inspection characteristics, notes, and title block metadata.
-* Automatically generates numbered balloons using a spatial R-Tree collision-avoidance placement engine and a structured feature table.
-* Users can edit balloon numbers, leaders, visibility, and extracted values before exporting.
-* **Supported Export Formats:** Full **SAE AS9102 (Rev B/C)** specification package:
-  * **Form 1:** Part Number Accountability (Title Block, Part Name/Number, Revision, Serial/Batch, Cage Code, Org Name).
-  * **Form 2:** Product Accountability (Raw Materials, Special Processes, Functional Test Specifications).
-  * **Form 3:** Characteristic Accountability (Characteristic #, Zone Location, Requirement, Nominal Value, Upper/Lower Tolerances, GD&T Symbol, Measured Results, Pass/Fail).
-  * **Native Excel (.xlsx), CSV, and marked-up PDF blueprints.**
-* The platform supports configurable branding and white-label deployments.
+### 3.1 Target Personas
+1. **Primary Daily Users:** Quality Engineers, Manufacturing Engineers, Quality Inspectors.
+2. **Reviewers & Approvers:** Quality Assurance Managers, CMM Technicians.
+3. **Enterprise Buyers & Admins:** Directors of Quality, IT Infrastructure & Security Administrators.
 
-### 2. Other alternatives are considered with prioritization metrics.
-* Alternative approaches were evaluated through competitive analysis and prioritized based on customer value, implementation effort, and impact.
+### 3.2 Key Pain Points Solved
+* Manual ballooning is slow, tedious, and highly prone to human copy-paste errors.
+* Existing desktop tools lack real-time cloud collaboration, multi-user project sharing, and enterprise RBAC.
+* High cost of legacy licensing with zero modern API integrations into ERP/QMS systems (SAP, NetSuite, Plex).
+* Defense suppliers need strict security compliance (SOC2 Type II, ISO 27001, ITAR/CMMC ready infrastructure).
 
 ---
 
-## Product flow (Details of the feature/product):
+## 4. Product Flow & Core Feature Specification
 
-### 1. Customer Journey
-1. Open application
-2. Login with Google / SSO
-3. Select Organization $\rightarrow$ Project $\rightarrow$ Part $\rightarrow$ Revision $\rightarrow$ Drawing
-4. Upload PDF
-5. Render drawing
-6. User clicks **Auto Balloon**
-7. AI processing (dimension detection $\rightarrow$ tolerance detection $\rightarrow$ GD&T recognition $\rightarrow$ title block & feature extraction)
-8. Automatic balloon generation + feature table generation
-9. Manual review + editing
-10. Validation
-11. Export (AS9102 Form 1, Form 2, Form 3 / Excel / CSV / PDF)
-
-### 2. Wireframes and Flow diagrams
-* **Postman-Style Three-Pane Interface Architecture:**
-  * **Left Navigation Sidebar:** Hierarchy Tree (`Organization -> Project -> Part -> Revision -> Drawing`), Sheet Selector, Layer Toggles (Balloons, AI Highlights, Dimensions, Geometry).
-  * **Center Viewport:** High-FPS WebGL/Canvas PDF viewer with interactive SVG balloon overlays, pan/zoom ($10\% \to 3200\%$), and rotate controls.
-  * **Right/Bottom Dockable Inspector:** Feature Inspector Grid displaying Characteristic #, Requirement, Nominal Value, Upper/Lower Tolerances, GD&T Symbol, Confidence Score ($<95\%$ flagged in warning yellow for human review), and Pass/Fail status.
-
-### 3. User Stories
-1. As a Quality Engineer, I want to upload an engineering drawing so that I can begin the FAI process.
-2. As a Quality Engineer, I want AI to identify inspection characteristics automatically when I click "Auto Balloon" so that I don't have to create balloons manually.
-3. As a Quality Engineer, I want to edit AI-generated balloons before export so that I can ensure accuracy.
-4. As a Quality Engineer, I want to export compliant AS9102 Form 1, 2, and 3 reports so that inspection documentation is ready immediately.
-5. As an IT Administrator, I want secure tenant isolation and encrypted storage so that proprietary defense drawings remain protected.
-
-### 4. User acceptance criteria
-* AI must start **only after user clicks Auto Balloon**.
-* Must support vector PDFs and scanned PDFs up to 300 DPI.
-* Must provide viewer interactions (zoom/pan/rotate at 60 FPS).
-* Must support editing workflows (edit/renumber/delete/hide balloons; modify leaders; correct extracted values).
-* Must export complete **SAE AS9102 (Form 1, Form 2, Form 3)** packages, Excel, CSV, PDF.
-* Must provide secure storage, local AES-256 encryption, tenant isolation, and audit logs.
-* Must be subscription-ready and white-label-ready in architecture.
-
-### 5. Edge cases
-* **Maximum PDF file size:** (To Be Decided)
-* **Maximum pages:** (To Be Decided)
-* **Low-quality scanned PDFs:** Automatic adaptive deskewing and binarization; flags low-confidence OCR text ($<95\%$) in warning yellow for manual verification.
-* **Dense drawings with overlapping dimensions:** Spatial R-Tree collision-avoidance algorithm orbits balloons clear of drawing geometry and text.
-* **Multi-page drawings:** Preserves continuous global balloon sequence across all pages.
-* **Renumber collisions / gaps (rules):** Automatically shifts sequential numbers when balloons are inserted or deleted to eliminate duplicate numbers or gaps.
-
-### 6. Event tracking sheet
-* Are users using the feature? (`event_autoballoon_clicked`)
-* Where do users drop off? (`event_session_dropoff`)
-* Which features are most popular? (`event_feature_used`)
-* How long does a workflow take? (`event_workflow_duration`)
+### 4.1 End-to-End Customer Journey
+1. **Authentication & Tenant Onboarding:** Login via Google SSO, SAML 2.0 / Okta enterprise auth, or Resend magic links. Select or switch Organization Tenant.
+2. **Project Hierarchy Navigation:** Navigate `Organization -> Project -> Part -> Revision -> Drawing Package`.
+3. **Direct-to-S3 Upload:** Drag and drop vector or scanned PDF drawing blueprints (presigned S3 upload link generated via Node.js API).
+4. **Interactive Viewport Render:** Next.js frontend renders high-resolution blueprint using client-side WebGL / PDF.js canvas viewport (60 FPS pan/zoom/rotate).
+5. **Explicit Trigger ("Auto Balloon"):** User clicks the prominent **Auto Balloon** button to dispatch an extraction request.
+6. **Kafka Event Mesh & AI Workers:** Request published to Kafka topic (`autoballoon.requested`). KEDA autoscales AI worker containers (ONNX Neural OCR + ASME Y14.5 GD&T AST parser + spatial R-Tree balloon collision avoidance).
+7. **Real-time Viewport Hydration:** AI worker streams results back via WebSockets/Redis PubSub. Numbered balloons and inspector grid populate dynamically in real time. Items with AI confidence $< 95\%$ are flagged in warning yellow.
+8. **Interactive Review & Verification:** Quality Engineer edits balloon placement, adjusts leader lines, modifies nominal/tolerance overrides, or re-sequences balloons.
+9. **Shop Floor Inspection (Optional):** CMM/Caliper inspection measurements entered into Form 3 grid; automated PASS/FAIL status evaluated against upper/lower limits.
+10. **Automated AS9102 Compliance Export:** One-click generation of certified **SAE AS9102 Form 1, Form 2, and Form 3** Excel packages, CSVs, and marked-up vector blueprint PDFs. Email notifications sent via **Resend**.
 
 ---
 
-## Tentative Timelines:
+## 5. Technology Stack & Production System Architecture
 
-| Task | Date |
-| :--- | :--- |
-| Leadership approval | To Be Decided |
-| Design ready | To Be Decided |
-| Prototype testing | To Be Decided |
-| Development starts | To Be Decided |
-| Beta Launch | To Be Decided |
-
----
-
-## Dependencies:
-
-### 1. Open Questions
-* Pricing model details (architecture must support configurable pricing models for future)
-* User roles / RBAC
-* Performance targets
-* Maximum PDF file size and maximum pages
-* Integrations (ERP / QMS export webhooks)
-* Success metrics / KPIs
-
-### 2. Infrastructure requirements
-* (To Be Decided)
-
-### 3. Budget approvals
-* (To Be Decided)
-
-### 4. Partner Support (APIs, Partnerships)
-* (To Be Decided)
-
-### 5. Internal Dependencies (Tech, Design, Other Teams)
-* (To Be Decided)
+| Tier / Domain | Selected Technology | Role & Architecture Rationale |
+| :--- | :--- | :--- |
+| **Frontend Framework** | **Next.js (TypeScript, React 19)** | SSR, App Router, React Server Components, responsive layout, SEO/OpenGraph optimization. |
+| **UI Design & Canvas** | **TailwindCSS + WebGL / Canvas / PDF.js** | 60 FPS interactive vector blueprint viewport with custom SVG overlay layers. |
+| **Frontend State** | **Zustand + TanStack React Query** | High-performance client-side canvas state and optimistic API data synchronization. |
+| **Backend API Gateway** | **Node.js + Express (TypeScript)** | Modular REST/GraphQL API services, request validation, authentication, and routing gateway. |
+| **ORM & Database** | **Prisma ORM + PostgreSQL** | Type-safe database queries, schema migrations, and multi-tenant Row Level Security (RLS). |
+| **DB Connection Pooler** | **PgBouncer** | Connection pooling managing thousands of concurrent Prisma connections during worker bursts. |
+| **Caching & In-Memory State** | **Redis Enterprise Cluster** | API response cache, user sessions, socket connection registry, rate-limiting token bucket. |
+| **Message Event Mesh** | **Apache Kafka Cluster (KRaft)** | High-throughput durable event backbone (`pdf.ingested`, `autoballoon.requested`, `audit.logged`). |
+| **AI Worker Engine** | **Python / Node.js Containers** | ONNX Runtime, PyMuPDF, OpenCV vision engine, ASME Y14.5 GD&T parser, R-Tree spatial engine. |
+| **Mail Automation** | **Resend API** | Passwordless magic links, onboarding emails, export completion alerts, team invites. |
+| **Object Storage** | **AWS S3 / MinIO** | Cloud storage for drawing blueprints and generated reports via S3 Direct Presigned URLs. |
+| **Containerization** | **Docker Multi-stage Builds** | Lightweight, optimized container images for UI, API services, and AI worker engines. |
+| **Orchestration** | **Kubernetes (EKS / GKE / AKS)** | Horizontal Pod Autoscaling (HPA), Helm charts, Ingress NGINX, Cloudflare WAF, Cert-Manager. |
+| **Worker Autoscaling** | **KEDA (Event-driven K8s Scaler)** | Dynamic scaling of AI worker pods driven by Kafka Consumer Group Lag metrics. |
+| **Secrets & Security** | **HashiCorp Vault + Istio Mesh** | Encrypted secret storage, mTLS zero-trust pod communication, dynamic API key rotation. |
+| **Observability** | **OpenTelemetry + Prometheus + Grafana** | End-to-end distributed tracing, application metrics, system health dashboards. |
 
 ---
 
-## Related documents:
+## 6. Non-Functional & Enterprise Compliance Requirements
 
-1. **Tech planning document**
-   * (To Be Decided)
-2. **Design planning document**
-   * (To Be Decided)
-3. **Go to market planning**
-   * (To Be Decided)
+### 6.1 Multi-Tenant Security & Tenant Isolation
+* **Logical Isolation:** Every database table contains a mandatory `tenant_id` foreign key. Prisma middleware injects `WHERE tenant_id = ctx.tenant_id` into all queries.
+* **Storage Isolation:** S3 objects partitioned under `s3://bucket/{tenant_id}/{project_id}/{drawing_id}/...`. Access generated exclusively through short-lived presigned URLs (15-minute expiry).
+* **Role-Based Access Control (RBAC):** Roles enforced across tenant endpoints: `TenantAdmin`, `QualityEngineer`, `Inspector`, `Viewer`.
+
+### 6.2 Regulatory & Audit Standards
+* **SAE AS9102 Rev B/C Compliance:** 100% strict adherence to Form 1, Form 2, and Form 3 drafting standards for aerospace QA audits.
+* **ASME Y14.5 GD&T Compliance:** Abstract Syntax Tree (AST) representation for all geometric tolerances (Position, Flatness, Profile, Datums A-Z, MMC/LMC modifiers).
+* **SOC2 Type II & ISO 27001 Readiness:** Cryptographic SHA-256 hash-chained audit log recording every user action, AI extraction override, and report generation event.
+* **CMMC Level 2 / ITAR Hybrid Ready:** Cloud architecture designed to support eventual private cloud or air-gapped hybrid desktop agents syncing via encrypted mTLS tunnels.
+
+---
+
+## 7. Master Acceptance Criteria
+
+- [x] Web Application must render engineering drawings at 60 FPS in Next.js browser viewport.
+- [x] AI extraction must execute **ONLY when user explicitly clicks "Auto Balloon"**.
+- [x] Kafka event mesh must decouple HTTP API requests from asynchronous AI vision processing.
+- [x] KEDA must autoscale AI Worker pods based on Kafka queue lag.
+- [x] All database transactions must pass through Prisma ORM and PgBouncer to PostgreSQL.
+- [x] Multi-tenant isolation must prevent any cross-tenant data access.
+- [x] Reports must export valid SAE AS9102 Form 1, 2, 3 workbooks (.xlsx), marked-up PDFs, and CSV packages.
+- [x] All transactional emails and user invites must be dispatched via Resend.
+- [x] Infrastructure must be containerized with Docker and deployable via Kubernetes Helm charts.
