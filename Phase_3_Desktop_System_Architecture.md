@@ -72,7 +72,11 @@ flowchart TD
 ---
 
 ## 5. Licensing Control Plane
-The Cloudflare infrastructure acts strictly as a control plane for licensing state. The Cloudflare Worker handles the routing and cryptography, while Cloudflare D1 acts as the authoritative license state ledger.
+The Cloudflare infrastructure acts strictly as a control plane for licensing state. Cloudflare D1 acts as the authoritative license state ledger. 
+The Cloudflare Worker explicitly handles the following cryptographic operations:
+- Verifying activation token entropy and hashes.
+- Generating and signing Ed25519 offline license payloads.
+- Validating device public keys and managing the key lifecycle.
 
 **Control Plane Endpoints:**
 - `/activate` - Validates a token and issues a signed offline license bound to the device's public key.
@@ -139,19 +143,27 @@ Device identity is cryptographically enforced using asymmetric keys rather than 
 ---
 
 ## 9. Offline Licensing
-The application relies on a locally cached, digitally signed license file for offline operation.
-- **Verification:** On every boot, the Electron Main Process uses the server's public key (hardcoded in the binary) to verify the signature of the local license file.
-- **Device Binding Verification:** The app signs a local challenge with its DPAPI-protected private key to prove it is the hardware authorized by the license.
-- **Grace Period:** Licenses contain a `next_validation_required` timestamp. The app operates fully offline until this timestamp is reached (e.g., 30 days).
-- **Expiration Behavior:** If the grace period expires, the app degrades gracefully to a read-only mode, allowing users to view and export existing data but preventing new AI jobs.
+The application relies on a locally cached, digitally signed license file for offline operation and explicitly defines two modes:
+
+### Connected-License Mode
+- **Activation:** The user enters a token online.
+- **Grace Period:** The license contains a `next_validation_required` timestamp. The app operates fully offline for a defined grace period (e.g., 30 days).
+- **Periodic Validation:** The app automatically attempts to ping the server to extend the grace period before expiration.
+
+### Air-Gapped License Mode
+- **Activation:** The user transfers an offline activation request (via USB) to an admin portal.
+- **Validity:** The server issues a signed license with a fixed, long-term validity period (e.g., 1 year).
+- **Renewal:** Manual renewal is required before the hard expiration date.
+
+**Verification (Both Modes):** On every boot, the Electron Main Process verifies the Ed25519 signature of the local license file. The app then signs a local challenge with its OS-protected private key to prove hardware binding.
 
 ---
 
 ## 10. Clock Rollback Protection
-To prevent users from manually rewinding the OS clock to bypass license expiration, the application tracks monotonic time.
-- **Mechanism:** The SQLite database stores a `last_observed_time` variable, updated during normal operation.
-- **Detection:** On boot, if the current OS time is significantly earlier than `last_observed_time` (Threshold: > 24 hours backward), rollback is detected.
-- **Response:** The license state is immediately moved to `REVOKED` (Clock Tampering). The app locks until a successful online `/validate` heartbeat syncs a trusted server timestamp.
+To prevent users from manually rewinding the OS clock to bypass license expiration, the application employs a 4-factor multi-clock model, as monotonic time cannot be perfectly persisted across restarts.
+- **Factors:** Trusted server timestamp + Local wall clock + Monotonic elapsed time + Last successful validation.
+- **Detection:** The system detects suspicious clock movement (e.g., wall clock moves backward relative to monotonic elapsed time).
+- **Response:** To avoid false positives (e.g., VM snapshot restores, legitimate IT clock syncs), the license state degrades to `SUSPENDED_LOCAL`, not `REVOKED`. The system prompts for a mandatory online validation heartbeat. If valid, it returns to `ACTIVE`; if illegitimate, it moves to `REVOKED`.
 
 ---
 
@@ -174,7 +186,7 @@ sequenceDiagram
     USB->>AirGapped: Import License File
     AirGapped->>AirGapped: Validate Signature & Store
 ```
-*Note: The architecture explicitly supports permanent offline usage. The request file and license file contain no sensitive drawing data, only cryptographic identity payloads.*
+*Note: This architecture explicitly supports the Air-Gapped License Mode. The request file and license file contain no sensitive drawing data, only cryptographic identity payloads.*
 
 ---
 
@@ -225,7 +237,7 @@ stateDiagram-v2
 
 ## 14. AI Idempotency
 To prevent duplicate database writes and chaotic UI states, AI jobs are strictly idempotent.
-- **Job Identity:** `job_id` is a composite hash of `(document_hash + model_version + requested_pages)`.
+- **Job Identity:** `job_id` is a composite SHA-256 hash of `(document_hash + pipeline_version + model_manifest_hash + preprocessing_version + extraction_config_hash + requested_pages)`. This guarantees two logically different processing configurations cannot collide.
 - **Duplicate Prevention:** If an AI job is triggered for an existing `job_id`, the system returns the cached result.
 - **Safe Retries:** If a worker crashes mid-extraction, the `RECOVERING` state clears any partial transactions associated with that `job_id` before requeuing, ensuring no duplicate balloons are generated.
 
@@ -243,8 +255,14 @@ Models (e.g., ONNX files) are distributed within the application binary.
 The ONNX Runtime dynamically selects the optimal execution provider.
 - **Detection:** The system probes for CUDA (NVIDIA) or DirectML (Windows Generic).
 - **Execution:** If a supported GPU is found, execution runs via hardware acceleration.
-- **Fallback:** If the GPU is unsupported, incompatible, or encounters an Out-Of-Memory (OOM) exception during inference, the pipeline catches the error and falls back to deterministic CPU execution.
-- **Failure:** If both GPU and CPU fail (e.g., extreme memory exhaustion), the job state is marked `FAILED` with a specific error code, and memory is cleanly released.
+- **GPU Failure Policies:** The system gracefully handles the following hardware exceptions by falling back to deterministic CPU execution:
+  - GPU unavailable or unsupported.
+  - Driver incompatible.
+  - GPU Out-Of-Memory (OOM).
+  - GPU device lost (TDR).
+  - Model initialization failure.
+  - Inference timeout.
+- **Terminal Failure:** If both GPU and CPU fail, the job state is marked `FAILED` with a specific error code, and memory is cleanly released.
 
 ---
 
@@ -275,11 +293,13 @@ flowchart LR
     Event1["Event N-1\nHash: 0x8A2F..."]
     Event2["Event N (Edit Dimension)\nPrevHash: 0x8A2F...\nHash: 0x9B4C..."]
     Event3["Event N+1 (Export)\nPrevHash: 0x9B4C...\nHash: 0x1F7E..."]
+    Checkpoint["Signed Checkpoint\n(Asymmetric Key Signature)"]
     
-    Event1 --> Event2 --> Event3
+    Event1 --> Event2 --> Event3 --> Checkpoint
 ```
-- **Tamper-Evident Ledger:** Every write action in the app generates an `AuditEvent`. Each event contains the SHA-256 hash of the *previous* event, creating an unbreakable chain.
-- **Integrity Verification:** If a malicious actor opens the SQLite database and manually changes a dimension value to forge compliance, the hash chain breaks. An internal verification script runs on export to ensure the chain is intact.
+- **Tamper-Evident Ledger:** Every write action in the app generates an `AuditEvent`. Each event contains the SHA-256 hash of the *previous* event, creating a cryptographically linked, tamper-evident chain.
+- **Signed Checkpoints (Trust Anchor):** Periodically, and on Export, the terminal hash is signed using a cryptographic key to establish a trust anchor. The signing key does NOT live in the SQLite database. The public verification key is distributed via the FAI.EV.ENGINEER compliance portal, allowing auditors to independently verify the signature.
+- **Integrity Verification:** An internal verification script runs on export to ensure the chain is intact and signatures match.
 
 ---
 
@@ -293,12 +313,20 @@ The application rejects the concept of "infinite in-memory undo" in favor of bou
 
 ## 21. Backup & Disaster Recovery
 
+```mermaid
+flowchart TD
+    SQLite[("Live SQLite DB")] --> AtomicSnapshot["Atomic Snapshot (WAL Checkpoint)"]
+    AtomicSnapshot --> EncryptedBackup["Encrypted Backup (AES-256-GCM)"]
+    EncryptedBackup --> VersionedRetention["Versioned Retention (e.g., 7 Days)"]
+```
+
 | Metric | Target | Description |
 |---|---|---|
 | **RPO** (Recovery Point Objective) | <= 5 Minutes | The app autosaves and checkpoints the WAL file every 5 minutes. |
 | **RTO** (Recovery Time Objective) | <= 15 Minutes | Total time to restore a corrupted SQLite file from the automated local backup archive. |
 
-- **Mechanism:** The system performs automated, encrypted (`AES-256-GCM`) snapshots of the SQLite database to a user-configured local directory (e.g., a mapped network drive).
+- **Mechanism:** The system performs automated snapshots to a user-configured local directory. The backup must successfully complete the entire pipeline (Snapshot -> Write -> Integrity Verification -> Commit) before the RPO target is considered met.
+- **Failure Handling:** If the mapped network drive is disconnected, the disk is full, or the backup fails integrity checks, an urgent UI alert is triggered to prevent silent backup failures.
 - **Corruption Detection:** If `PRAGMA integrity_check` fails on boot, the UI immediately prompts the user to select the latest valid snapshot for automatic restoration.
 
 ---
@@ -341,6 +369,7 @@ flowchart TD
 
 ## 24. IPC Security
 The Main and Renderer processes communicate exclusively through a strict, typed IPC contract defined in the Preload script.
+- **Sender Validation:** Every IPC handler in the Main process explicitly validates the `sender.getFrame()` and `webContents` identity before executing any privileged operations.
 - **Allowlist:** Only explicitly defined channels (e.g., `ipc-get-project`, `ipc-trigger-ai`) are permitted.
 - **Input Validation:** The Main process validates the schema of all incoming IPC arguments using a strict validator (e.g., Zod).
 - **Prohibited Patterns:** Generic commands like `execute(command)` or `readFile(path)` are strictly forbidden to prevent renderer-driven remote code execution.
@@ -350,7 +379,7 @@ The Main and Renderer processes communicate exclusively through a strict, typed 
 ## 25. Filesystem Security
 - **Path Canonicalization:** All user-provided paths (for import/export) are resolved and checked for directory traversal attempts (`../`).
 - **Allowed Directories:** The application restricts filesystem write access to the OS Temp directory (for scratch processing) and the user-selected Export destination.
-- **Temporary Deletion:** Scratch files (e.g., unzipped PDF streams) are securely deleted using zero-fill overwrites before unlinking, preventing forensic recovery of sensitive IP from the Temp folder.
+- **Data Minimization:** Temporary files containing sensitive data are minimized, stored in controlled OS locations, deleted promptly after use, and protected through native OS/filesystem access controls.
 
 ---
 
@@ -370,6 +399,10 @@ sequenceDiagram
     App->>User: Prompt "Update Ready"
 ```
 *Note: Air-gapped environments bypass this flow entirely and rely on manual, administrator-driven installation of signed `.exe` files.*
+
+**Update Policies:**
+- **Rollback:** After staging, a post-install health check runs. If it fails, the system automatically rolls back to the previous version.
+- **Channels:** The system supports 'Stable' (Mandatory security patches) and 'Enterprise Approved' (Optional, admin-gated updates).
 
 ---
 
@@ -409,16 +442,19 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 
 | Threat | Asset | Attack | Mitigation | Residual Risk |
 |---|---|---|---|---|
-| Spoofed Installer | Installer `.exe` | Attacker distributes malware masquerading as the app | Sectigo EV Code Signing; user training | Low (User ignores warnings) |
+| Spoofed Installer | Installer `.exe` | Attacker distributes malware masquerading as the app | Sectigo EV Code Signing; user training | Low |
 | Token Replay | Activation Token | User attempts to activate 2 devices with 1 token | Tokens are single-use; burned in D1 | None |
-| DB Tampering | SQLite DB | User alters DB to forge compliance data | Hash-linked audit ledger verification | Low (Requires rewriting entire hash chain) |
-| IPC Exploit | Main Process | Compromised renderer requests arbitrary file read | Strict IPC allowlist; `contextIsolation: true` | Low |
-| Clock Rollback | Local License | User winds back OS clock to avoid expiration | Monotonic time tracking in SQLite | Low |
+| DB Tampering | SQLite DB | User alters DB to forge compliance data | Hash-linked audit ledger verification | Low |
+| IPC Escalation | Main Process | Renderer XSS allows attacker to spam IPC | Sender validation; strict IPC allowlist | Low |
+| Clock Rollback | Local License | User winds back OS clock to avoid expiration | 4-Factor multi-clock tracking in SQLite | Low |
+| Malicious PDF | Parser Engine | Crafted PDF attempts buffer overflow | Rust/WASM sandboxed parsing | Low |
+| Backup Theft | DB Snapshots | Attacker steals local network drive backups | AES-256-GCM encryption on all backups | Low |
+| Supply Chain | NPM Deps | Compromised dependency executes malicious code | Dependency scanning; zero nodeIntegration | Low |
 
 ---
 
 ## 32. Secrets & Key Management
-- **Code Signing Key:** Stored on an EV hardware USB token, accessible only during the GitHub Actions runner execution via secure relay.
+- **Code Signing Key:** The CI runner NEVER holds the private key. The pipeline submits unsigned artifacts to a Controlled Signing Service (e.g., Azure Key Vault / AWS CloudHSM) which signs and returns the binary.
 - **License Signing Key (Cloud):** Managed via Cloudflare Secrets; asymmetric private key never leaves the Worker environment.
 - **Device Private Key (Local):** Stored in Windows DPAPI / Mac Keychain; never stored in plaintext in SQLite or logs.
 
@@ -430,9 +466,9 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 |---|---|
 | **Unit Tests** | Jest coverage for parser logic, hash generation, and state machines. |
 | **Integration Tests** | E2E Playwright tests targeting the React UI + Electron Main IPC boundaries. |
-| **Database Tests** | Automated migration tests verifying forward/backward schema compatibility. |
-| **Recovery Tests** | Hard-kill Node.js worker tests to verify idempotent AI job recovery. |
-| **Security Tests** | Automated scanning for vulnerable dependencies (npm audit) and static analysis. |
+| **Database Tests** | Automated migration tests verifying a strict "backup before migration" policy with transaction rollbacks on failure (No automatic backward compatibility). |
+| **Recovery Tests** | Hard-kill node workers, GPU OOM simulation, power loss, and backup restoration checks. |
+| **Security Tests** | Clock rollback spoofing, malicious PDF ingestion, IPC abuse, and dependency scanning. |
 
 ---
 
