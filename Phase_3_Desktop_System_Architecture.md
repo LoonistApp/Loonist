@@ -1,6 +1,6 @@
 # Phase 3: FAI.EV.ENGINEER Desktop System Architecture Workflow
 
-This document defines the production baseline architecture for the **FAI.EV.ENGINEER Desktop Application**. Rather than a disconnected checklist of technical constraints, this architecture is presented as a cohesive, visual workflow across five operational stages. It combines the offline-first Electron/React/SQLite stack with rigorous production hardening (tamper-evident audits, cryptographic licensing, and persistent job states).
+This document outlines the system architecture for the **FAI.EV.ENGINEER Desktop Application**. It maps out the core data flow across five operational stages. The stack relies on Electron, React, and SQLite (offline-first) while enforcing production standards like tamper-evident logging, cryptographic licensing, and durable job states.
 
 ---
 
@@ -44,9 +44,9 @@ flowchart TD
 ```
 
 ### Technical Summary
-By leveraging the Cloudflare ecosystem, the infrastructure operates at near-zero cost while maintaining enterprise-grade security. When code is pushed to GitHub, a CI/CD pipeline builds the Electron application and generates a Windows installer. Crucially, the `.exe` is digitally signed using a Sectigo Code Signing Certificate to bypass Windows Defender warnings. 
+The CI/CD pipeline runs on GitHub Actions to build the Electron app and output a Windows `.exe`. We sign the binary with a Sectigo EV Certificate to prevent Windows Defender SmartScreen blocks. 
 
-The signed binary is uploaded to Cloudflare R2 object storage and distributed globally via the Cloudflare Edge network. When a customer downloads and installs the application, their initial token activation is routed to a serverless Cloudflare Worker. This Worker queries a free Cloudflare D1 SQL database to verify the token, drastically reducing backend hosting costs to zero for the initial tier of usage.
+For distribution, the installer is hosted on Cloudflare R2. When a user runs the app for the first time, a Cloudflare Worker intercepts the activation request and checks the token against a Cloudflare D1 database. This serverless approach eliminates fixed backend costs.
 
 ---
 
@@ -90,9 +90,9 @@ flowchart TD
 ```
 
 ### Technical Summary
-To ensure only paid and authorized company employees can access the software, the initialization enforces a hybrid activation model. When an employee first installs the `.exe`, the application checks for a valid local license. If none exists, they are routed to a local React UI to enter their corporate verification token. The Electron Main Process securely transmits this token to the FAI SaaS Cloud for online payment and authorization verification. 
+The app uses a hybrid activation model to verify users. On first launch, if no local license is found, the React UI prompts the user for a token. The Main Process sends this token to the Cloudflare Worker API to verify payment. 
 
-Once the SaaS confirms the token, it issues a cryptographic license file explicitly bound to that specific machine. The hardware-bound private key is safely stored in the OS secure storage (Windows DPAPI or Mac Keychain). For all subsequent boots, the system operates entirely offline using the local `Offline Cryptographic Validator`. Once the signature is verified, the system boots SQLite with Write-Ahead Logging (WAL) enabled to guarantee atomic transactions, all within a zero-trust local boundary.
+If valid, the server returns a cryptographic license tied to the hardware. The device's private key is stored in Windows DPAPI or Mac Keychain. After this initial check, the app runs completely offline. The local validator checks the signature on boot. If it passes, it spins up SQLite in WAL mode to handle transactions.
 
 ---
 
@@ -123,9 +123,9 @@ sequenceDiagram
 ```
 
 ### Technical Summary
-Ingestion bypasses network latency by relying on direct OS-level file streams. When a user drags a blueprint into the application, the renderer passes a sanitized identifier to the Main Process. The Node.js `fs` module reads the binary stream and instantly calculates a SHA-256 hash. This hash serves as the absolute root of document provenance—all subsequent AI extractions and human edits are cryptographically linked to this exact version of the source document. The file is handed off to a WebAssembly optimized canvas, enabling fluid panning and zooming for massive aerospace schematics.
+File ingestion happens via direct OS file streams to avoid network overhead. The user drops a PDF, and the renderer sends an ID to the Main Process. The Node.js `fs` module reads the file and calculates a SHA-256 hash. This hash becomes the root of document provenance. Every future AI extraction or human edit links back to this exact file version. The UI then loads the document into a WebAssembly-based canvas for high-performance panning and zooming.
 
-**Failure Handling:** If the local disk is critically full, the OS stream throws an `FS-001` error. The Main Process catches this, cleanly aborts the database transaction, and alerts the UI without corrupting any state.
+**Failure Handling:** If the disk is full, the file stream throws an `FS-001` error. The app catches the exception, rolls back the SQLite transaction, and alerts the user.
 
 ---
 
@@ -169,9 +169,9 @@ flowchart TD
 ```
 
 ### Technical Summary
-AI extraction is explicitly triggered by the user and managed through a durable SQLite `ai_jobs` table. Background Node.js Worker Threads claim jobs and maintain a 5-second heartbeat. The extraction stack leverages the ONNX Runtime, dynamically detecting local hardware acceleration (CUDA/DirectML) and gracefully falling back to CPU execution if the GPU is unsupported or throws an Out-of-Memory (OOM) error. The pipeline executes neural OCR, parses ASME Y14.5 GD&T syntax, and streams coordinates back to the UI.
+Users manually trigger AI extraction. Jobs are logged in a durable SQLite `ai_jobs` table. Background Node.js Worker Threads pick up the jobs and emit a 5-second heartbeat. The app uses the ONNX Runtime for inference, checking for GPU support (CUDA/DirectML) and falling back to the CPU if it hits OOM errors. The worker runs neural OCR, parses GD&T syntax, and pipes the bounding boxes to the UI.
 
-**Crash Recovery & Idempotency:** If the application crashes mid-extraction, the worker's heartbeat goes stale. Upon application restart, the Job Manager detects the stale heartbeat, idempotently marks the job `RECOVERABLE`, and safely requeues it without duplicating features in the database.
+**Crash Recovery & Idempotency:** If the app crashes, the worker's heartbeat times out. On the next boot, the Job Manager sees the stale heartbeat, flags the job as `RECOVERABLE`, and restarts it. Database constraints prevent duplicate rows from being inserted.
 
 ---
 
@@ -211,7 +211,9 @@ flowchart TD
 ```
 
 ### Technical Summary
-The dual-layer editor allows engineers to adjust visual balloon paths and modify data within a live inspector grid. Rather than trusting AI confidence blindly, the system enforces a strict validation pipeline: OCR string confidence is combined with a geometric schema checker (e.g., ensuring a position tolerance has proper datums), culminating in a mandatory human review via a magnified bitmap comparison tool. Every user edit triggers a discrete SQLite transaction (`BEGIN ... COMMIT`). This creates a bounded, persistent history log that provides highly reliable undo/redo capabilities, even if the application is restarted.
+The editor features a visual canvas for balloons and an inspector grid for tabular data. The system requires humans to validate AI outputs. We run OCR confidence scores through a geometric schema checker to flag invalid syntax. The engineer must visually approve flagged items using a magnified crop of the source PDF. 
+
+Every user action triggers an SQLite transaction (`BEGIN ... COMMIT`). This acts as an event log and provides a persistent undo/redo stack across application restarts.
 
 ---
 
@@ -255,9 +257,9 @@ flowchart LR
 ```
 
 ### Technical Summary
-Aerospace compliance requires strict traceability. When a project is exported, the compiler first runs an AS9102 rule engine. If required fields are missing, the export aborts cleanly with an `EXP-001` error to prevent incomplete data generation. Once validated, the system generates Form 1, 2, and 3 Excel workbooks and the marked-up PDF. 
+Before export, a rule engine checks the data against AS9102 requirements. If required fields are missing, the export throws an `EXP-001` error. If the data is valid, the app builds Form 1, 2, and 3 Excel workbooks and a marked-up PDF.
 
-Crucially, every modification leading up to this export—and the final hashes of the exported files themselves—are logged into a **tamper-evident SHA-256 hash chain** stored within SQLite. Each audit event contains a cryptographic link to the previous event (`hash = SHA256(event + prev_hash)`), ensuring that unauthorized database modifications immediately break the chain and flag the project during an audit.
+All edits and the final file hashes are written to a **tamper-evident SHA-256 hash chain** in SQLite. Each audit event hashes the previous event's signature (`hash = SHA256(event + prev_hash)`). If someone manually alters the database file, the chain breaks, and the project is flagged as invalid during compliance audits.
 
 ---
 
