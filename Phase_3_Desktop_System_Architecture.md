@@ -210,9 +210,15 @@ stateDiagram-v2
     PREPARING --> OCR_RUNNING : Load PDF
     OCR_RUNNING --> EXTRACTION_RUNNING : OCR Complete
     EXTRACTION_RUNNING --> PARSING : GD&T Extraction
-    PARSING --> REVIEW_REQUIRED : Low Confidence
-    PARSING --> COMPLETED : High Confidence
-    REVIEW_REQUIRED --> COMPLETED : Human Approval
+    PARSING --> REVIEW_REQUIRED : High/Low Confidence
+    
+    REVIEW_REQUIRED --> QE_REVIEW
+    QE_REVIEW --> REVIEW_REQUIRED : QE Edit / Correction
+    QE_REVIEW --> REWORK_REQUIRED : QE Reject / Rework
+    REWORK_REQUIRED --> REVIEW_REQUIRED : Rework Applied
+    QE_REVIEW --> APPROVED : QE Approve
+    APPROVED --> COMPLETED
+    COMPLETED --> EXPORT_ALLOWED
     
     QUEUED --> CANCELLED : User Abort
     PREPARING --> FAILED : PDF Corrupt / GPU OOM
@@ -220,7 +226,7 @@ stateDiagram-v2
     
     OCR_RUNNING --> RECOVERING : App Crashed (Stale Heartbeat)
     RECOVERING --> QUEUED : Idempotent Requeue
-    COMPLETED --> [*]
+    EXPORT_ALLOWED --> [*]
 ```
 
 ### AI Job State Matrix
@@ -245,6 +251,48 @@ To prevent duplicate database writes and chaotic UI states, AI jobs are strictly
 
 ## 15. AI Model Management
 Models (e.g., ONNX files) are distributed within the application binary.
+
+```mermaid
+flowchart TD
+    subgraph S1 ["1. Application Build & Manifest"]
+        Build["Application Build"] --> Package["Package ONNX Model"]
+        Package --> Manifest["Generate Model Manifest"]
+        Manifest -.-> MData>Manifest: model_version, model_hash, filename, metadata]
+    end
+
+    subgraph S2 ["2. Application Boot & Integrity"]
+        Manifest --> Electron["Electron Application"]
+        Electron --> Boot["Application Boot"]
+        Boot --> Verify{"SHA-256 Hash Match?"}
+        
+        Verify -->|HASH MISMATCH| Reject["Reject Model Load (Security/Error State)"]
+        Verify -->|HASH MATCH| Load["Load AI Model"]
+        
+        Reject -.-> C1>Invariant: Hash mismatch MUST NOT load model]
+    end
+
+    subgraph S3 ["3. AI Processing Traceability"]
+        Load --> Extract["Feature Extraction"]
+        Extract --> Bind["Feature + model_version + model_hash"]
+        Bind --> DB[("SQLite")]
+        
+        Bind -.-> C2>Invariant: Every AI result stores model version + hash]
+    end
+
+    subgraph S4 ["4. Explicit Model Upgrades"]
+        New["New Model Version"] --> Hash["New Model Hash"]
+        Hash --> Compat["Compatibility Check"]
+        Compat --> Migrate["Database Migration / Version Tracking"]
+        Migrate --> NewProcess["New AI Processing"]
+        
+        Migrate -.-> C3>Invariant: Old approved results remain traceable to old model]
+        Migrate -.-> C4>Invariant: Do not silently overwrite previous results]
+    end
+
+    S1 --> S2
+    S2 --> S3
+```
+
 - **Integrity Verification:** At boot, the Main Process computes a SHA-256 hash of the `.onnx` files and compares them against a hardcoded manifest. If modified, the models refuse to load.
 - **Traceability:** Every extracted feature in the database records the `model_version` and `model_hash` used to generate it.
 - **Compatibility:** Models are strictly versioned. Database migrations track which model generated which data, allowing seamless upgrades without invalidating past human approvals.
@@ -304,6 +352,23 @@ flowchart LR
 ---
 
 ## 20. Editing / Transaction History
+
+```mermaid
+flowchart TD
+    UserEdit["User Edit"] --> BeginTx["BEGIN TRANSACTION"]
+    BeginTx --> SQLiteWAL["SQLite + WAL"]
+    SQLiteWAL --> WriteEdit["Write Edit to WAL"]
+    WriteEdit --> Commit["COMMIT"]
+    Commit --> Persisted["Edit Persisted Safely"]
+    Persisted --> History["Transaction History"]
+    
+    History --> Undo["UNDO"]
+    History --> Redo["REDO"]
+    
+    Undo --> PrevTx["Previous Transaction"]
+    Redo --> NextTx["Next Transaction"]
+```
+
 The application rejects the concept of "infinite in-memory undo" in favor of bounded, persistent transaction logs.
 - **Atomic Edits:** Every canvas drag or grid edit is wrapped in an SQLite `BEGIN ... COMMIT` transaction.
 - **Undo/Redo:** Transactions are assigned sequential IDs. Undo/Redo simply traverses the transaction history within the database.
@@ -359,6 +424,60 @@ flowchart TD
 ---
 
 ## 23. Electron Security
+
+### FAI.EV.ENGINEER — Electron Security Visual Architecture
+
+```mermaid
+flowchart TD
+    User(["USER 👤<br>clicks / interacts"])
+
+    Renderer1["RENDERER / UI 🌐<br>React • Editor • Dashboard<br>❌ No Node.js<br>❌ No direct Files<br>❌ No direct SQLite<br>❌ No direct OS access"]
+
+    User --> Renderer1
+
+    subgraph SecurityContext ["Security Boundaries"]
+        direction LR
+        Sandbox["Sandbox 🔒"]
+        ContextIso["Context Isolation 🔐<br>UI separated from<br>Electron internals"]
+        CSP["CSP 🛡️"]
+    end
+
+    Renderer1 --> Sandbox
+    Renderer1 --> ContextIso
+    Renderer1 --> CSP
+
+    Preload1["PRELOAD 🚪<br>Exposes only<br>approved APIs"]
+
+    Sandbox --> Preload1
+    ContextIso --> Preload1
+    CSP --> Preload1
+
+    Main["MAIN PROCESS 🔐<br>Security / Validation<br>App lifecycle<br>IPC handling"]
+
+    Preload1 -- "Controlled IPC" --> Main
+
+    subgraph NativeResources ["Native Resources"]
+        direction LR
+        SQLite["SQLite 🗄️<br>Projects<br>Drawings<br>Features<br>Balloons"]
+        Files["Files 📁<br>PDF input<br>Exports<br>Backups<br>License"]
+        ONNX["ONNX 🧠<br>AI inference<br>GPU / CPU<br>Models"]
+    end
+
+    Main --> SQLite
+    Main --> Files
+    Main --> ONNX
+
+    Preload2["PRELOAD 🚪"]
+
+    SQLite -- "Result" --> Preload2
+    Files -- "Result" --> Preload2
+    ONNX -- "Result" --> Preload2
+
+    Renderer2["RENDERER 🌐<br>Shows result"]
+
+    Preload2 --> Renderer2
+```
+
 - `contextIsolation: true` is strictly enforced.
 - `nodeIntegration: false` in all renderer processes.
 - `sandbox: true` enabled for all renderers.
@@ -368,6 +487,34 @@ flowchart TD
 ---
 
 ## 24. IPC Security
+
+### FAI.EV.ENGINEER — IPC Security & Validation Flow
+
+```mermaid
+sequenceDiagram
+    participant R as Renderer (Untrusted)
+    participant P as Preload (Controlled Bridge)
+    participant M as Main Process (Trusted)
+    participant OS as Native (Privileged)
+
+    R->>P: window.api.invoke('getProject', data)
+    Note over P: 1. API Boundary (Allowlist)
+    P->>M: ipcRenderer.invoke('ipc-get-project', data)
+    
+    M->>M: 2. Sender Validation (Frame/WebContents)
+    M->>M: 3. Schema / Type Validation (Zod)
+    M->>M: 4. Authorization / Business Rules
+    
+    alt Invalid Sender OR Invalid Payload
+        M-->>R: Reject (Security Error)
+    else Validated Secure Request
+        M->>OS: Execute Privileged Operation (SQLite/FS)
+        OS-->>M: Return Secure Result
+        M->>M: Sanitize Output
+        M-->>R: Resolve with Data
+    end
+```
+
 The Main and Renderer processes communicate exclusively through a strict, typed IPC contract defined in the Preload script.
 - **Sender Validation:** Every IPC handler in the Main process explicitly validates the `sender.getFrame()` and `webContents` identity before executing any privileged operations.
 - **Allowlist:** Only explicitly defined channels (e.g., `ipc-get-project`, `ipc-trigger-ai`) are permitted.
@@ -376,10 +523,73 @@ The Main and Renderer processes communicate exclusively through a strict, typed 
 
 ---
 
-## 25. Filesystem Security
+## 25. Filesystem Security & End-to-End Data Flow
+
 - **Path Canonicalization:** All user-provided paths (for import/export) are resolved and checked for directory traversal attempts (`../`).
 - **Allowed Directories:** The application restricts filesystem write access to the OS Temp directory (for scratch processing) and the user-selected Export destination.
 - **Data Minimization:** Temporary files containing sensitive data are minimized, stored in controlled OS locations, deleted promptly after use, and protected through native OS/filesystem access controls.
+
+### End-to-End Data Flow (Import & Export)
+
+```mermaid
+flowchart TD
+    User(["USER 👤"])
+
+    User --> ActionImport["IMPORT"]
+    User --> ActionExport["EXPORT"]
+
+    subgraph Untrusted ["Renderer (Untrusted)"]
+        ActionImport --> R_Import["REACT RENDERER 🌐"]
+        ActionExport --> R_Export["REACT RENDERER 🌐"]
+    end
+
+    subgraph Bridge ["Preload (Controlled Bridge)"]
+        R_Import --> P_Import["PRELOAD 🚪"]
+        R_Export --> P_Export["PRELOAD 🚪"]
+    end
+    
+    P_Import --> IPC{"IPC Boundary"}
+    P_Export --> IPC
+
+    subgraph TrustedMain ["Main Process (Trusted)"]
+        IPC --> SCheck["Sender Check"]
+        SCheck --> Zod["Zod Validation"]
+        Zod --> SecVal["Security Validation"]
+        SecVal --> AuthRules["Authorization / Rules"]
+    end
+
+    AuthRules --> NativeImport["IMPORT Path"]
+    AuthRules --> NativeExport["EXPORT Path"]
+
+    subgraph ImportExecution ["Native Import Execution"]
+        NativeImport --> ReadPDF["Read PDF"]
+        ReadPDF --> LocalStore["Local Storage"]
+        LocalStore --> CreateJob["Create AI Job"]
+        CreateJob --> LocalAI["LOCAL AI 🧠"]
+        LocalAI --> QEReview["QE REVIEW 👁️"]
+        QEReview --> Approved["APPROVED ✅"]
+    end
+
+    subgraph ExportExecution ["Native Export Execution"]
+        NativeExport --> GenReports["Generate Reports"]
+        GenReports --> ValOutput["Validate Output"]
+        ValOutput --> Audit["Audit Event"]
+        Audit --> ZipFile["ZIP 📦"]
+        ZipFile --> UserFolder["User's Export Folder 📁"]
+    end
+
+    %% Link the end of Import to the ability to Export
+    Approved -.->|Allows| ActionExport
+
+    %% Styling
+    classDef renderer fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef main fill:#bbf,stroke:#333,stroke-width:2px;
+    classDef native fill:#bfb,stroke:#333,stroke-width:2px;
+    
+    class R_Import,R_Export renderer;
+    class TrustedMain main;
+    class ImportExecution,ExportExecution native;
+```
 
 ---
 

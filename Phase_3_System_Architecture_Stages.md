@@ -79,7 +79,7 @@ flowchart TD
     end
 
     subgraph Workers ["3. Worker Pool"]
-        JobState["State: QUEUED → PROCESSING → SUCCESS/FAILED → RETRY/DLQ"]
+        JobState["State: QUEUED → PREPARING → OCR_RUNNING → EXTRACTION_RUNNING → PARSING → REVIEW_REQUIRED"]
         Idempotency["Idempotent Execution"]
         WorkerPool["AI Extraction Containers"]
         ONNX["ONNX Neural OCR Engine"]
@@ -108,7 +108,7 @@ flowchart TD
 
 We enforce a strict explicit execution rule where AI extraction runs exclusively when the user manually triggers the auto balloon process. This prevents unnecessary compute overhead during initial uploads. To handle variable workloads efficiently from day one while preparing for enterprise scale, we utilize a phased approach to messaging and scaling. The initial beta architecture employs a simpler queue and worker setup (such as AWS SQS or Redis BullMQ coupled with basic container autoscaling) to accelerate time-to-market. The system retains abstracted interfaces so that as workload demands increase, it can seamlessly transition to an enterprise-grade Apache Kafka and Kubernetes Event-driven Autoscaling (KEDA) architecture. 
 
-During execution, jobs are strictly tracked through explicit states (`QUEUED → PROCESSING → SUCCESS/FAILED → RETRY/DLQ`). Worker execution is fully idempotent, ensuring that in the event of a failure, retries safely process without duplicating data, and persistent failures are routed to a Dead Letter Queue (DLQ) for review. The extraction stack itself is highly specialized. It combines an ONNX neural OCR engine for reading linear and angular dimensions with an Abstract Syntax Tree parser dedicated to ASME Y14.5 Feature Control Frames. Finally, spatial R-Tree algorithms calculate the optimal, collision-free placement for all generated balloons.
+During execution, jobs are strictly tracked through explicit states (`QUEUED → PREPARING → OCR_RUNNING → EXTRACTION_RUNNING → PARSING → REVIEW_REQUIRED`). Worker execution is fully idempotent, ensuring that in the event of a failure, retries safely process without duplicating data, and persistent failures are routed to a Dead Letter Queue (DLQ) for review. The extraction stack itself is highly specialized. It combines an ONNX neural OCR engine for reading linear and angular dimensions with an Abstract Syntax Tree parser dedicated to ASME Y14.5 Feature Control Frames. Finally, spatial R-Tree algorithms calculate the optimal, collision-free placement for all generated balloons.
 
 ## Stage 4: Interactive Dual-Layer Blueprint Editor
 
@@ -127,7 +127,7 @@ flowchart TD
         ZoneGrid["Drawing Zone Grid Calculation (Zone B4, C2)"]
     end
 
-    subgraph Review_Layer ["3. Low Confidence (<95%) Review"]
+    subgraph Review_Layer ["3. Mandatory Human Review Layer"]
         ValidationFlow["Mandatory Validation Workflow"]
         CropCallout["Magnified Raw Bitmap vs AI Text Snippet"]
     end
