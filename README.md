@@ -1,6 +1,6 @@
 <div align="center">
 
-# ✈️ FAI.EV.ENGINEER
+# ✈️ Loonist
 ### *Enterprise AI-Powered First Article Inspection Platform*
 
 [![Version](https://img.shields.io/badge/Version-v2.0_Browser_First-blue.svg?style=for-the-badge&logo=git)](./FAI.EV.ENGINEER_MASTER_PRD.md)
