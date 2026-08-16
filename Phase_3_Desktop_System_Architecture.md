@@ -1,20 +1,20 @@
-# FAI.EV.ENGINEER — Production Desktop System Architecture
+# Desktop System Design
 
 ## 1. Executive Summary
-The **FAI.EV.ENGINEER Desktop Application** is a B2B, offline-first engineering utility designed for aerospace and manufacturing environments. It facilitates First Article Inspection (FAI), automatic GD&T extraction via local AI, drawing ballooning, and AS9102 report generation. 
+This **Desktop Application** is a B2B, offline first engineering utility designed for aerospace and manufacturing environments. It facilitates First Article Inspection (FAI), automatic GD&T extraction via local AI, drawing ballooning, and AS9102 report generation. 
 
-Built on an Electron, React, and SQLite stack, the system is engineered for highly restricted, security-sensitive, and air-gapped networks. Cloud connectivity is strictly limited to a control plane for licensing and activation via Cloudflare; **customer drawings and sensitive IP never cross the cloud boundary**. The application guarantees data provenance, idempotent processing, and tamper-evident auditability to satisfy rigorous manufacturing compliance standards.
+Built on Electron the system is engineered for highly restricted, security sensitive, and air gapped networks. Cloud connectivity is strictly limited to a control plane for licensing and activation via Cloudflare; **customer drawings and sensitive IP never cross the cloud boundary**. The application guarantees data provenance, idempotent processing, and tamper evident auditability to satisfy rigorous manufacturing compliance standards.
 
 ---
 
 ## 2. Architecture Principles
-- **Offline-First:** The application must function flawlessly without internet connectivity post-activation.
-- **Local-First Data Processing:** All AI inference, parsing, and database transactions occur exclusively on the local machine.
+- **Offline First:** The application must function flawlessly without internet connectivity post activation.
+- **Local First Data Processing:** All AI inference, parsing, and database transactions occur exclusively on the local machine.
 - **Security by Design & Least Privilege:** Strict IPC boundaries, no raw filesystem access in the renderer, and enforced context isolation.
 - **Deterministic & Idempotent Processing:** AI jobs and exports must produce identical results when repeated; retries must not duplicate data.
-- **Fail-Safe Behavior:** The system must gracefully handle GPU failures, disk exhaustion, and power loss without corrupting the database.
-- **Auditability & Provenance:** Every human or AI action is cryptographically linked to the source file via a tamper-evident ledger.
-- **Human-in-the-Loop Validation:** AI outputs are treated as suggestions requiring explicit visual confirmation by a Quality Engineer.
+- **Fail Safe Behavior:** The system must gracefully handle GPU failures, disk exhaustion, and power loss without corrupting the database.
+- **Auditability & Provenance:** Every human or AI action is cryptographically linked to the source file via a tamper evident ledger.
+- **Human in the Loop Validation:** AI outputs are treated as suggestions requiring explicit visual confirmation by a Quality Engineer.
 
 ---
 
@@ -716,6 +716,3 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 ### Remaining Risks & Mitigation
 - **Local DB Corruption:** If the user stores the SQLite file on a failing local HDD without mapping backups to a network drive, data loss is possible. *Mitigation: Onboarding must explicitly guide IT admins to configure the backup path to a redundant NAS.*
 - **GPU Driver Instability:** Windows generic GPU drivers can cause unpredictable ONNX crashes. *Mitigation: The deterministic CPU fallback guarantees the job will eventually complete, albeit slower.*
-
-### Final Maturity Rating: 8.5/10 (Production-Ready)
-This architecture is no longer a concept; it is an actionable, heavily bounded, and defensively engineered specification. It is ready for Low-Level Design (LLD) and immediate team implementation.
