@@ -1,0 +1,31 @@
+Issue ID,Parent ID,Issue Type,Summary,Description,Sprint
+1,,Epic,Cloudflare Licensing Plane,"Build the cloud infrastructure that manages licensing and hardware binding.",
+2,1,Story,Initialize Cloudflare D1 schema,"Create tables for Tenants, Devices, Licenses, and AuditLogs.",Sprint 1
+3,1,Story,Build Cloudflare Worker Auth API,"Implement /activate, /renew, /revoke endpoints with strict rate limiting.",Sprint 1
+4,1,Story,Implement Ed25519 signature validation,"Generate and sign offline Ed25519 license payloads on the worker.",Sprint 1
+5,,Epic,Electron Security & IPC,"Establish the impenetrable boundary within the Electron application.",
+6,5,Story,Configure Electron Main Process Security,"Enforce nodeIntegration: false, contextIsolation: true, and strict CSP.",Sprint 1
+7,5,Story,Build the Preload IPC Bridge,"Create a strict typed IPC allowlist in preload.ts to prevent arbitrary RCE.",Sprint 1
+8,5,Story,Implement Zod schema validation,"Validate all incoming IPC payloads in the Main process.",Sprint 1
+9,,Epic,Data Persistence (SQLite),"Build the atomic, offline-first data persistence layer.",
+10,9,Story,Setup better-sqlite3 with WAL,"Configure SQLite with PRAGMA journal_mode=WAL and 5000ms busy timeout.",Sprint 1
+11,9,Story,Implement Transaction History wrappers,"Wrap edits in BEGIN/COMMIT blocks for Undo/Redo capability.",Sprint 1
+12,,Epic,Local AI Extraction Engine,"Safely integrate local ONNX vision processing.",
+13,12,Story,Implement boot-time ONNX verification,"Verify SHA-256 hash of local ONNX models against manifest on boot.",Sprint 2
+14,12,Story,Build AI Job State Machine,"Implement worker lifecycle (QUEUED -> OCR_RUNNING -> PARSING) with crash recovery.",Sprint 2
+15,12,Story,Implement Execution Provider Fallbacks,"Detect CUDA/DirectML and build deterministic CPU fallback for GPU OOM/TDR crashes.",Sprint 2
+16,12,Story,Implement ASME Y14.5 GD&T Parser,"Build the Abstract Syntax Tree parser for complex geometric tolerance validation.",Sprint 2
+17,,Epic,Compliance & Provenance,"Securely log all data provenance for aerospace audits.",
+18,17,Story,Implement Tamper-Evident Audit Ledger,"Implement SHA-256 hash chaining on all database writes.",Sprint 2
+19,,Epic,High-Performance Viewport,"Build a flawless 60 FPS UI for massive E-size blueprints.",
+20,19,Story,Integrate WebGL/Canvas PDF viewer,"Render vector PDFs with memory offloading to stay under 1.5GB RAM.",Sprint 2
+21,,Epic,Dual-Layer Blueprint Editor,"Build the visual markup and data editing experience.",
+22,21,Story,Implement R-Tree spatial algorithms,"Automatically place balloons without overlapping other features.",Sprint 3
+23,21,Story,Build interactive canvas overlay,"Implement draggable balloons, smart leader lines, and cascaded renumbering.",Sprint 3
+24,21,Story,Build Data Inspector Grid,"React table to edit Nominals, GD&T Datums, and Modifiers.",Sprint 3
+25,,Epic,AS9102 Compliance Export,"Generate certified aerospace compliance packages.",
+26,25,Story,Build AS9102 Rule Engine,"Block exports if required compliance fields are missing.",Sprint 3
+27,25,Story,Compile AS9102 Excel Workbooks,"Programmatically generate Form 1, Form 2, and Form 3 (.xlsx).",Sprint 3
+28,,Epic,Enterprise CI/CD & OTA Updates,"Automate secure distribution and updating.",
+29,28,Story,Build GitHub Actions workflow,"Automate the build process for the Electron .exe.",Sprint 3
+30,28,Story,Integrate EV Code Signing,"Apply Sectigo EV Code Signing certificate and RFC 3161 Timestamping.",Sprint 3
