@@ -1,0 +1,10 @@
+name = "fai-licensing-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-03"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fai-licensing-db"
+database_id = "00000000-0000-0000-0000-000000000000" # Replace with actual D1 ID in production
+
+# Rate limiting is handled in Cloudflare WAF, but could also be simulated in Hono.
