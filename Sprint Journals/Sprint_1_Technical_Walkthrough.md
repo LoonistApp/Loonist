@@ -1,9 +1,8 @@
-# Sprint 1 — Complete Technical Architecture & Implementation Walkthrough
+# Sprint 1: Complete Technical Architecture & Implementation Walkthrough
 
 Welcome! We have successfully laid the foundation for the **FAI.EV.ENGINEER** desktop application and the **Cloudflare Licensing Plane**. 
 This document serves as your definitive guide to understanding exactly how our system is built, why we made these specific technical decisions, and how every piece interacts.
 
---
 ## 1. WHAT WE HAVE BUILT SO FAR? STARTING FROM ZERO!!
 
 Before looking at the architecture, let's look at exactly how this repository was initialized on your Windows machine.
