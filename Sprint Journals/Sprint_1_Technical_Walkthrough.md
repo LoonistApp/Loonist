@@ -235,7 +235,7 @@ Cloudflare Worker (Cloud Runtime)
 
 ---
 
-## 14. REAL-WORLD ANALOGY
+## 14. REAL WORLD ANALOGY
 
 Think of our Electron Architecture like a High Security Bank:
 
