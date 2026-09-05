@@ -80,17 +80,17 @@ Here is exactly what currently exists in our repository.
 
 ## 4. LESSONS FROM SMALL → LARGE
 
-### Level 1 — Individual Concepts
+### Level 1: Individual Concepts
 * **Process:** An instance of a running computer program. (Electron uses multiple processes).
 * **Environment Variable:** A secret value injected into the runtime (like our `LICENSE_PRIVATE_KEY` in `.dev.vars`).
 * **Schema:** The blueprint of a database table (e.g., `schema.sql`).
 
-### Level 2 — Individual Technologies
+### Level 2: Individual Technologies
 * **Electron Main Process:** A Node.js process with full access to the user's computer. It manages windows and the SQLite database.
 * **Electron Renderer Process:** A restricted web browser (Chromium) that displays React. It *cannot* touch the computer's hard drive.
 * **IPC (Inter-Process Communication):** The secure telephone line between the Renderer and the Main Process.
 
-### Level 3 — Component Relationships
+### Level 3: Component Relationships
 ```text
 React (Renderer) 
       ↓ (Sends JSON payload over IPC)
@@ -102,7 +102,7 @@ DBManager (database.ts)
 ```
 * **Why?:** We cannot let React talk to SQLite directly because if a hacker injected malicious JavaScript into React (XSS), they could delete the user's hard drive. The Preload bridge acts as a bouncer.
 
-### Level 4 — Complete System Architecture
+### Level 4: Complete System Architecture
 ```text
        [ OFFLINE / LOCAL ]                           [ CLOUD ]
                                                         
