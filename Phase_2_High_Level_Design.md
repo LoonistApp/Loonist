@@ -46,7 +46,7 @@ flowchart TD
 
     QE <-->|View & Edit| ElectronApp
     ElectronApp <-->|Read/Write Blueprints| LocalFile
-    ElectronApp <-->|HTTPS REST (One-Time Activation)| CFWorkers
+    ElectronApp <-->|HTTPS REST - One-Time Activation| CFWorkers
     CFWorkers <-->|Query| D1
 ```
 
