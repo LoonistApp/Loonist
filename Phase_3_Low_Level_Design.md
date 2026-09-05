@@ -26,7 +26,7 @@ The architecture enforces a strict physical boundary between the local desktop e
 flowchart TD
     subgraph Local_Environment ["1. Local Desktop (Offline-Capable)"]
         Customer["Quality Engineer"]
-        DesktopApp["FAI.EV.ENGINEER (Electron/React)"]
+        DesktopApp["LOONIST (Electron/React)"]
         LocalDB[("SQLite WAL Database")]
         LocalFS["Local Filesystem"]
         LocalAI["Local ONNX Inference Engine"]
@@ -346,7 +346,7 @@ flowchart LR
     Event1 --> Event2 --> Event3 --> Checkpoint
 ```
 - **Tamper-Evident Ledger:** Every write action in the app generates an `AuditEvent`. Each event contains the SHA-256 hash of the *previous* event, creating a cryptographically linked, tamper-evident chain.
-- **Signed Checkpoints (Trust Anchor):** Periodically, and on Export, the terminal hash is signed using a cryptographic key to establish a trust anchor. The signing key does NOT live in the SQLite database. The public verification key is distributed via the FAI.EV.ENGINEER compliance portal, allowing auditors to independently verify the signature.
+- **Signed Checkpoints (Trust Anchor):** Periodically, and on Export, the terminal hash is signed using a cryptographic key to establish a trust anchor. The signing key does NOT live in the SQLite database. The public verification key is distributed via the LOONIST compliance portal, allowing auditors to independently verify the signature.
 - **Integrity Verification:** An internal verification script runs on export to ensure the chain is intact and signatures match.
 
 ---
@@ -425,7 +425,7 @@ flowchart TD
 
 ## 23. Electron Security
 
-### FAI.EV.ENGINEER — Electron Security Visual Architecture
+### LOONIST — Electron Security Visual Architecture
 
 ```mermaid
 flowchart TD
@@ -488,7 +488,7 @@ flowchart TD
 
 ## 24. IPC Security
 
-### FAI.EV.ENGINEER — IPC Security & Validation Flow
+### LOONIST — IPC Security & Validation Flow
 
 ```mermaid
 sequenceDiagram
@@ -716,3 +716,4 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 ### Remaining Risks & Mitigation
 - **Local DB Corruption:** If the user stores the SQLite file on a failing local HDD without mapping backups to a network drive, data loss is possible. *Mitigation: Onboarding must explicitly guide IT admins to configure the backup path to a redundant NAS.*
 - **GPU Driver Instability:** Windows generic GPU drivers can cause unpredictable ONNX crashes. *Mitigation: The deterministic CPU fallback guarantees the job will eventually complete, albeit slower.*
+
