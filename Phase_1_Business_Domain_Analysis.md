@@ -1,5 +1,5 @@
 # PHASE 1: BUSINESS DOMAIN ANALYSIS
-**Product Name:** `FAI.EV.ENGINEER`  
+**Product Name:** `LOONIST`  
 **Product Owner (POC):** Harsh Yadav  
 **Domain:** Aerospace & High-Precision Manufacturing FAI (SAE AS9102 Rev B/C)  
 **Author:** Enterprise Product Engineering Organization  
@@ -9,11 +9,11 @@
 
 ## 1. Business Capability Map
 
-The business capabilities of `FAI.EV.ENGINEER` are structured into core, supporting, and management domains:
+The business capabilities of `LOONIST` are structured into core, supporting, and management domains:
 
 ```mermaid
 mindmap
-  root((FAI.EV.ENGINEER Capabilities))
+  root((LOONIST Capabilities))
     Core Capabilities
       Drawing Ingestion & Vector Rendering
       AI Feature Extraction OCR & GD&T
@@ -39,13 +39,13 @@ mindmap
 | **Core** | **Spatial Ballooning** | Automated placement of numbered inspection balloons with spatial R-Tree collision avoidance. | Prevents balloons from obscuring blueprint dimensions or lines. |
 | **Core** | **AS9102 Compliance** | Automated generation of Form 1 (Part Accountability), Form 2 (Product Accountability), and Form 3 (Characteristic Accountability). | Ensures 100% compliance for Boeing, Lockheed, and Airbus supplier audits. |
 | **Supporting** | **Tenant Hierarchy** | 5-tier organizational tree (`Org -> Project -> Part -> Revision -> Drawing`). | Enables multi-project enterprise asset management. |
-| **Security** | **Data Isolation** | Multi-tenant tenant ID isolation & PostgreSQL Row-Level Security (RLS) + S3 presigned URLs. | Meets strict ITAR/CMMC Level 2 defense compliance & SOC2 Type II. |
+| **Security** | **Data Isolation** | Absolute Local Isolation (SQLite) & Cryptographic Cloudflare Licensing. | Natively meets ITAR/CMMC data residency requirements. |
 
 ---
 
 ## 2. Domain Model & Bounded Contexts
 
-Using **Domain-Driven Design (DDD)** principles, `FAI.EV.ENGINEER` is partitioned into 5 explicit Bounded Contexts:
+Using **Domain-Driven Design (DDD)** principles, `LOONIST` is partitioned into 5 explicit Bounded Contexts:
 
 ```mermaid
 flowchart TD
@@ -102,23 +102,23 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Engineer as Quality Engineer (Next.js UI)
-    participant API as Node.js API Gateway
-    participant Kafka as Kafka Event Mesh
-    participant AI as Scalable AI Worker Engine
-    participant DB as Prisma / PostgreSQL (RLS)
+    actor Engineer as Quality Engineer (React/Electron UI)
+    participant API as Electron Main Process
+    participant Kafka as Cloudflare Licensing API
+    participant AI as Local ONNX AI Engine
+    participant DB as Local SQLite Database
 
-    Engineer->>API: 1. Select Org/Project/Part/Revision & Upload Drawing to S3
+    Engineer->>API: 1. Select Org/Project/Part/Revision & Load Drawing from Local File System
     Engineer->>API: 2. Render WebGL Viewport Canvas (60 FPS)
     
     Note over Engineer, API: Explicit Human Trigger
     Engineer->>API: 3. Click "Auto Balloon" Button
-    API->>Kafka: 4. Dispatch 'autoballoon.requested' Message
-    Kafka->>AI: 5. KEDA Scales Workers & Triggers AI Extraction
+    API->>Kafka: 4. Dispatch local IPC extraction request
+    Kafka->>AI: 5. Execute local ONNX extraction
     AI->>AI: 6. Parse Title Block (Form 1/2) & Tolerances/GD&T (Form 3)
     AI->>AI: 7. Run Spatial R-Tree Collision-Avoidance Balloon Placement
     AI->>DB: 8. Persist Extracted Characteristics & Balloons
-    AI-->>Engineer: 9. Stream Extracted Data over WebSockets to Viewport
+    AI-->>Engineer: 9. Stream Extracted Data over IPC to React Viewport
     
     Engineer->>Engineer: 10. Edit / Renumber / Validate Characteristics & Enter Measured Values
     Engineer->>API: 11. Trigger AS9102 Export (.xlsx / .pdf via Resend Alert)
@@ -258,7 +258,7 @@ stateDiagram-v2
 
 ## 8. Domain Events
 
-Domain events represent business-significant state changes occurring across the `FAI.EV.ENGINEER` system lifecycle.
+Domain events represent business-significant state changes occurring across the `LOONIST` system lifecycle.
 
 | Domain Event | Description | Trigger | Publisher | Consumer(s) | Context Owner |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -483,7 +483,7 @@ Domain Services encapsulate stateless business logic and algorithms that do not 
 
 ## 12. Domain Constraints
 
-Mandatory, non-negotiable business rules enforced across the `FAI.EV.ENGINEER` system architecture:
+Mandatory, non-negotiable business rules enforced across the `LOONIST` system architecture:
 
 ```
 +-------------------+----------------------------------------------------------------------------------+
@@ -610,3 +610,4 @@ flowchart LR
 ### Engineering Recommendations
 1. Enforce strict immutability on approved characteristics once an AS9102 report is exported.
 2. Implement spatial R-Tree indexing in the C++ extraction sidecar to compute balloon collision-free orbit coordinates during the initial "Auto Balloon" run.
+
