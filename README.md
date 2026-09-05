@@ -3,11 +3,11 @@
 # ✈️ Loonist
 ### *Enterprise AI-Powered First Article Inspection Platform*
 
-[![Version](https://img.shields.io/badge/Version-v2.0_Browser_First-blue.svg?style=for-the-badge&logo=git)](./FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Status](https://img.shields.io/badge/Status-Approved_SSOT-emerald.svg?style=for-the-badge&logo=checkmark)](./FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Compliance](https://img.shields.io/badge/Compliance-SAE_AS9102_Rev_B%2FC-orange.svg?style=for-the-badge&logo=shield)](./FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Platform](https://img.shields.io/badge/Platform-Browser_First_B2B_SaaS-purple.svg?style=for-the-badge&logo=nextdotjs)](./FAI.EV.ENGINEER_MASTER_PRD.md)
-[![Owner](https://img.shields.io/badge/Product_Owner-Harsh_Yadav-black.svg?style=for-the-badge&logo=person)](./FAI.EV.ENGINEER_MASTER_PRD.md)
+[![Version](https://img.shields.io/badge/Version-v2.0_Desktop_First-blue.svg?style=for-the-badge&logo=git)](./LOONIST.PRD.md)
+[![Status](https://img.shields.io/badge/Status-Approved_SSOT-emerald.svg?style=for-the-badge&logo=checkmark)](./LOONIST.PRD.md)
+[![Compliance](https://img.shields.io/badge/Compliance-SAE_AS9102_Rev_B%2FC-orange.svg?style=for-the-badge&logo=shield)](./LOONIST.PRD.md)
+[![Platform](https://img.shields.io/badge/Platform-Desktop_App_(Electron)-purple.svg?style=for-the-badge&logo=electron)](./LOONIST.PRD.md)
+[![Owner](https://img.shields.io/badge/Product_Owner-Harsh_Yadav-black.svg?style=for-the-badge&logo=person)](./LOONIST.PRD.md)
 
 <p align="center">
   <b>Postman for Engineering Drawings</b> — Automating First Article Inspection (FAI) for Aerospace, Automotive, Medical Devices, and Precision Machine Shops.
@@ -19,7 +19,7 @@
 
 > [!IMPORTANT]
 > **SINGLE SOURCE OF TRUTH (SSOT)**  
-> This repository contains the official Master System Architecture and PRD for **FAI.EV.ENGINEER** (Product Owner: **Harsh Yadav**).  
+> This repository contains the official Master System Architecture and PRD for **LOONIST** (Product Owner: **Harsh Yadav**).  
 > Built strictly upon SAE AS9102 (Rev B/C) standards and ASME Y14.5 GD&T drafting specifications.
 
 ---
@@ -28,50 +28,50 @@
 
 | File | Purpose | Description |
 | :--- | :--- | :--- |
-| 📄 [`FAI.EV.ENGINEER_MASTER_PRD.md`](./FAI.EV.ENGINEER_MASTER_PRD.md) | **Master PRD (SSOT)** | Master Product Requirements Document in Harsh Yadav's 7-part executive format. |
+| 📄 [`LOONIST.PRD.md`](./LOONIST.PRD.md) | **Master PRD (SSOT)** | Master Product Requirements Document defining the offline-first desktop architecture. |
 | 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Domain Analysis** | DDD Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
-| 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Diagrams, Prisma PostgreSQL Schema, Kafka Event Mesh, Docker, Kubernetes, KEDA Autoscaling, PgBouncer, and Resend Email Automation. |
+| 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Context Diagrams, IPC Security Boundaries, SQLite Undo/Redo Engine, Cloudflare Licensing API. |
+| 🛠️ [`Phase_3_Low_Level_Design.md`](./Phase_3_Low_Level_Design.md) | **Phase 3: Low-Level System Design** | Desktop Application internals, ONNX hardware execution strategies, and cryptographic license verification logic. |
 
 ---
 
 ## 🏛️ Master System Architecture Diagram
 
-![FAI.EV.ENGINEER Multi-Tenant System Architecture Blueprint](C:\Users\hy376\.gemini\antigravity\brain\1c296c4b-eef4-4158-ba24-a89523b57488\fai_ev_engineer_system_architecture_1786338488664.png)
+```mermaid
+flowchart TD
+    QE["Quality & Manufacturing Engineers"]
+    
+    subgraph Boundary ["System Boundary: LOONIST Local Desktop Environment"]
+        ElectronApp["LOONIST Electron Application\n(React UI + Node.js Main Process)"]
+        LocalFile["Local File System\n(PDF Blueprints, AS9102 Exports)"]
+    end
+
+    subgraph Cloud ["Cloudflare Edge Network"]
+        CFWorkers["Cloudflare Workers API\n(Hono.js)"]
+        D1[("Cloudflare D1 Database\n(Tenants, Devices, Licenses)")]
+    end
+
+    QE <-->|View & Edit| ElectronApp
+    ElectronApp <-->|Read/Write Blueprints| LocalFile
+    ElectronApp <-->|HTTPS REST - One-Time Activation| CFWorkers
+    CFWorkers <-->|Query| D1
+```
 
 ---
 
 ## 🛠️ Production Technology Stack
 
-```mermaid
-flowchart LR
-    Frontend["🎨 Next.js (TypeScript / React 19)\nWebGL / Canvas Viewport Engine"]
-    API["⚡ Node.js / Express API Gateway"]
-    DB[("🐘 AWS Aurora PostgreSQL\nPrisma ORM + PostGIS + RLS")]
-    Pooler["🔄 PgBouncer Pooler"]
-    Cache["🚀 Redis Enterprise Cluster"]
-    Mesh["📩 Apache Kafka Event Mesh"]
-    Workers["🤖 AI Vision Workers\nKEDA Autoscaled"]
-    Mail["📬 Resend Email API"]
-    Store["☁️ AWS S3 Presigned Uploads"]
-
-    Frontend <--> API
-    API <--> Cache & Mesh & Pooler & Mail & Store
-    Mesh <--> Workers
-    Workers <--> Pooler & Store & Cache
-    Pooler <--> DB
-```
-
 | Architecture Tier | Technology Selected | Rationale |
 | :--- | :--- | :--- |
-| **Frontend UI** | **Next.js (React 19, TypeScript)** | SSR, App Router, WebGL/Canvas 60 FPS vector blueprint viewport engine. |
-| **API Gateway** | **Node.js + Express (TypeScript)** | Modular REST/GraphQL microservices, JWT/OAuth2 RBAC authentication. |
-| **Database & ORM** | **Prisma ORM + AWS Aurora PostgreSQL** | Type-safe queries, PostGIS 2D spatial indexing, Row Level Security (RLS). |
-| **DB Pooler** | **PgBouncer** | Connection multiplexing during KEDA AI worker scaling bursts. |
-| **Caching & PubSub**| **Redis Enterprise Cluster** | Session management, API response cache, rate-limiting, socket connection state. |
-| **Event Mesh** | **Apache Kafka (KRaft)** | Durable event backbone (`autoballoon.requested`, `autoballoon.completed`). |
-| **Worker Scaling** | **KEDA (Kubernetes Event Autoscaler)** | Dynamic pod scaling driven by Kafka Consumer Group Lag. |
-| **Mail Automation** | **Resend API** | Passwordless magic links, team invitations, export alerts. |
-| **Object Storage** | **AWS S3 / MinIO** | Direct presigned client uploads for vector PDF blueprints (200MB limit). |
+| **Desktop Framework** | **Electron (Node.js)** | Cross-platform container providing high-privilege hardware/filesystem access. |
+| **Frontend UI** | **React 19 + TypeScript + Vite** | Extremely fast UI rendering, componentized architecture, modern developer experience. |
+| **Frontend Canvas** | **TailwindCSS + HTML5 Canvas** | High performance drawing interaction. |
+| **IPC Bridge Security** | **ContextBridge + Zod** | Strict allowlist for frontend-to-backend communication. Blocks malicious XSS payloads. |
+| **Local Database** | **SQLite (better-sqlite3)** | Lightning-fast synchronous local storage. PRAGMA WAL enabled for concurrent reads/writes and Undo/Redo logic. |
+| **Cloud Licensing API** | **Cloudflare Workers (Hono)** | Global, serverless Edge API for handling activations instantly worldwide with zero server maintenance. |
+| **Cloud Database** | **Cloudflare D1** | Serverless SQL ledger storing Tenants, Devices, Licenses, and AuditLogs. |
+| **Cryptography** | **Ed25519 (@noble/curves)** | Highly-audited zero-dependency crypto used by Cloudflare to securely sign offline license payloads. |
+| **Local AI Engine** | **ONNX Runtime**| Processes neural OCR and spatial recognition locally without uploading to the cloud (ITAR Compliant). |
 
 ---
 
@@ -82,35 +82,34 @@ flowchart LR
     subgraph Highlights ["Key Platform Highlights"]
         Time["⚡ >85% Reduction in FAI Setup Time (8h -> <15m)"]
         Acc["🎯 ≥95% AI Extraction Accuracy"]
-        Proc["⏱️ <15s Average Drawing Processing Time"]
-        Sec["🔒 Strict Multi-Tenant Isolation & SOC2 Readiness"]
+        Proc["⏱️ <15s Local AI Processing Time (Zero Uploads)"]
+        Sec["🔒 100% ITAR Compliant Offline Environment"]
     end
 ```
 
 ---
 
-## 🔄 End-to-End Event-Driven Flow
+## 🔄 End-to-End Operational Flow
 
 ```mermaid
 flowchart TD
-    A["1. Launch WebApp in Browser (Next.js)"] --> B["2. Auth / SAML 2.0 / Resend Magic Link Login"]
-    B --> C["3. Select Hierarchy: Organization → Project → Part → Revision → Drawing"]
-    C --> D["4. Direct Upload Drawing to AWS S3 (Presigned PUT URL)"]
-    D --> E["5. WebGL / Canvas Viewport Initialization (60 FPS Pan/Zoom)"]
+    A["1. User enters License Token"] --> B["2. Electron pings Cloudflare API for Hardware Activation"]
+    B --> C["3. Receives Ed25519 Cryptographically Signed License"]
+    C --> D["4. System fully offline. User loads PDF from Local Drive."]
+    D --> E["5. React Viewport renders PDF (60 FPS Canvas)"]
     E --> F["6. User Clicks 'Auto Balloon' (Explicit AI Trigger)"]
     
-    subgraph Async_Event_Mesh ["Kafka Event Mesh & KEDA Worker Pool"]
-        F --> F1["Publish Event to 'autoballoon.requested' Kafka Topic"]
-        F1 --> F2["KEDA Autoscale AI Workers on Kafka Consumer Lag"]
-        F2 --> F3["ONNX Neural OCR + ASME Y14.5 GD&T AST Parsing"]
-        F3 --> F4["Spatial R-Tree Collision-Avoidance Balloon Placement"]
-        F4 --> F5["Batch Save to PostgreSQL via Prisma + PgBouncer"]
+    subgraph Local_Execution ["Local Electron Node.js Environment"]
+        F --> F1["Dispatch IPC Extraction Request"]
+        F1 --> F2["Local ONNX Neural OCR + ASME Y14.5 GD&T AST Parsing"]
+        F2 --> F3["Spatial R-Tree Collision-Avoidance Balloon Placement"]
+        F3 --> F4["Batch Save to SQLite via better-sqlite3"]
     end
     
-    F5 --> G["7. Stream Live Results via WebSockets to Next.js Viewport"]
-    G --> H["8. Postman-Style HITL Verification Grid (<95% Flagged Yellow)"]
-    H --> I["9. Export Certified AS9102 Form 1/2/3 Workbooks (.xlsx, .pdf, .csv)"]
-    I --> J["10. Dispatch Email Notifications via Resend & Append SHA-256 Audit Log"]
+    F4 --> G["7. Stream Live Results via IPC to React Viewport"]
+    G --> H["8. HITL Verification Grid (<95% Flagged Yellow)"]
+    H --> I["9. Export Certified AS9102 Form 1/2/3 Workbooks (.xlsx) Locally"]
+    I --> J["10. Edits saved automatically via SQLite WAL Undo/Redo Engine"]
 ```
 
 ---
