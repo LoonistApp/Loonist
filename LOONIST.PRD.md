@@ -1,21 +1,21 @@
-# FAI.EV.ENGINEER — Enterprise Master PRD
+# LOONIST PRD (Product Requirement Document)
 
 | Attribute | Value |
 | :--- | :--- |
-| **Product Name** | `FAI.EV.ENGINEER` |
-| **Version** | v2.0 (Browser-First Enterprise SaaS Platform) |
+| **Product Name** | `LOONIST` |
+| **Version** | v2.0 (Desktop First Enterprise SaaS Platform) |
 | **Document Status** | Approved Master Baseline PRD |
 | **Last Updated** | 10 August 2026 |
 | **Product Owner (POC)** | Harsh Yadav |
-| **Architectural Model** | Multi-Tenant Cloud SaaS + Hybrid Desktop Agent Ready |
-| **Target Infrastructure** | Containerized Kubernetes (EKS/GKE/AKS), KEDA, Kafka Event Mesh |
+| **Architectural Model** | Single Tenant Desktop SaaS |
+| **Target Infrastructure** | Electron App |
 
 ---
 
 ## 1. Why? (Objective & Business Context)
 
 ### 1.1 Business Objectives
-* **Primary Differentiation:** Modern, AI-augmented, browser-first First Article Inspection (FAI) ballooning and AS9102 Form generation platform replacing legacy desktop single-user tools (1Factory, Balloonist.io, Discus).
+* **Primary Differentiation:** Modern, AI augmented, desktop first, First Article Inspection (FAI) ballooning and AS9102 Form generation platform replacing legacy desktop single-user tools (1Factory, Balloonist.io, Discus).
 * **Business Model:** Multi-Tenant B2B Subscription SaaS (Tiered Seat Licenses + Usage-based processing credits).
 * **Target Audience:** Enterprise Aerospace & Defense Tier 1/2 Suppliers, Automotive Precision Machining, Medical Device Manufacturers, ISO 9001 / AS9100 Certified Machine Shops.
 * **Year 1 Business Goals:**
