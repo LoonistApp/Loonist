@@ -1,6 +1,6 @@
 <div align="center">
 
-# ✈️ Loonist
+# Loonist
 ### *Enterprise AI Powered First Article Inspection Platform*
 
 [![Version](https://img.shields.io/badge/Version-v2.0_Desktop_First-blue.svg?style=for-the-badge&logo=git)](./LOONIST.PRD.md)
