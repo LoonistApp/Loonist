@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session, dialog } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { DBManager } from './database';
 
@@ -22,11 +23,16 @@ export function resolveSecurePath(baseDir: string, targetPath: string): string {
 
 // Define the environment
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let mainWindowRef: BrowserWindow | null = null;
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: 1440,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 700,
+    title: 'LOONIST — Aerospace FAI Platform',
+    backgroundColor: '#0f172a',
     webPreferences: {
       // SECTION 23: Strict Security Policies
       nodeIntegration: false,
@@ -36,9 +42,11 @@ function createWindow() {
     },
   });
 
+  mainWindowRef = mainWindow;
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -56,19 +64,25 @@ function createWindow() {
     shell.openExternal(details.url);
     return { action: 'deny' };
   });
+
+  mainWindow.on('closed', () => {
+    mainWindowRef = null;
+  });
 }
 
 app.whenReady().then(() => {
   // Initialize Database in the user data directory
   const dbPath = path.join(app.getPath('userData'), 'fai_local.db');
-  const db = new DBManager(dbPath);
+  const _db = new DBManager(dbPath);
 
-  // Enforce Strict Content Security Policy (CSP)
+  // Enforce Strict Content Security Policy (CSP) allowing inline workers for PDF.js
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"]
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:;"
+        ]
       }
     });
   });
@@ -92,24 +106,84 @@ app.on('window-all-closed', () => {
 // SECTION 24: STRICT IPC BRIDGE & VALIDATION
 // ==========================================
 
+function validateSender(event: Electron.IpcMainInvokeEvent) {
+  const senderUrl = event.senderFrame?.url;
+  if (senderUrl !== 'http://localhost:5173/' && !senderUrl?.startsWith('file://')) {
+     throw new Error('Unauthorized sender context');
+  }
+}
+
 const getProjectSchema = z.object({
   projectId: z.string().min(1, "Project ID is required")
 });
 
 ipcMain.handle('ipc-get-project', async (event, payload) => {
-  // 1. Validate Sender (Prevent malicious iframes from spoofing IPC)
-  const senderUrl = event.senderFrame?.url;
-  if (senderUrl !== 'http://localhost:5173/' && !senderUrl?.startsWith('file://')) {
-     throw new Error('Unauthorized sender context');
-  }
-
-  // 2. Validate Payload with Zod
+  validateSender(event);
   const parsed = getProjectSchema.safeParse(payload);
   if (!parsed.success) {
      console.error('IPC Validation failed:', parsed.error);
      throw new Error('Invalid IPC payload');
   }
-
-  // 3. Execute privileged operation safely
   return { id: parsed.data.projectId, name: 'Secure FAI Project', status: 'Approved' };
 });
+
+// ==========================================
+// SPRINT 2: BLUEPRINT FILE INGESTION IPC
+// ==========================================
+
+ipcMain.handle('ipc-open-blueprint-dialog', async (event) => {
+  validateSender(event);
+
+  if (!mainWindowRef) {
+    throw new Error('No active window');
+  }
+
+  const result = await dialog.showOpenDialog(mainWindowRef, {
+    title: 'Open Aerospace Blueprint (PDF)',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Blueprint PDF Documents', extensions: ['pdf'] }
+    ]
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { cancelled: true };
+  }
+
+  const filePath = result.filePaths[0];
+  const fileBuffer = await fs.promises.readFile(filePath);
+  const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+  const stats = await fs.promises.stat(filePath);
+
+  return {
+    cancelled: false,
+    fileName: path.basename(filePath),
+    filePath: filePath,
+    fileSize: stats.size,
+    fileHash: hash,
+    buffer: fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength)
+  };
+});
+
+ipcMain.handle('ipc-load-sample-blueprint', async (event) => {
+  validateSender(event);
+
+  // Look for sample in app directory or resources
+  const samplePath = path.join(__dirname, '../public/sample_blueprint.pdf');
+  if (fs.existsSync(samplePath)) {
+    const fileBuffer = await fs.promises.readFile(samplePath);
+    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    const stats = await fs.promises.stat(samplePath);
+    return {
+      cancelled: false,
+      fileName: 'AS9102_Sample_Turbine_Bracket_RevC.pdf',
+      filePath: samplePath,
+      fileSize: stats.size,
+      fileHash: hash,
+      buffer: fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength)
+    };
+  }
+
+  return { cancelled: true, error: 'Sample blueprint file not found' };
+});
+

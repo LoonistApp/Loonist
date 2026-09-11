@@ -109,7 +109,7 @@
 - [x] (Sprint 1) Electron must enforce strict IPC boundaries with Zod schema validation.
 - [x] (Sprint 1) SQLite must support transaction wrappers and an atomic Undo/Redo history ledger.
 - [x] (Sprint 1) Cloudflare Licensing plane must generate an Ed25519 cryptographic signature binding the license to a device.
-- [ ] (Sprint 2) WebGL/Canvas viewport must render dense engineering blueprints at 60 FPS with memory offloading (<1.5GB RAM).
+- [x] (Sprint 2) WebGL/Canvas viewport must render dense engineering blueprints at 60 FPS with memory offloading (<1.5GB RAM).
 - [ ] (Sprint 3) AI extraction must execute locally via ONNX when user explicitly clicks "Auto Balloon" with CPU/GPU fallbacks.
 - [ ] (Sprint 3) ASME Y14.5 GD&T AST parser must correctly interpret geometric tolerances.
 - [ ] (Sprint 4) Dual-layer canvas must support interactive dragging, smart leader lines, and R-Tree spatial collision avoidance.

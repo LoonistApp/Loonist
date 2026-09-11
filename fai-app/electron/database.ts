@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import path from 'path';
 
 export class DBManager {
   private db: Database.Database;
