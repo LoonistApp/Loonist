@@ -111,7 +111,11 @@
 - [x] (Sprint 1) Cloudflare Licensing plane must generate an Ed25519 cryptographic signature binding the license to a device.
 - [x] (Sprint 2) WebGL/Canvas viewport must render dense engineering blueprints at 60 FPS with memory offloading (<1.5GB RAM).
 - [ ] (Sprint 3) AI extraction must execute locally via ONNX when user explicitly clicks "Auto Balloon" with CPU/GPU fallbacks.
-- [ ] (Sprint 3) ASME Y14.5 GD&T AST parser must correctly interpret geometric tolerances.
+- [ ] (Sprint 3) ASME Y14.5 GD&T AST parser must interpret geometric tolerances, basic [boxed] dimensions, reference (parentheses) callouts, and limit tolerances.
+- [ ] (Sprint 3) System must auto-apply Title Block General Tolerance Matrix based on decimal precision (.X, .XX, .XXX) when explicit tolerances are omitted.
+- [ ] (Sprint 3) Drawing grid zones (e.g. Zone C-4, Sheet 1) must be computed automatically from blueprint coordinates.
+- [ ] (Sprint 3) Quantity multipliers (e.g. 4X) must be detected with 1-click sub-balloon expansion capability.
+- [ ] (Sprint 3) AI extraction must generate confidence scores and flag low-confidence items (<90%) for quick human verification.
 - [ ] (Sprint 4) Dual-layer canvas must support interactive dragging, smart leader lines, and R-Tree spatial collision avoidance.
 - [ ] (Sprint 5) Audit writes must enforce SHA-256 tamper-evident hash chaining.
 - [ ] (Sprint 5) Reports must export valid SAE AS9102 Form 1, 2, 3 workbooks (.xlsx) locally.

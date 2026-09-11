@@ -19,6 +19,9 @@ Issue ID,Parent ID,Issue Type,Summary,Description,Sprint
 14,12,Story,Build AI Job State Machine,"Implement worker lifecycle (QUEUED -> OCR_RUNNING -> PARSING) with crash recovery.",Sprint 3
 15,12,Story,Implement Execution Provider Fallbacks,"Detect CUDA/DirectML and build deterministic CPU fallback for GPU OOM/TDR crashes.",Sprint 3
 16,12,Story,Implement ASME Y14.5 GD&T Parser,"Build the Abstract Syntax Tree parser for complex geometric tolerance validation.",Sprint 3
+35,12,Story,Implement Title Block General Tolerance Matrix,"Auto-apply .X (.030), .XX (.010), .XXX (.005), and angle default tolerances based on decimal precision.",Sprint 3
+36,12,Story,Implement Drawing Grid Zone & Multiplier Detection,"Auto-compute drawing zone (e.g. C-4) and parse NX multipliers (e.g. 4X) with sub-balloon splitting.",Sprint 3
+37,12,Story,Implement Extraction Confidence & HITL Flagging,"Score character/callout confidence and flag low-confidence extractions for quick human verification.",Sprint 3
 21,,Epic,Dual-Layer Blueprint Editor,"Build the visual markup and data editing experience.",
 22,21,Story,Implement R-Tree spatial algorithms,"Automatically place balloons without overlapping other features.",Sprint 4
 23,21,Story,Build interactive canvas overlay,"Implement draggable balloons, smart leader lines, and cascaded renumbering.",Sprint 4

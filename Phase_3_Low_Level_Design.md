@@ -314,12 +314,36 @@ The ONNX Runtime dynamically selects the optimal execution provider.
 
 ---
 
-## 17. Human Validation
-AI is not treated as ground truth. The system enforces a strict multi-layer validation gate.
-1. **AI Confidence:** OCR string generation yields a confidence score (0.0 - 1.0).
-2. **Schema Validation:** The GD&T parser verifies geometric syntax (e.g., position tolerances must reference valid datums).
-3. **Domain Validation:** Cross-references extracted dimensions against general drawing tolerances.
-4. **Human Review:** Any feature with <95% confidence or failing schema validation is flagged. The user MUST visually approve the feature using a magnified bitmap crop before the document can be exported.
+## 17. Human-in-the-Loop Validation & Feature Extraction Engine
+AI is not treated as ground truth. The system enforces a strict multi-layer validation gate and semantic parser designed to eliminate repetitive manual data entry.
+
+### 17.1 Title Block General Tolerance Matrix
+Over 60% of aerospace drawing dimensions do not print explicit tolerances and instead inherit tolerances from the drawing's Title Block based on decimal precision.
+- **Precision Matching Rules:**
+  - `X.X` (1 decimal place) $\rightarrow$ Default $\pm 0.030$ in ($\pm 0.8$ mm)
+  - `X.XX` (2 decimal places) $\rightarrow$ Default $\pm 0.010$ in ($\pm 0.25$ mm)
+  - `X.XXX` (3 decimal places) $\rightarrow$ Default $\pm 0.005$ in ($\pm 0.13$ mm)
+  - `X.XXXX` (4 decimal places) $\rightarrow$ Default $\pm 0.0005$ in ($\pm 0.01$ mm)
+  - `Angles` $\rightarrow$ Default $\pm 0.5^\circ$
+- **Override Hierarchy:** Explicit dimension tolerances ($\pm .002$, limit tolerances) supersede title block defaults. The general tolerance block is fully editable per project.
+
+### 17.2 ASME Y14.5 Dimension Enclosure Semantics
+The parser classifies dimension types based on standard CAD drafting enclosures:
+- **Basic Dimensions `[ 1.500 ]` (Boxed):** Identified by bounding rectangle. Assigned tolerance $= 0.000$; mathematically verified against the associated GD&T true position or profile frame.
+- **Reference Dimensions `( 3.250 )` (Parentheses):** Identified by enclosing parens. Flagged as `Reference`; optional or non-mandatory on AS9102 Form 3 characteristic accountability.
+- **Limit Dimensions `1.255 / 1.245`:** Auto-computed: $\text{Nominal} = \frac{\text{Max} + \text{Min}}{2} = 1.250$, $\text{Upper} = +0.005$, $\text{Lower} = -0.005$.
+- **Bilateral / Unilateral:** `1.500 ± .005` or `1.500 +0.010 / -0.000` parsed into distinct nominal and limit bounds.
+
+### 17.3 Drawing Grid Zone Mapping & Quantity Multipliers (`NX`)
+- **Automated Grid Zone Calculation:** Blueprint coordinates $(x, y)$ are projected onto standard aerospace border grids (A–H vertically, 1–8 horizontally). Auto-populates AS9102 Form 3 Column 7 (e.g. `Zone C-4, Sheet 1`) with zero manual input.
+- **Quantity Multipliers (`NX`):** Patterns like `4X`, `6 PLACES`, or `8X HOLES` are detected. The system sets `count = N` and enables 1-click sub-balloon expansion (`1.1, 1.2, 1.3, 1.4`) so inspectors can record individual physical measurements for each feature.
+
+### 17.4 AI Confidence Scoring & HITL Review Pipeline
+1. **Confidence Thresholding:** Every token and bounding box produces an AI confidence score ($0.0 - 1.0$).
+   - $\ge 0.90$: Auto-accepted.
+   - $< 0.90$: Flagged with amber `Needs Verification` badge.
+2. **Schema & AST Validation:** Geometric syntax is verified (e.g., position tolerances must reference valid primary, secondary, and tertiary datums).
+3. **Magnified HITL Crop:** When reviewing flagged features, the inspector is shown a 300 DPI magnified crop of the raw vector drawing alongside the parsed values for instant (<3 second) human verification.
 
 ---
 
