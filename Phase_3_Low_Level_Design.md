@@ -706,6 +706,21 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 
 ---
 
+## 36. 6-Sprint Engineering Roadmap & LLD Section Mapping
+
+The 35 Low-Level Design subsystems are organized into a strict 6-sprint iterative engineering execution plan:
+
+| Sprint | Engineering Focus | Primary LLD Sections Covered | Target Deliverables | Status |
+| :---: | :--- | :--- | :--- | :---: |
+| **Sprint 1** | **Core Infrastructure, Hardened Shell & Licensing Plane** | §5, §6, §7, §8, §9, §12, §20, §23, §24 | • Cloudflare D1 schema & Worker Auth API (`/activate`, `/renew`, `/revoke`)<br>• Ed25519 license signing & verification (`@noble/curves`)<br>• Hardened Electron shell (disabled `nodeIntegration`, enabled `contextIsolation`, strict CSP)<br>• Preload IPC bridge allowlist + Zod runtime schema validation<br>• Local SQLite (`better-sqlite3`) with `PRAGMA journal_mode=WAL`<br>• Atomic Undo/Redo transaction ledger (`TransactionHistory`) | ✅ **Complete** |
+| **Sprint 2** | **High-Performance Blueprint Viewport** | §25, §29, §30 | • WebGL/Canvas vector PDF rendering engine<br>• 60 FPS sub-pixel pan & zoom (up to 3200%) on 300 DPI drawings<br>• Multi-sheet drawing tab navigation & memory offloading (<1.5GB ceiling) | ⏳ *Next Up* |
+| **Sprint 3** | **Local AI Extraction Engine & GD&T Parser** | §13, §14, §15, §16, §17 | • Boot-time SHA-256 model verification against signed manifest<br>• AI worker state machine (`QUEUED` → `OCR_RUNNING` → `PARSING`) with recovery<br>• Execution Provider fallbacks (CUDA / DirectML with deterministic CPU fallback)<br>• ASME Y14.5 GD&T Abstract Syntax Tree (AST) parser | 📋 *Planned* |
+| **Sprint 4** | **Dual-Layer Blueprint Editor & Spatial Markup** | §17, §20 | • Spatial R-Tree collision-avoidance auto-balloon placement<br>• Interactive canvas overlay: draggable balloons, smart leader lines, cascade renumbering<br>• Data Inspector Grid: live nominals, bilateral tolerances, and GD&T datum editing<br>• Human-in-the-Loop review box: magnified PDF crop vs. AI candidate verification | 📋 *Planned* |
+| **Sprint 5** | **Compliance Provenance & AS9102 Report Compiler** | §18, §19, §21, §22 | • Tamper-evident SHA-256 hash-chained audit ledger on all SQLite writes<br>• Automated SQLite snapshot backups (5-min RPO / 15-min RTO)<br>• AS9102 validation rule engine blocking incomplete exports<br>• Programmatic compiler for SAE AS9102 Form 1, Form 2, and Form 3 (`.xlsx`) | 📋 *Planned* |
+| **Sprint 6** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
+
+---
+
 ## Architecture Review Summary
 
 ### Strengths
@@ -716,4 +731,5 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 ### Remaining Risks & Mitigation
 - **Local DB Corruption:** If the user stores the SQLite file on a failing local HDD without mapping backups to a network drive, data loss is possible. *Mitigation: Onboarding must explicitly guide IT admins to configure the backup path to a redundant NAS.*
 - **GPU Driver Instability:** Windows generic GPU drivers can cause unpredictable ONNX crashes. *Mitigation: The deterministic CPU fallback guarantees the job will eventually complete, albeit slower.*
+
 

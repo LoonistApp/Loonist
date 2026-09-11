@@ -67,10 +67,10 @@
 2. **Offline Mode Engaged:** The app runs completely offline. User loads a PDF from their local hard drive.
 3. **Interactive Viewport Render:** React frontend renders high-resolution blueprint (60 FPS pan/zoom/rotate).
 4. **Explicit Trigger ("Auto Balloon"):** User clicks the prominent **Auto Balloon** button to dispatch an extraction request.
-5. **Local AI Extraction (Sprint 2):** Request passed securely over IPC to a local ONNX Neural Engine + ASME Y14.5 GD&T parser.
-6. **Real-time Viewport Hydration:** Numbered balloons and inspector grid populate dynamically in the UI. 
+5. **Local AI Extraction (Sprint 3):** Request passed securely over IPC to a local ONNX Neural Engine + ASME Y14.5 GD&T parser.
+6. **Real-time Viewport Hydration:** Numbered balloons and inspector grid populate dynamically in the UI (Sprint 4). 
 7. **Interactive Review & Verification:** Quality Engineer edits balloon placement. All changes are saved locally to SQLite with atomic Undo/Redo history.
-8. **Automated AS9102 Compliance Export:** One-click generation of certified **SAE AS9102 Form 1, Form 2, and Form 3** Excel packages saved locally.
+8. **Automated AS9102 Compliance Export (Sprint 5):** One-click generation of certified **SAE AS9102 Form 1, Form 2, and Form 3** Excel packages saved locally.
 
 ---
 
@@ -86,7 +86,7 @@
 | **Cloud Licensing API** | **Cloudflare Workers (Hono)** | Global, serverless Edge API for handling activations instantly worldwide with zero server maintenance. |
 | **Cloud Database** | **Cloudflare D1** | Serverless SQL ledger storing Tenants, Devices, Licenses, and AuditLogs. |
 | **Cryptography** | **Ed25519 (@noble/curves)** | Highly-audited zero-dependency crypto used by Cloudflare to securely sign offline license payloads. |
-| **Local AI Engine** | **ONNX Runtime (Planned Sprint 2)**| Will process neural OCR and spatial recognition locally without uploading to the cloud. |
+| **Local AI Engine** | **ONNX Runtime (Planned Sprint 3)**| Will process neural OCR and spatial recognition locally without uploading to the cloud. |
 
 ---
 
@@ -109,6 +109,11 @@
 - [x] (Sprint 1) Electron must enforce strict IPC boundaries with Zod schema validation.
 - [x] (Sprint 1) SQLite must support transaction wrappers and an atomic Undo/Redo history ledger.
 - [x] (Sprint 1) Cloudflare Licensing plane must generate an Ed25519 cryptographic signature binding the license to a device.
-- [ ] (Sprint 2) AI extraction must execute locally via ONNX when user explicitly clicks "Auto Balloon".
-- [ ] (Sprint 2) ASME Y14.5 GD&T AST parser must correctly interpret geometric tolerances.
-- [ ] (Sprint 3) Reports must export valid SAE AS9102 Form 1, 2, 3 workbooks (.xlsx) locally.
+- [ ] (Sprint 2) WebGL/Canvas viewport must render dense engineering blueprints at 60 FPS with memory offloading (<1.5GB RAM).
+- [ ] (Sprint 3) AI extraction must execute locally via ONNX when user explicitly clicks "Auto Balloon" with CPU/GPU fallbacks.
+- [ ] (Sprint 3) ASME Y14.5 GD&T AST parser must correctly interpret geometric tolerances.
+- [ ] (Sprint 4) Dual-layer canvas must support interactive dragging, smart leader lines, and R-Tree spatial collision avoidance.
+- [ ] (Sprint 5) Audit writes must enforce SHA-256 tamper-evident hash chaining.
+- [ ] (Sprint 5) Reports must export valid SAE AS9102 Form 1, 2, 3 workbooks (.xlsx) locally.
+- [ ] (Sprint 6) Windows installer (.exe) must build via automated CI/CD and be signed with Sectigo EV Certificate and RFC 3161 timestamping.
+

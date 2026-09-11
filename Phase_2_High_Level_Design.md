@@ -104,7 +104,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * **Database:** Cloudflare D1 (Serverless SQLite) mapping `Tenants -> Devices -> Licenses`.
 * **Cryptography:** The Cloudflare API uses `@noble/curves` to generate an Ed25519 signature. The local Electron app carries the public key to verify the license signature mathematically, ensuring it cannot be spoofed locally.
 
-### 3.4 Local AI Extraction (Sprint 2)
+### 3.4 Local AI Extraction (Sprint 3)
 * **Execution:** ONNX Runtime executed within a hidden Node.js worker thread.
 * **Capabilities:** Extracts dimensions, tolerances, and parses ASME Y14.5 Geometric Dimensioning & Tolerancing (GD&T) Feature Control Frames into an Abstract Syntax Tree (AST).
 * **Data Flow:** Extracted characteristics are written directly to the local SQLite database.

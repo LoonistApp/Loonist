@@ -92,10 +92,10 @@ export class DBManager {
         this.db.prepare(action.forwardQuery).run(...action.forwardParams);
         
         // Log the history for undo/redo
-        this.db.prepare(\`
+        this.db.prepare(`
           INSERT INTO TransactionHistory (action_group_id, forward_query, forward_params, reverse_query, reverse_params)
           VALUES (?, ?, ?, ?, ?)
-        \`).run(
+        `).run(
           actionGroupId,
           action.forwardQuery,
           JSON.stringify(action.forwardParams),
@@ -114,16 +114,16 @@ export class DBManager {
   public undo(): boolean {
     return this.executeTransaction(() => {
       // Find the most recent action group that hasn't been undone
-      const lastAction = this.db.prepare(\`
+      const lastAction = this.db.prepare(`
         SELECT action_group_id FROM TransactionHistory WHERE is_undone = 0 ORDER BY id DESC LIMIT 1
-      \`).get() as { action_group_id: string } | undefined;
+      `).get() as { action_group_id: string } | undefined;
 
       if (!lastAction) return false; // Nothing to undo
 
       // Get all operations in this action group, in reverse order
-      const operations = this.db.prepare(\`
+      const operations = this.db.prepare(`
         SELECT * FROM TransactionHistory WHERE action_group_id = ? AND is_undone = 0 ORDER BY id DESC
-      \`).all(lastAction.action_group_id) as any[];
+      `).all(lastAction.action_group_id) as any[];
 
       for (const op of operations) {
         // Execute the reverse query
@@ -131,9 +131,9 @@ export class DBManager {
       }
 
       // Mark the group as undone
-      this.db.prepare(\`
+      this.db.prepare(`
         UPDATE TransactionHistory SET is_undone = 1 WHERE action_group_id = ?
-      \`).run(lastAction.action_group_id);
+      `).run(lastAction.action_group_id);
 
       return true;
     });
@@ -145,16 +145,16 @@ export class DBManager {
   public redo(): boolean {
     return this.executeTransaction(() => {
       // Find the oldest action group that has been undone
-      const lastUndone = this.db.prepare(\`
+      const lastUndone = this.db.prepare(`
         SELECT action_group_id FROM TransactionHistory WHERE is_undone = 1 ORDER BY id ASC LIMIT 1
-      \`).get() as { action_group_id: string } | undefined;
+      `).get() as { action_group_id: string } | undefined;
 
       if (!lastUndone) return false; // Nothing to redo
 
       // Get all operations in this action group, in forward order
-      const operations = this.db.prepare(\`
+      const operations = this.db.prepare(`
         SELECT * FROM TransactionHistory WHERE action_group_id = ? AND is_undone = 1 ORDER BY id ASC
-      \`).all(lastUndone.action_group_id) as any[];
+      `).all(lastUndone.action_group_id) as any[];
 
       for (const op of operations) {
         // Execute the forward query
@@ -162,9 +162,9 @@ export class DBManager {
       }
 
       // Mark the group as done
-      this.db.prepare(\`
+      this.db.prepare(`
         UPDATE TransactionHistory SET is_undone = 0 WHERE action_group_id = ?
-      \`).run(lastUndone.action_group_id);
+      `).run(lastUndone.action_group_id);
 
       return true;
     });
@@ -174,3 +174,4 @@ export class DBManager {
     this.db.close();
   }
 }
+
