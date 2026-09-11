@@ -5,6 +5,9 @@ import { Header } from './components/layout/Header';
 import { ViewportCanvas } from './components/viewport/ViewportCanvas';
 import { ViewportToolbar } from './components/viewport/ViewportToolbar';
 import { SheetTabs } from './components/viewport/SheetTabs';
+import { ExtractionReviewDrawer } from './components/extraction/ExtractionReviewDrawer';
+import { AiExtractionService, type ExtractionProgress } from './services/ai/aiExtractionService';
+import type { EngineeringCharacteristic } from './types/characteristics';
 import type { BlueprintDocument, ViewportTool } from './types/blueprint';
 import { FileUp, FileText, Zap } from 'lucide-react';
 
@@ -18,6 +21,13 @@ export function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [fps, setFps] = useState(60);
 
+  // Sprint 3 AI Characteristic Extraction States
+  const [characteristics, setCharacteristics] = useState<EngineeringCharacteristic[]>([]);
+  const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [, setExtractionProgress] = useState<ExtractionProgress | null>(null);
+
   // Ingest PDF buffer and initialize multi-sheet document model
   const loadPdfBuffer = useCallback(async (
     buffer: ArrayBuffer,
@@ -28,6 +38,11 @@ export function App() {
   ) => {
     try {
       setIsLoading(true);
+      // Reset extraction state on new document
+      setCharacteristics([]);
+      setSelectedCharId(null);
+      setIsDrawerOpen(false);
+
       // Load document through PDFRenderService
       const loadedDoc = await PDFRenderService.loadDocument(buffer);
       const sheets = await PDFRenderService.getSheetsMetadata(loadedDoc);
@@ -175,6 +190,44 @@ export function App() {
     setScale(Math.max(0.25, Math.min(32.0, fitScale)));
   };
 
+  // Sprint 3 Auto Balloon Handler: Extracts characteristics across sheets
+  const handleAutoBalloon = useCallback(async () => {
+    if (!pdfDoc) return;
+    try {
+      setIsExtracting(true);
+      const extracted = await AiExtractionService.extractCharacteristics(pdfDoc, (progress) => {
+        setExtractionProgress(progress);
+      });
+      setCharacteristics(extracted);
+      setIsDrawerOpen(true);
+    } catch (err) {
+      console.error('Failed to run Auto Balloon extraction:', err);
+      alert('Failed to extract characteristics. Please verify PDF stream.');
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [pdfDoc]);
+
+  // Drawer Toggle
+  const handleToggleDrawer = useCallback(() => {
+    setIsDrawerOpen((prev) => !prev);
+  }, []);
+
+  // Update characteristic attributes (e.g. verified, inspection method, split multiplier)
+  const handleUpdateCharacteristics = useCallback((updated: EngineeringCharacteristic[]) => {
+    setCharacteristics(updated);
+  }, []);
+
+  // When a characteristic or balloon is selected
+  const handleSelectCharacteristic = useCallback((char: EngineeringCharacteristic) => {
+    setSelectedCharId(char.id);
+    const targetSheetIndex = char.sheetNumber - 1;
+    if (targetSheetIndex !== activeSheetIndex && targetSheetIndex >= 0 && blueprintDoc && targetSheetIndex < blueprintDoc.numSheets) {
+      setActiveSheetIndex(targetSheetIndex);
+    }
+    setIsDrawerOpen(true);
+  }, [activeSheetIndex, blueprintDoc]);
+
   const currentSheet = blueprintDoc?.sheets[activeSheetIndex] || null;
 
   return (
@@ -185,6 +238,11 @@ export function App() {
         onOpenBlueprint={handleOpenBlueprint}
         onLoadSample={handleLoadSample}
         isLoading={isLoading}
+        onAutoBalloon={handleAutoBalloon}
+        isExtracting={isExtracting}
+        extractionCount={characteristics.length}
+        onToggleDrawer={handleToggleDrawer}
+        isDrawerOpen={isDrawerOpen}
       />
 
       {/* Main Viewport Container */}
@@ -197,6 +255,9 @@ export function App() {
               scale={scale}
               rotation={rotation}
               activeTool={activeTool}
+              characteristics={characteristics}
+              selectedCharId={selectedCharId}
+              onSelectCharacteristic={handleSelectCharacteristic}
               onScaleChange={setScale}
               onFpsUpdate={setFps}
             />
@@ -258,6 +319,15 @@ export function App() {
           onSelectSheet={setActiveSheetIndex}
         />
       )}
+
+      {/* Side Characteristic Review Drawer */}
+      <ExtractionReviewDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        characteristics={characteristics}
+        onUpdateCharacteristics={handleUpdateCharacteristics}
+        onSelectCharacteristic={handleSelectCharacteristic}
+      />
     </div>
   );
 }

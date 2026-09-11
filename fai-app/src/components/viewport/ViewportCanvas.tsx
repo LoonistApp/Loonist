@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type * as pdfjsLib from 'pdfjs-dist';
 import { PDFRenderService } from '../../services/pdfRenderer';
 import type { SheetMetadata, ViewportTool } from '../../types/blueprint';
+import type { EngineeringCharacteristic } from '../../types/characteristics';
 import { Loader2 } from 'lucide-react';
 
 interface ViewportCanvasProps {
@@ -10,6 +11,9 @@ interface ViewportCanvasProps {
   scale: number;
   rotation: number;
   activeTool: ViewportTool;
+  characteristics?: EngineeringCharacteristic[];
+  selectedCharId?: string | null;
+  onSelectCharacteristic?: (char: EngineeringCharacteristic) => void;
   onScaleChange: (scale: number) => void;
   onTransformChange?: (x: number, y: number) => void;
   onFpsUpdate?: (fps: number) => void;
@@ -21,11 +25,15 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   scale,
   rotation,
   activeTool,
+  characteristics = [],
+  selectedCharId,
+  onSelectCharacteristic,
   onScaleChange,
   onTransformChange,
   onFpsUpdate
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const transformRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -48,8 +56,8 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   // Update transform visually on the canvas container
   const applyTransform = useCallback((x: number, y: number, currentScale: number) => {
     transformRef.current = { x, y };
-    if (canvasRef.current) {
-      canvasRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${currentScale}) rotate(${rotation}deg)`;
+    if (layerRef.current) {
+      layerRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${currentScale}) rotate(${rotation}deg)`;
     }
     if (onTransformChange) {
       onTransformChange(x, y);
@@ -88,7 +96,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     const initialY = Math.round((container.clientHeight - sheet.height * fitScale) / 2);
 
     onScaleChange(Math.max(0.25, Math.min(fitScale, 32.0)));
-    applyTransform(initialX, initialY, 1.0);
+    applyTransform(initialX, initialY, fitScale);
   }, [sheet, applyTransform, onScaleChange]);
 
   // Render PDF Page to Canvas
@@ -99,8 +107,8 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     setIsRendering(true);
     setRenderError(null);
 
-    // Rasterize at 1.5x - 2.0x base scale for razor-sharp vector rendering without massive GPU texture allocation
-    const rasterScale = 1.5;
+    // Rasterize at 1.0 base scale so backing store handles Hi-DPI via DPR and CSS size matches logical dimensions
+    const rasterScale = 1.0;
 
     PDFRenderService.renderSheet(pdfDoc, sheet.pageNumber, canvasRef.current, rasterScale, 0)
       .then(() => {
@@ -133,7 +141,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Zoom factor: 1.1x per scroll notch
+    // Zoom factor: 1.15x per scroll notch
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
     const newScale = Math.max(0.25, Math.min(32.0, scale * zoomFactor));
 
@@ -186,6 +194,11 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     }
   }, [activeTool]);
 
+  // Filter characteristics belonging to the currently active sheet
+  const activeSheetCharacteristics = sheet 
+    ? characteristics.filter(c => c.sheetNumber === sheet.pageNumber)
+    : [];
+
   return (
     <div
       ref={containerRef}
@@ -225,14 +238,85 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
         </div>
       )}
 
-      {/* The 60 FPS Blueprint Sheet Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="absolute top-0 left-0 bg-white origin-top-left will-change-transform"
+      {/* The 60 FPS Layer Containing Blueprint Canvas and AS9102 Balloons */}
+      <div
+        ref={layerRef}
+        className="absolute top-0 left-0 origin-top-left will-change-transform pointer-events-none"
         style={{
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.08)',
+          width: sheet ? `${sheet.width}px` : 'auto',
+          height: sheet ? `${sheet.height}px` : 'auto',
         }}
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          className="absolute top-0 left-0 bg-white"
+          style={{
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.08)',
+          }}
+        />
+
+        {/* Interactive AS9102 Balloon Markers & Dimension Highlights */}
+        {sheet && (
+          <div className="absolute inset-0 pointer-events-none">
+            {activeSheetCharacteristics.map((char) => {
+              const isSelected = selectedCharId === char.id;
+              const isFlagged = char.verificationStatus === 'needs_review';
+
+              return (
+                <div key={char.id} className="pointer-events-auto">
+                  {/* Subtle Bounding Highlight Around Dimension Text */}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectCharacteristic?.(char);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: `${char.boundingBox.x}px`,
+                      top: `${char.boundingBox.y}px`,
+                      width: `${char.boundingBox.width}px`,
+                      height: `${char.boundingBox.height}px`,
+                    }}
+                    className={`cursor-pointer rounded-xs transition-colors ${
+                      isSelected
+                        ? 'border-2 border-blue-600 bg-blue-500/20 shadow-xs'
+                        : 'border border-blue-400/30 hover:border-blue-500 hover:bg-blue-500/10'
+                    }`}
+                    title={`Balloon #${char.subNumber || char.itemNumber}: ${char.rawText} (${char.drawingZone})`}
+                  />
+
+                  {/* AS9102 Circular Balloon Badge */}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectCharacteristic?.(char);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: `${char.boundingBox.x - 24}px`,
+                      top: `${char.boundingBox.y - 4}px`,
+                    }}
+                    className="cursor-pointer group flex items-center justify-center transition-transform hover:scale-125"
+                    title={`Click to review Balloon #${char.subNumber || char.itemNumber}: ${char.rawText}`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full font-bold font-mono text-[10px] flex items-center justify-center border shadow-xs select-none transition ${
+                        isSelected
+                          ? 'bg-amber-600 text-white border-white ring-2 ring-amber-400 scale-110'
+                          : isFlagged
+                          ? 'bg-amber-500 text-white border-white'
+                          : 'bg-blue-600 text-white border-white'
+                      }`}
+                    >
+                      {char.subNumber || char.itemNumber}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

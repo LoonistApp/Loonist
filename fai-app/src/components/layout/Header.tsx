@@ -4,8 +4,9 @@ import {
   Sparkles, 
   ShieldCheck, 
   FileText, 
-  Cpu,
-  Layers
+  Layers,
+  Loader2,
+  SlidersHorizontal
 } from 'lucide-react';
 import type { BlueprintDocument } from '../../types/blueprint';
 
@@ -14,13 +15,23 @@ interface HeaderProps {
   onOpenBlueprint: () => void;
   onLoadSample: () => void;
   isLoading: boolean;
+  onAutoBalloon: () => void;
+  isExtracting: boolean;
+  extractionCount: number;
+  onToggleDrawer: () => void;
+  isDrawerOpen: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   document,
   onOpenBlueprint,
   onLoadSample,
-  isLoading
+  isLoading,
+  onAutoBalloon,
+  isExtracting,
+  extractionCount,
+  onToggleDrawer,
+  isDrawerOpen
 }) => {
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -87,17 +98,17 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           type="button"
           onClick={onOpenBlueprint}
-          disabled={isLoading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium border border-blue-700 shadow-xs transition disabled:opacity-50"
+          disabled={isLoading || isExtracting}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium border border-slate-300 shadow-xs transition disabled:opacity-50"
         >
-          <FolderOpen className="w-3.5 h-3.5" />
-          <span>Open Blueprint</span>
+          <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
+          <span>Open PDF</span>
         </button>
 
         <button
           type="button"
           onClick={onLoadSample}
-          disabled={isLoading}
+          disabled={isLoading || isExtracting}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium border border-slate-300 shadow-xs transition disabled:opacity-50"
           title="Load pre-bundled AS9102 turbine bracket schematic"
         >
@@ -105,17 +116,46 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Sample Drawing</span>
         </button>
 
-        {/* Sprint 3 Auto Balloon Preview Trigger */}
+        {/* Sprint 3 Auto Balloon AI Trigger */}
         <button
           type="button"
-          disabled={true}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 text-slate-400 text-xs font-medium border border-slate-200 cursor-not-allowed"
-          title="Sprint 3: Local ONNX AI Feature Extraction"
+          onClick={onAutoBalloon}
+          disabled={!document || isExtracting}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded text-xs font-semibold shadow-xs transition ${
+            isExtracting
+              ? 'bg-blue-100 text-blue-800 border border-blue-300 cursor-wait'
+              : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700'
+          } disabled:opacity-50`}
+          title="Run Local AI Extraction: ASME Y14.5 GD&T, Title Block Tolerances, Drawing Zones"
         >
-          <Cpu className="w-3.5 h-3.5 text-slate-400" />
-          <Sparkles className="w-3 h-3" />
-          <span>Auto Balloon (Sprint 3)</span>
+          {isExtracting ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Extracting AI...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Auto Balloon</span>
+            </>
+          )}
         </button>
+
+        {/* Drawer Toggle Button */}
+        {extractionCount > 0 && (
+          <button
+            type="button"
+            onClick={onToggleDrawer}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition ${
+              isDrawerOpen
+                ? 'bg-blue-50 text-blue-700 border-blue-300'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 shadow-xs'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+            <span>Characteristics ({extractionCount})</span>
+          </button>
+        )}
       </div>
     </header>
   );
