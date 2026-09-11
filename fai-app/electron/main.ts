@@ -1,9 +1,13 @@
 import { app, BrowserWindow, ipcMain, shell, session, dialog } from 'electron';
-import path from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
+import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { DBManager } from './database';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ==========================================
 // SECTION 25: FILESYSTEM SECURITY
@@ -23,9 +27,17 @@ export function resolveSecurePath(baseDir: string, targetPath: string): string {
 
 // Define the environment
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 let mainWindowRef: BrowserWindow | null = null;
 
+// Prevent Windows disk cache permission conflicts in multi-process dev
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+
 function createWindow() {
+  const preloadCandidateMjs = path.join(__dirname, 'preload.mjs');
+  const preloadCandidateJs = path.join(__dirname, 'preload.js');
+  const preloadPath = fs.existsSync(preloadCandidateMjs) ? preloadCandidateMjs : preloadCandidateJs;
+
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -33,30 +45,42 @@ function createWindow() {
     minHeight: 700,
     title: 'LOONIST — Aerospace FAI Platform',
     backgroundColor: '#0f172a',
+    show: false,
     webPreferences: {
       // SECTION 23: Strict Security Policies
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: preloadPath,
     },
   });
 
   mainWindowRef = mainWindow;
 
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  mainWindow.once('ready-to-show', () => {
+    console.log('LOONIST Window Ready To Show — Bringing to front');
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.setAlwaysOnTop(false);
+  });
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL).catch(() => {
+      console.warn('Dev server URL unreachable, loading local dist bundle');
+      mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
   // Block arbitrary navigation
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url !== 'http://localhost:5173/') {
-       event.preventDefault();
-       console.warn(`Blocked navigation to ${url}`);
+    if (devServerUrl && url.startsWith(devServerUrl)) {
+      return;
     }
+    event.preventDefault();
+    console.warn(`Blocked navigation to ${url}`);
   });
 
   // Open external links in OS default browser
@@ -81,7 +105,7 @@ app.whenReady().then(() => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:;"
+          "default-src 'self' http://localhost:* ws://localhost:*; script-src 'self' 'unsafe-inline' http://localhost:*; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' blob: http://localhost:* ws://localhost:*;"
         ]
       }
     });
@@ -108,7 +132,12 @@ app.on('window-all-closed', () => {
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {
   const senderUrl = event.senderFrame?.url;
-  if (senderUrl !== 'http://localhost:5173/' && !senderUrl?.startsWith('file://')) {
+  const currentDevUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+  if (
+    !senderUrl?.startsWith(currentDevUrl) &&
+    !senderUrl?.startsWith('http://localhost:') &&
+    !senderUrl?.startsWith('file://')
+  ) {
      throw new Error('Unauthorized sender context');
   }
 }

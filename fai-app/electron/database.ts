@@ -1,9 +1,15 @@
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export class DBManager {
   private db: Database.Database;
 
   constructor(dbPath: string) {
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     this.db = new Database(dbPath);
     this.initialize();
   }

@@ -51,14 +51,16 @@ export class PDFRenderService {
     scale: number,
     rotation: number = 0
   ): Promise<void> {
-    // 1. Cancel previous in-flight render task to prevent race conditions & memory leaks
+    // 1. Cancel previous in-flight render task and await its rejection to prevent canvas reuse conflicts
     if (this.currentRenderTask) {
       try {
-        this.currentRenderTask.cancel();
+        const previousTask = this.currentRenderTask;
+        this.currentRenderTask = null;
+        previousTask.cancel();
+        await previousTask.promise.catch(() => {});
       } catch {
         // Ignored
       }
-      this.currentRenderTask = null;
     }
 
     const page = await pdfDoc.getPage(sheetNumber);
