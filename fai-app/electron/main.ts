@@ -44,7 +44,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'LOONIST — Aerospace FAI Platform',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#f8fafc',
     show: false,
     webPreferences: {
       // SECTION 23: Strict Security Policies

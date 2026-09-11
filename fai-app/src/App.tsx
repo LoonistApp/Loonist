@@ -178,7 +178,7 @@ export function App() {
   const currentSheet = blueprintDoc?.sheets[activeSheetIndex] || null;
 
   return (
-    <div className="flex flex-col w-screen h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
+    <div className="flex flex-col w-screen h-screen bg-white text-slate-900 overflow-hidden font-sans select-none">
       {/* Top Header */}
       <Header
         document={blueprintDoc}
@@ -188,7 +188,7 @@ export function App() {
       />
 
       {/* Main Viewport Container */}
-      <main className="relative flex-1 w-full h-full overflow-hidden flex items-center justify-center">
+      <main className="relative flex-1 w-full h-full overflow-hidden flex items-center justify-center bg-slate-100">
         {blueprintDoc && currentSheet ? (
           <>
             <ViewportCanvas
@@ -218,21 +218,21 @@ export function App() {
           </>
         ) : (
           /* Empty State Dropzone */
-          <div className="flex flex-col items-center justify-center p-8 text-center max-w-lg">
-            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 shadow-xl shadow-cyan-950/20">
-              <FileUp className="w-8 h-8 text-cyan-400" />
+          <div className="flex flex-col items-center justify-center p-8 text-center max-w-lg bg-white border border-slate-200 rounded-lg shadow-sm">
+            <div className="w-12 h-12 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center mb-4 text-blue-600">
+              <FileUp className="w-6 h-6" />
             </div>
-            <h2 className="text-lg font-bold text-slate-200 mb-1">
+            <h2 className="text-base font-bold text-slate-900 mb-1">
               No Engineering Blueprint Loaded
             </h2>
-            <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-              Open an aerospace drawing PDF (AS9102 / ASME Y14.5) to activate the 60 FPS vector viewport engine.
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+              Open an aerospace drawing PDF (AS9102 / ASME Y14.5) to view and inspect dimensions.
             </p>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleOpenBlueprint}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs rounded-lg shadow-lg shadow-cyan-600/30 transition"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded border border-blue-700 shadow-xs transition"
               >
                 <FileText className="w-4 h-4" />
                 <span>Select Blueprint (.pdf)</span>
@@ -240,9 +240,9 @@ export function App() {
               <button
                 type="button"
                 onClick={handleLoadSample}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs rounded-lg border border-slate-700 transition"
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs rounded border border-slate-300 shadow-xs transition"
               >
-                <Zap className="w-4 h-4 text-blue-400" />
+                <Zap className="w-4 h-4 text-slate-500" />
                 <span>Load Sample Drawing</span>
               </button>
             </div>

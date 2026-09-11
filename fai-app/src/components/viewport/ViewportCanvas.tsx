@@ -194,43 +194,43 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      className={`relative flex-1 w-full h-full overflow-hidden bg-slate-950 select-none ${
+      className={`relative flex-1 w-full h-full overflow-hidden bg-slate-100 select-none ${
         activeTool === 'pan' ? 'cursor-grab' : 'cursor-crosshair'
       }`}
     >
-      {/* Blueprint Grid Background Pattern */}
+      {/* Subtle CAD Alignment Grid */}
       <div 
-        className="absolute inset-0 pointer-events-none opacity-20"
+        className="absolute inset-0 pointer-events-none opacity-40"
         style={{
           backgroundImage: `
-            linear-gradient(to right, #334155 1px, transparent 1px),
-            linear-gradient(to bottom, #334155 1px, transparent 1px)
+            linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+            linear-gradient(to bottom, #e2e8f0 1px, transparent 1px)
           `,
-          backgroundSize: '40px 40px'
+          backgroundSize: '32px 32px'
         }}
       />
 
       {/* Loading Indicator */}
       {isRendering && (
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-slate-900/80 border border-slate-800 text-cyan-400 text-xs px-3 py-1.5 rounded-lg shadow-lg">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          <span>Rasterizing Vector Sheet...</span>
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded shadow-sm">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+          <span>Rasterizing Blueprint...</span>
         </div>
       )}
 
       {/* Render Error Alert */}
       {renderError && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-950/90 border border-red-800 text-red-300 px-4 py-3 rounded-lg text-sm shadow-2xl z-20">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm shadow-md z-20">
           {renderError}
         </div>
       )}
 
-      {/* The Hardware-Accelerated 60 FPS Blueprint Canvas */}
+      {/* The 60 FPS Blueprint Sheet Canvas */}
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 shadow-2xl shadow-black origin-top-left will-change-transform"
+        className="absolute top-0 left-0 bg-white origin-top-left will-change-transform"
         style={{
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.08)',
         }}
       />
     </div>
