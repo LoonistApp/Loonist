@@ -19,6 +19,8 @@ interface ExtractionReviewDrawerProps {
   characteristics: EngineeringCharacteristic[];
   onUpdateCharacteristics: (updated: EngineeringCharacteristic[]) => void;
   onSelectCharacteristic?: (char: EngineeringCharacteristic) => void;
+  selectedCharId?: string | null;
+  cropUrl?: string | null;
 }
 
 const INSPECTION_METHODS: InspectionMethod[] = [
@@ -39,7 +41,9 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
   onClose,
   characteristics,
   onUpdateCharacteristics,
-  onSelectCharacteristic
+  onSelectCharacteristic,
+  selectedCharId,
+  cropUrl
 }) => {
   const [filterNeedsReview, setFilterNeedsReview] = useState(false);
   const [sheetFilter, setSheetFilter] = useState<number | 'all'>('all');
@@ -49,6 +53,7 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
   const totalCount = characteristics.length;
   const needsReviewCount = characteristics.filter(c => c.verificationStatus === 'needs_review').length;
   const verifiedCount = characteristics.filter(c => c.verificationStatus === 'verified' || c.verificationStatus === 'auto_accepted').length;
+  const selectedChar = characteristics.find(c => c.id === selectedCharId) || null;
 
   const filteredItems = characteristics.filter(c => {
     if (filterNeedsReview && c.verificationStatus !== 'needs_review') return false;
@@ -159,6 +164,37 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
         </div>
       </div>
 
+      {/* Magnified 300 DPI Crop Box for Rapid HITL Verification */}
+      <div className="mx-3 mt-2.5 p-2 bg-slate-900 rounded-lg border border-slate-700 shadow-md flex flex-col gap-1.5 shrink-0">
+        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="uppercase tracking-wider font-mono">300 DPI Vector Crop (HITL Inspector)</span>
+          </div>
+          <span className="font-mono text-blue-400 text-[10px]">
+            {selectedChar ? `#${selectedChar.subNumber || selectedChar.itemNumber} (${selectedChar.drawingZone})` : 'Select a callout'}
+          </span>
+        </div>
+        <div className="w-full h-20 bg-slate-950 rounded border border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner p-1">
+          {cropUrl ? (
+            <img
+              src={cropUrl}
+              alt="Magnified Blueprint Crop"
+              className="max-h-full max-w-full object-contain filter invert brightness-150 contrast-125"
+            />
+          ) : selectedChar ? (
+            <div className="flex flex-col items-center justify-center text-center">
+              <span className="font-mono text-xs font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-2 py-0.5 rounded">
+                {selectedChar.rawText}
+              </span>
+              <span className="text-[9px] text-slate-500 mt-0.5">Vector Marquee Region</span>
+            </div>
+          ) : (
+            <span className="text-slate-500 text-[11px] font-mono">Click any characteristic to view magnified crop</span>
+          )}
+        </div>
+      </div>
+
       {/* Characteristic Cards List */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 bg-slate-100">
         {filteredItems.length === 0 ? (
@@ -171,13 +207,18 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
             const isBasic = char.enclosure === 'basic';
             const isRef = char.enclosure === 'reference';
             const isLimit = char.enclosure === 'limit';
+            const isSelected = char.id === selectedCharId;
 
             return (
               <div
                 key={char.id}
                 onClick={() => onSelectCharacteristic?.(char)}
-                className={`p-3 rounded-lg border bg-white shadow-xs transition cursor-pointer hover:border-blue-400 ${
-                  isFlagged ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'
+                className={`p-3 rounded-lg border bg-white shadow-xs transition cursor-pointer ${
+                  isSelected
+                    ? 'border-blue-600 ring-2 ring-blue-500/30 bg-blue-50/30'
+                    : isFlagged
+                    ? 'border-amber-300 bg-amber-50/40 hover:border-amber-400'
+                    : 'border-slate-200 hover:border-blue-400'
                 }`}
               >
                 {/* Top Row: Balloon #, Zone, Confidence */}
@@ -202,6 +243,31 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                     {isLimit && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
                         LIMIT
+                      </span>
+                    )}
+                    {char.gdtFrame?.compositeLowerTier && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        COMPOSITE FCF
+                      </span>
+                    )}
+                    {char.holeCallout && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200">
+                        {char.holeCallout.holeType.toUpperCase()}
+                      </span>
+                    )}
+                    {char.fractionStr && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                        {char.fractionStr}
+                      </span>
+                    )}
+                    {char.isUnilateral && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        UNILATERAL
+                      </span>
+                    )}
+                    {char.isMaxOrMin && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                        {char.isMaxOrMin}
                       </span>
                     )}
                   </div>
@@ -254,6 +320,28 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {/* Extended Hole Callout Specs if present */}
+                {char.holeCallout && (
+                  <div className="text-[10px] font-mono bg-cyan-50/60 border border-cyan-100 px-2 py-1 rounded mb-2 text-cyan-900 flex items-center justify-between">
+                    <span>
+                      <strong>Hole Spec:</strong> {char.holeCallout.holeType.toUpperCase()}
+                      {char.holeCallout.counterboreDia ? ` | C'Bore: Ø${char.holeCallout.counterboreDia}` : ''}
+                      {char.holeCallout.counterboreDepth ? ` ↧${char.holeCallout.counterboreDepth}` : ''}
+                      {char.holeCallout.depth ? ` | Depth: ↧${char.holeCallout.depth}` : ''}
+                      {char.holeCallout.countersinkAngle ? ` | C'Sink: ${char.holeCallout.countersinkAngle}°` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {/* Composite GD&T Lower Tier (FRTZF) if present */}
+                {char.gdtFrame?.compositeLowerTier && (
+                  <div className="text-[10px] font-mono bg-indigo-50/60 border border-indigo-100 px-2 py-1 rounded mb-2 text-indigo-900">
+                    <strong>Lower Tier (FRTZF):</strong> {char.gdtFrame.compositeLowerTier.symbol || char.gdtFrame.symbol} {char.gdtFrame.compositeLowerTier.toleranceValue}
+                    {char.gdtFrame.compositeLowerTier.primaryDatum ? ` | ${char.gdtFrame.compositeLowerTier.primaryDatum.datum}` : ''}
+                    {char.gdtFrame.compositeLowerTier.secondaryDatum ? ` | ${char.gdtFrame.compositeLowerTier.secondaryDatum.datum}` : ''}
+                  </div>
+                )}
 
                 {/* Tolerance Source Metadata */}
                 <div className="text-[10px] text-slate-500 mb-2 flex items-center justify-between">

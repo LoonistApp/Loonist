@@ -18,10 +18,10 @@ export const SheetTabs: React.FC<SheetTabsProps> = ({
   }
 
   return (
-    <nav aria-label="Blueprint Sheet Navigation" className="h-9 bg-white border-t border-slate-200 px-4 flex items-center justify-between select-none z-20">
+    <nav aria-label="Blueprint Sheet Navigation" className="h-9 bg-white dark:bg-[#161616] border-t border-slate-200 dark:border-[#252525] px-4 flex items-center justify-between select-none z-20">
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mr-2 flex items-center gap-1.5">
-          <Layers className="w-3.5 h-3.5 text-slate-500" />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-2 flex items-center gap-1.5">
+          <Layers className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
           <span>Sheets</span>
         </span>
 
@@ -32,13 +32,13 @@ export const SheetTabs: React.FC<SheetTabsProps> = ({
               key={sheet.pageNumber}
               type="button"
               onClick={() => onSelectSheet(index)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition cursor-pointer ${
                 isActive
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#252525] dark:text-white dark:border-[#383838] shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 dark:bg-[#181818] dark:hover:bg-[#202020] dark:text-slate-300 dark:border-[#282828]'
               }`}
             >
-              {isActive && <CheckCircle2 className="w-3 h-3 text-blue-600" />}
+              {isActive && <CheckCircle2 className="w-3 h-3 text-blue-600 dark:text-slate-300" />}
               <span>{sheet.label}</span>
               <span className="text-[10px] text-slate-400 font-mono">
                 ({Math.round(sheet.width)}×{Math.round(sheet.height)} pt)

@@ -38,11 +38,18 @@ export type VerificationStatus =
   | 'needs_review'    // Confidence < 0.90 or syntax anomaly
   | 'verified';       // Human validated by Quality Engineer
 
+export type ConformanceStatus = 
+  | 'PASS'          // Measured within tolerance band
+  | 'MARGINAL'      // Within 10% of upper or lower tolerance boundary
+  | 'FAIL'          // Out of tolerance
+  | 'UNMEASURED';   // Pending physical measurement entry
+
 export interface GdtFeatureControlFrame {
   characteristic: 
     | 'position'
     | 'flatness'
     | 'straightness'
+    | 'circularity'
     | 'cylindricity'
     | 'perpendicularity'
     | 'parallelism'
@@ -69,6 +76,28 @@ export interface GdtFeatureControlFrame {
     datum: string;              // e.g. "C"
     modifier?: 'MMC' | 'LMC' | 'RFS';
   };
+  projectedZone?: number;     // e.g. Ⓟ .500 projected tolerance zone height
+  tangentPlane?: boolean;     // Ⓣ Tangent Plane modifier
+  freeState?: boolean;        // Ⓕ Free State modifier
+  compositeLowerTier?: {
+    symbol?: string;
+    toleranceValue: number;
+    diameterSymbol?: boolean;
+    materialModifier?: 'MMC' | 'LMC' | 'RFS';
+    primaryDatum?: {
+      datum: string;
+      modifier?: 'MMC' | 'LMC' | 'RFS';
+    };
+    secondaryDatum?: {
+      datum: string;
+      modifier?: 'MMC' | 'LMC' | 'RFS';
+    };
+    tertiaryDatum?: {
+      datum: string;
+      modifier?: 'MMC' | 'LMC' | 'RFS';
+    };
+    rawText: string;
+  };
   rawText: string;
 }
 
@@ -77,6 +106,16 @@ export interface BoundingBox {
   y: number;
   width: number;
   height: number;
+}
+
+export interface HoleFeatureCallout {
+  holeType: 'thru' | 'blind' | 'counterbore' | 'countersink';
+  depth?: number;
+  counterboreDia?: number;
+  counterboreDepth?: number;
+  countersinkDia?: number;
+  countersinkAngle?: number;
+  rawCallout?: string;
 }
 
 export interface EngineeringCharacteristic {
@@ -99,7 +138,25 @@ export interface EngineeringCharacteristic {
   isToleranceInherited: boolean;  // True if tolerance came from Title Block General Tolerances
   toleranceSource: string;        // e.g. "Explicit (±.005)" or "Title Block (.XXX)"
   
+  // InspectionXpert & AS9102 Form 3 Categorization
+  displayType: 'Dimension' | 'GEOMETRIC TOLERANCE' | 'Symbol' | 'Note' | 'Surface Finish';
+  subType: string;                // e.g. "Linear Dimension", "Diameter", "Radius", "Position", "Datum", "Note"
+  classification: 'Critical' | 'Major' | 'Minor';
+  operation?: string;
+  comments?: string;
+  isBasic: boolean;
+  forReference: boolean;
+  plusTol: number | null;
+  minusTol: number | null;
+  upperLimit: number | null;
+  lowerLimit: number | null;
+  sourceCaptureOrSheet?: string;
+
   gdtFrame?: GdtFeatureControlFrame;
+  holeCallout?: HoleFeatureCallout;
+  fractionStr?: string;
+  isUnilateral?: boolean;
+  isMaxOrMin?: 'MAX' | 'MIN';
   
   quantity: number;               // Quantity multiplier (e.g. 4 for "4X")
   isExpandedMultiplier?: boolean; // True if this row was auto-split from a 4X callout
@@ -113,6 +170,40 @@ export interface EngineeringCharacteristic {
   
   // Spatial coordinates on the blueprint canvas
   boundingBox: BoundingBox;
+
+  // Custom user-dragged balloon coordinates (overrides default auto-placement)
+  customBalloonPosition?: { x: number; y: number };
+
+  // Sprint 5: Physical Quality Inspection & Conformance Measurement
+  measuredValue?: number | null;
+  conformanceStatus?: ConformanceStatus;
+  inspectorInitials?: string;
+  measuredAt?: string;
+  deviation?: number | null;
+}
+
+export type BalloonShape = 'circle' | 'triangle' | 'hexagon' | 'square';
+
+export interface BalloonAppearance {
+  shape: BalloonShape;
+  fit: number;
+  fontSize: number;
+  color: string;
+  showLeaderLine: boolean;
+}
+
+export interface ProjectProperties {
+  partName: string;
+  partNumber: string;
+  partRevision: string;
+  drawingName: string;
+  drawingNumber: string;
+  drawingRevision: string;
+  cageCode: string;
+  lotSize: number;
+  samplingLevel: string;
+  samplingType: string;
+  aql: string;
 }
 
 export interface TitleBlockTolerancePreset {
@@ -132,3 +223,4 @@ export const DEFAULT_AEROSPACE_TOLERANCES: TitleBlockTolerancePreset = {
   angular: 0.5,
   unit: 'in'
 };
+

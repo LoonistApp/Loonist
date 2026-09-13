@@ -24,7 +24,7 @@ export interface ViewportTransform {
   rotation: number; // 0, 90, 180, 270
 }
 
-export type ViewportTool = 'pan' | 'select' | 'zoom-in' | 'zoom-out';
+export type ViewportTool = 'pan' | 'select' | 'zoom-in' | 'zoom-out' | 'box-capture';
 
 export interface PerformanceStats {
   fps: number;

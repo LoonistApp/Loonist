@@ -216,3 +216,90 @@ ipcMain.handle('ipc-load-sample-blueprint', async (event) => {
   return { cancelled: true, error: 'Sample blueprint file not found' };
 });
 
+ipcMain.handle('ipc-load-blueprint-path', async (event, payload: { filePath: string }) => {
+  validateSender(event);
+
+  const filePath = payload?.filePath;
+  if (!filePath || !fs.existsSync(filePath)) {
+    return { cancelled: true, error: 'File not found on disk' };
+  }
+
+  try {
+    const fileBuffer = await fs.promises.readFile(filePath);
+    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    const stats = await fs.promises.stat(filePath);
+
+    return {
+      cancelled: false,
+      fileName: path.basename(filePath),
+      filePath: filePath,
+      fileSize: stats.size,
+      fileHash: hash,
+      buffer: fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength)
+    };
+  } catch (err: any) {
+    return { cancelled: true, error: err?.message || 'Failed to read file from disk' };
+  }
+});
+
+// ==========================================
+// SPRINT 4: LOONIST PROJECT PERSISTENCE IPC
+// ==========================================
+
+ipcMain.handle('ipc-save-project-file', async (event, payload: { fileName?: string; content: string }) => {
+  validateSender(event);
+
+  if (!mainWindowRef) {
+    throw new Error('No active window');
+  }
+
+  const result = await dialog.showSaveDialog(mainWindowRef, {
+    title: 'Save LOONIST Inspection Project',
+    defaultPath: payload?.fileName || 'inspection_project.loonist',
+    filters: [
+      { name: 'LOONIST Project Package (*.loonist)', extensions: ['loonist'] },
+      { name: 'JSON Document (*.json)', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { cancelled: true };
+  }
+
+  await fs.promises.writeFile(result.filePath, payload.content, 'utf-8');
+  return { cancelled: false, filePath: result.filePath };
+});
+
+ipcMain.handle('ipc-load-project-file', async (event) => {
+  validateSender(event);
+
+  if (!mainWindowRef) {
+    throw new Error('No active window');
+  }
+
+  const result = await dialog.showOpenDialog(mainWindowRef, {
+    title: 'Open LOONIST Inspection Project',
+    properties: ['openFile'],
+    filters: [
+      { name: 'LOONIST Project Package (*.loonist)', extensions: ['loonist'] },
+      { name: 'JSON Document (*.json)', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { cancelled: true };
+  }
+
+  const filePath = result.filePaths[0];
+  const content = await fs.promises.readFile(filePath, 'utf-8');
+
+  return {
+    cancelled: false,
+    fileName: path.basename(filePath),
+    filePath,
+    content
+  };
+});
+

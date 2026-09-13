@@ -8,14 +8,17 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsx scripts/run_all_feature_tests.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "lucide-react": "^1.45.0",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -26,6 +29,7 @@
     "@vitejs/plugin-react": "^6.1.0",
     "electron": "^44.0.0",
     "oxlint": "^1.79.0",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vite-plugin-electron": "^1.1.1",

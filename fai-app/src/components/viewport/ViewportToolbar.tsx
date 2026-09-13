@@ -7,7 +7,8 @@ import {
   Hand, 
   MousePointer, 
   MoveHorizontal,
-  Activity
+  Activity,
+  Crop
 } from 'lucide-react';
 import type { ViewportTool } from '../../types/blueprint';
 
@@ -70,6 +71,18 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
           title="Select Tool"
         >
           <MousePointer className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onToolChange('box-capture')}
+          className={`p-1.5 rounded transition ${
+            activeTool === 'box-capture'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+          }`}
+          title="Custom Box Capture (Drag rectangle over drawing to auto-balloon)"
+        >
+          <Crop className="w-4 h-4" />
         </button>
       </div>
 

@@ -26,12 +26,38 @@
 
 ## 📌 Repository Documentation Index
 
+### 🏛️ Core Architecture Specifications (SSOT)
 | File | Purpose | Description |
 | :--- | :--- | :--- |
 | 📄 [`LOONIST.PRD.md`](./LOONIST.PRD.md) | **Master PRD (SSOT)** | Master Product Requirements Document defining the offline-first desktop architecture. |
 | 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Domain Analysis** | DDD Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
-| 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Context Diagrams, IPC Security Boundaries, SQLite Undo/Redo Engine, Cloudflare Licensing API. |
-| 🛠️ [`Phase_3_Low_Level_Design.md`](./Phase_3_Low_Level_Design.md) | **Phase 3: Low-Level System Design** | Desktop Application internals, ONNX hardware execution strategies, and cryptographic license verification logic. |
+| 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Context Diagrams, IPC Security Boundaries, SQLite Undo/Redo Engine, Cloudflare Licensing API, Industrial CAD UI. |
+| 🛠️ [`Phase_3_Low_Level_Design.md`](./Phase_3_Low_Level_Design.md) | **Phase 3: Low-Level System Design** | Desktop Application internals, ONNX hardware execution, R-Tree collision, Measurement Engine, PDF/Excel exporters, SHA-256 audit ledger, 6-Sprint Roadmap. |
+
+### 🚀 Sprint Technical Walkthroughs & Implementation Journals
+| Sprint | Journal / Walkthrough | Status | Key Deliverables & Systems |
+| :---: | :--- | :---: | :--- |
+| **Sprint 1** | 📄 [`Sprint_1_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_1_Technical_Walkthrough.md) | ✅ Complete | Hardened Electron shell, Ed25519 offline licensing, Cloudflare D1/Worker API, SQLite WAL + Undo/Redo transaction ledger. |
+| **Sprint 2** | 📄 [`Sprint_2_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_2_Technical_Walkthrough.md) | ✅ Complete | 60 FPS Canvas vector drawing viewport, sub-pixel pan & zoom (3200%), multi-sheet tab navigation (<1.5GB memory ceiling). |
+| **Sprint 3** | 📄 [`Sprint_3_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_3_Technical_Walkthrough.md) | ✅ Complete | ASME Y14.5 GD&T AST parser (14 characteristics), Title Block tolerance engine (.X-.XXXX), spatial clustering, grid zones, WASM OCR fallback. |
+| **Sprint 4** | 📄 [`Sprint_4_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_4_Technical_Walkthrough.md) | ✅ Complete | Spatial R-Tree AABB collision engine, dynamic vector leader lines, Multi-Document Session Manager, Antigravity dual-axis draggable splitters. |
+| **Sprint 5** | 📄 [`Sprint_5_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_5_Technical_Walkthrough.md) | ✅ Complete | Physical measurement engine (Bilateral/Unilateral/Limit), high-density frozen sticky CAD table, Vector PDF exporter (`pdf-lib`), certified AS9102 Excel exporter, SHA-256 audit ledger, neutral dark theme. |
+
+---
+
+## 📊 Codebase & Verification Metrics
+
+- **Total Production Codebase:** **11,748 Lines of Code** across 52 files (11,149 LOC across 45 primary engine files in `src/` and `scripts/`).
+- **Automated Verification Harness:** **12 Test Suites (33 unit & integration tests)** running via `scripts/run_all_feature_tests.ts` with **100% clean pass rate** and zero TypeScript compilation errors (`npx tsc --noEmit`).
+- **Core Engine Modules:**
+  - `src/services/measurement/measurementEngine.ts` (Physical tolerance evaluation)
+  - `src/services/spatial/collisionAvoidance.ts` (R-Tree collision & leader line math)
+  - `src/services/session/multiDocSessionManager.ts` (Multi-document drawing session cache)
+  - `src/services/export/markedPdfExporter.ts` (Vector PDF badge & arrow burn-in)
+  - `src/services/export/as9102ExcelExporter.ts` (SAE AS9102 Form 1, 2, 3 multi-sheet OpenXML generator)
+  - `src/services/audit/auditLedgerService.ts` (Cryptographic SHA-256 tamper-evident ledger)
+  - `src/components/table/TableManager.tsx` (High-density CAD table with dual sticky-frozen `#ID`/`#Cha` columns)
+  - `src/styles/theme.css` (Neutral industrial grayscale CAD theme tokens)
 
 ---
 

@@ -2,9 +2,9 @@
 
 **Product Name:** LOONIST  
 **Product Owner:** Harsh Yadav  
-**Document Version:** v2.0 (Production Desktop Architecture)  
-**Domain:** Aerospace & High-Precision Manufacturing FAI (SAE AS9102 Rev B/C, ASME Y14.5 GD&T)  
-**Target Infrastructure:** Electron Desktop App (Windows/macOS), Local SQLite, Cloudflare Workers API, Cloudflare D1  
+**Document Version:** v2.1 (Competitive Disruption Baseline)  
+**Domain:** Aerospace & High-Precision Manufacturing FAI (SAE AS9102 Rev B/C, ASME Y14.5 GD&T, AIAG PPAP)  
+**Target Infrastructure:** Electron Desktop App (Windows/macOS), Local SQLite, Local ONNX/WASM AI, Cloudflare Workers API, Cloudflare D1  
 **Security & Compliance:** ITAR/CMMC Level 2 Natively Compliant (100% Local Processing), Ed25519 Cryptographic Licensing  
 **Document Status:** Approved Master Baseline HLD Architecture  
 
@@ -13,16 +13,17 @@
 ## 1. Executive Summary & Architectural Principles
 
 ### 1.1 Architectural Vision
-`LOONIST` is an offline-first, desktop enterprise platform engineered to automate First Article Inspection (FAI) ballooning and SAE AS9102 Form 1, Form 2, and Form 3 report creation. 
+`LOONIST` is an offline-first, desktop enterprise platform engineered to automate First Article Inspection (FAI) ballooning, physical measurement recording, and SAE AS9102 / AIAG PPAP report generation.
 
-Shifting away from insecure SaaS web models, LOONIST guarantees absolute IP protection by processing classified engineering drawings 100% locally on the user's hardware via embedded ONNX AI models, local SQLite storage, and a highly secure Electron container.
+Unlike legacy incumbents (**InspectionXpert**, **DISCUS**, **High QA**) that either lock customers into clunky Windows-only .NET/Java tools or push insecure "Cloud OnDemand" SaaS, LOONIST guarantees absolute data protection. All blueprint parsing, geometric tolerance extraction, and inspection databases reside 100% locally on user hardware via embedded vector/ONNX AI engines, local SQLite storage, and a hardened Electron shell.
 
-### 1.2 Core Architectural Principles
-* **Offline-First Desktop App:** Engineering PDFs never leave the host machine. This guarantees compliance with strict defense regulations (ITAR) where uploading prints to AWS/S3 is prohibited.
-* **Cryptographic Hardware Licensing:** A lightweight Cloudflare Workers API issues Ed25519 signed licenses bound to specific hardware IDs, permitting prolonged offline usage without "phoning home".
-* **High-Performance UI:** React 19 + Vite inside the Electron Chromium renderer delivers a 60 FPS WebGL/Canvas viewport capable of handling massive vector PDFs without lag.
-* **Strict IPC Security Boundary:** To prevent Remote Code Execution (RCE), the React frontend communicates with the Node.js backend exclusively through a `contextBridge` using strict `zod` payload validation.
-* **Atomic Local Persistence:** `better-sqlite3` configured with PRAGMA WAL mode provides instantaneous local reads/writes and powers an atomic Undo/Redo transaction ledger.
+### 1.2 Core Architectural Principles & Competitive Moats
+* **100% Air-Gapped Local-First Execution (ITAR Moat):** Customer engineering drawings and dimensional records NEVER cross external network boundaries. This natively satisfies strict defense data sovereignty (ITAR 22 CFR § 120-130 and CMMC Level 2).
+* **Dual-Engine Ingestion Pipeline:** Combines a lightning-fast vector glyph and coordinate scanner with a client-side WASM raster OCR fallback to effortlessly handle native CAD vector PDFs, exploded stroked vector fonts, and scanned paper blueprints.
+* **Real-Time Measurement Compliance Engine:** Interactive data inspector allowing quality engineers to enter physical measurements with instantaneous (<5ms) Pass/Fail tolerance boundary calculation and visual indicators (Green = Within Limits, Red = Non-Conformance).
+* **Self-Contained Project Archiving (`.loonist` format):** Complete state persistence bundling drawing hashes, SQLite records, balloon coordinates, and measurement history into a single portable archive for offline handoffs.
+* **Dual-Artifact Export Pipeline:** One-click generation of certified multi-tab **SAE AS9102 Form 1, 2, and 3** Excel workbooks and high-resolution **Marked Blueprint PDFs** with vector balloon badges burned directly onto the drawing sheets.
+* **Cryptographic Hardware Licensing:** A lightweight Cloudflare Workers edge API issues Ed25519 signed licenses bound to asymmetric device public keys, permitting prolonged offline operation without intrusive network polling.
 
 ---
 
@@ -32,23 +33,24 @@ Shifting away from insecure SaaS web models, LOONIST guarantees absolute IP prot
 
 ```mermaid
 flowchart TD
-    QE["Quality & Manufacturing Engineers"]
+    QE["Quality & Manufacturing Engineers\n(Inspectors, CMM Technicians)"]
     
-    subgraph Boundary ["System Boundary: LOONIST Local Desktop Environment"]
-        ElectronApp["LOONIST Electron Application\n(React UI + Node.js Main Process)"]
-        LocalFile["Local File System\n(PDF Blueprints, AS9102 Exports)"]
+    subgraph Boundary ["System Boundary: LOONIST Local Desktop Environment (100% Air-Gapped)"]
+        ElectronApp["LOONIST Electron Desktop Application\n(React 19 UI + Node.js Main Process)"]
+        LocalFile["Local File System\n(PDF Blueprints, .loonist Projects, Marked PDFs, AS9102 Excel)"]
     end
 
-    subgraph Cloud ["Cloudflare Edge Network"]
-        CFWorkers["Cloudflare Workers API\n(Hono.js)"]
-        D1[("Cloudflare D1 Database\n(Tenants, Devices, Licenses)")]
+    subgraph Cloud ["Cloudflare Edge Network (Licensing Control Plane Only)"]
+        CFWorkers["Cloudflare Workers API\n(Hono.js Edge Engine)"]
+        D1[("Cloudflare D1 Database\n(Tenants, Devices, Cryptographic Licenses)")]
     end
 
-    QE <-->|View & Edit| ElectronApp
-    ElectronApp <-->|Read/Write Blueprints| LocalFile
-    ElectronApp <-->|HTTPS REST - One-Time Activation| CFWorkers
-    CFWorkers <-->|Query| D1
+    QE <-->|Inspect, Balloon, Enter Measurements| ElectronApp
+    ElectronApp <-->|Read Blueprints / Save Projects & Exports| LocalFile
+    ElectronApp <-->|HTTPS REST - Single-Use Token Activation| CFWorkers
+    CFWorkers <-->|Validate & Sign License Payload| D1
 ```
+*Key Invariant: Engineering drawings, GD&T characteristics, and measurement actuals NEVER cross the boundary to the cloud.*
 
 ---
 
@@ -56,31 +58,38 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph Electron ["Electron Desktop Container"]
+    subgraph Electron ["LOONIST Electron Desktop Container"]
         
-        subgraph Renderer ["Renderer Process (Chromium)"]
-            ReactUI["React 19 Viewport Engine\n(Zustand State, Canvas/WebGL)"]
+        subgraph Renderer ["Renderer Process (Chromium / React 19)"]
+            ReactUI["React 19 Viewport Engine\n(Zustand State, HTML5 Canvas, WebGL)"]
+            SplitterLayout["IDE Resizable Splitter Layout\n(Properties Dock, Viewport, Table Manager)"]
+            WasmOCRWorker["Client-Side WASM OCR Worker\n(Raster Fallback for Scanned / Exploded CAD)"]
+            ReviewDrawer["AI Review & Measurement Drawer\n(300 DPI Crop, Pass/Fail Real-Time Evaluation)"]
         end
 
-        subgraph Preload ["Preload Script"]
-            ContextBridge["ContextBridge API\n(Zod IPC Payload Validation)"]
+        subgraph Preload ["Preload Bridge Boundary"]
+            ContextBridge["ContextBridge IPC API\n(Strict Zod Payload Validation & Sender Identity Check)"]
         end
 
         subgraph MainProcess ["Main Process (Node.js)"]
-            IPC_Handlers["IPC Handlers\n(App Logic, License Verification)"]
-            LocalDB[("Local SQLite DB\n(better-sqlite3 + WAL)")]
-            AI_Engine["Local AI Worker Engine\n(ONNX Runtime, OCR, GD&T AST)"]
-            File_IO["Local File I/O\n(PDF Parser, Excel Exporter)"]
+            IPC_Handlers["IPC Routing & Business Logic Handlers"]
+            LocalDB[("Local SQLite Database\n(better-sqlite3 + PRAGMA WAL)")]
+            AI_Engine["Local AI & ASME Y14.5 AST Engine\n(Spatial Clustering, Tolerance Engine, Grid Zone Calc)"]
+            ProjectArchiver["Project File Archiver (.loonist)\n(State Serialization, Checksum Verification)"]
+            ExportEngine["Multi-Artifact Export Pipeline\n(AS9102 Excel Compiler + Marked PDF Vector Burner)"]
+            LicenseVerifier["Cryptographic License Verifier\n(Ed25519 Math Verification, Device Key Storage)"]
         end
 
     end
 
-    ReactUI <-->|Asynchronous IPC Calls| ContextBridge
+    ReactUI <-->|Asynchronous IPC Invocations| ContextBridge
     ContextBridge <-->|Strictly Validated Payloads| IPC_Handlers
     
     IPC_Handlers <--> LocalDB
     IPC_Handlers <--> AI_Engine
-    IPC_Handlers <--> File_IO
+    IPC_Handlers <--> ProjectArchiver
+    IPC_Handlers <--> ExportEngine
+    IPC_Handlers <--> LicenseVerifier
 ```
 
 ---
@@ -90,54 +99,105 @@ flowchart TD
 ### 3.1 Electron Security & IPC Architecture
 To protect against malicious PDF injection attacks or XSS in the renderer:
 * `nodeIntegration` is strictly `false`.
-* `contextIsolation` is `true`.
+* `contextIsolation` is strictly `true`.
 * `sandbox` is enabled at the OS level.
-* All `ipcMain.handle()` endpoints parse incoming parameters using strict Zod schemas before executing Node.js logic.
+* All IPC communication passes through explicit allowlisted channels validated with runtime **Zod schemas**.
+* Generic filesystem execution or arbitrary shell commands from the renderer are strictly forbidden.
 
 ### 3.2 Local Database (SQLite) & Undo/Redo Engine
-* **Engine:** `better-sqlite3` (Synchronous, ultra-fast C++ bindings).
-* **WAL Mode:** Enables concurrent reads and writes.
-* **Transaction History:** The database schema includes a `TransactionHistory` table storing `BEGIN/COMMIT` blocks and reverse-queries (`reverse_query`), providing native, instant Undo/Redo capability across the entire app.
+* **Engine:** `better-sqlite3` (Synchronous, ultra-fast C/C++ native bindings).
+* **Concurrency:** `PRAGMA journal_mode=WAL` (Write-Ahead Logging) enables non-blocking concurrent reads and instantaneous atomic writes.
+* **Persistent Undo/Redo:** Backed by an atomic `TransactionHistory` table recording forward and reverse SQL operations (`reverse_query`), allowing inspectors to traverse edit history across application restarts.
 
-### 3.3 Cloudflare Licensing Control Plane
+### 3.3 Dual-Engine Local Characteristic Extraction Pipeline
+1. **Primary Vector AST Engine:**
+   * Reads raw vector glyph streams via PDF.js.
+   * Clusters multi-line companion stacks via [`SpatialClusteringEngine`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/spatialClusteringEngine.ts).
+   * Parses all 14 geometric characteristics and dual-tier composite frames via [`GdtParser`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/gdtParser.ts).
+   * Automatically inherits Title Block general tolerances based on decimal precision (`.X`, `.XX`, `.XXX`, `.XXXX`) and ISO 2768-m via [`ToleranceEngine`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/toleranceEngine.ts).
+   * Maps blueprint coordinates to drawing margin zones (e.g. `Zone C-4`) via [`GridZoneCalculator`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/gridZoneCalculator.ts).
+   * Expands quantity multipliers (`4X`) into individual inspection sub-items (`1.1, 1.2, 1.3, 1.4`) via [`MultiplierParser`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/multiplierParser.ts).
+2. **Secondary Local Raster OCR Fallback:**
+   * For scanned paper drawings or 3D CAD models (PTC Creo, CATIA) where text is exploded into stroked vector curves (`m/l/c`), a client-side WASM OCR worker renders drawing tiles and extracts bounding boxes locally with zero internet connectivity.
+
+### 3.4 Project Persistence Engine (`.loonist` format)
+* **Packaging:** A self-contained ZIP archive containing:
+  - `manifest.json`: Project metadata, part numbers, CAD revisions, timestamp, and application version.
+  - `drawing.pdf`: Original blueprint byte stream.
+  - `state.db`: Embedded SQLite database containing characteristic records, balloon coordinates, leader line paths, and measurement actuals.
+  - `checksum.sha256`: Cryptographic hash ensuring tamper detection on load.
+* **Capabilities:** Enables seamless offline project saves, automated background recovery checkpoints, and instant multi-engineer project handoffs.
+
+### 3.5 Real-Time Measurement & Pass/Fail Evaluation Engine
+* Provides interactive measurement input directly in the characteristic grid or review drawer.
+* Evaluates entered dimensions in real time against nominal, plus/minus tolerances, and limit bounds:
+  $$\text{Status} = \begin{cases} \text{PASS (Green)}, & \text{if } \text{LowerLimit} \le \text{Actual} \le \text{UpperLimit} \\ \text{FAIL (Red)}, & \text{otherwise} \end{cases}$$
+* Auto-populates Results and Non-Conformance designations into AS9102 Form 3 Column 9/10/11.
+
+### 3.6 Multi-Artifact Export Engine
+* **Marked Blueprint PDF:** Synthesizes an annotated engineering PDF by burning vector circular balloon badges, item numbers, and leader lines onto the base blueprint layers without raster blur.
+* **SAE AS9102 Rev B/C Excel Package:** Programmatically compiles approved characteristics, title block data, and measurement results into a certified multi-tab `.xlsx` workbook (Form 1, Form 2, and Form 3).
+* **Automotive AIAG PPAP Package (Phase 2):** Maps characteristics into standard automotive dimensional test results templates.
+
+### 3.7 Cloudflare Licensing Control Plane
 * **Edge API:** Cloudflare Workers built with Hono.js.
-* **Database:** Cloudflare D1 (Serverless SQLite) mapping `Tenants -> Devices -> Licenses`.
-* **Cryptography:** The Cloudflare API uses `@noble/curves` to generate an Ed25519 signature. The local Electron app carries the public key to verify the license signature mathematically, ensuring it cannot be spoofed locally.
+* **Database:** Cloudflare D1 serverless ledger mapping Tenants, Devices, and Licenses.
+* **Cryptography:** Issues Ed25519 signed license certificates. The desktop app verifies the mathematical signature locally against an embedded public key. Supports 30-day offline grace periods and completely air-gapped USB activations.
 
-### 3.4 Local AI Extraction (Sprint 3)
-* **Execution:** ONNX Runtime executed within a hidden Node.js worker thread.
-* **Capabilities:** Extracts dimensions, tolerances, and parses ASME Y14.5 Geometric Dimensioning & Tolerancing (GD&T) Feature Control Frames into an Abstract Syntax Tree (AST).
-* **Data Flow:** Extracted characteristics are written directly to the local SQLite database.
+### 3.8 Industrial CAD User Interface & Theme Architecture
+* **Authentic CAD Monochromatic Palette:**
+  - Eliminates generic web-template navy/blue slate dark modes.
+  - Adopts true neutral dark charcoal (`#121212`, `#181818`, `#222222`), dark graphite (`#282828`, `#333333`), and true black ($0\%$ blue saturation), identical to Autodesk AutoCAD, SolidWorks, and Siemens NX dark themes.
+* **High-Density Frozen Table Architecture ([`TableManager.tsx`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/components/layout/TableManager.tsx)):**
+  - Pinning `#ID` (`left: 0`) and `#Cha` (`left: 40px`) with boundary elevation demarcation shadows ensures balloon numbers remain visible across horizontal scrolling over 18 characteristic columns.
+  - Independent vertical scrolling on table body with sticky column headers locked to the top.
+* **Dual-Axis Draggable IDE Splitters ([`Splitter.tsx`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/components/layout/Splitter.tsx)):**
+  - Smooth mouse-capture horizontal and vertical splitters with boundary clamping and double-click toggle collapse.
+* **Multi-Sheet Blueprint Caching ([`SheetTabs.tsx`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/components/viewport/SheetTabs.tsx)):**
+  - Keeps active sheet rasterized in GPU memory while offloading inactive pages to maintain a strict $<1.5\text{GB}$ memory envelope.
+
+### 3.9 Unified Verification & Test Harness
+* **Master Test Suite:** 12 automated end-to-end test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, and UI theme persistence.
+* **Execution:** Run via `npm test` with 100% pass rate requirement across all release branches.
 
 ---
 
 ## 4. End-to-End Operational Workflow
 
 ```
-1. Activation (One-Time)
-   User enters License Token -> Electron pings Cloudflare API -> Receives Ed25519 signed license -> Saved locally.
+1. Activation (One-Time / Air-Gapped)
+   User enters token -> Electron contacts Cloudflare Worker -> Receives Ed25519 signed license -> Saved locally.
 
-2. Import Blueprint (Offline)
-   User selects local PDF -> Node.js reads file -> React Viewport renders PDF (60 FPS Canvas).
+2. Document Ingestion (Multi-Tab)
+   User imports local PDF -> MultiDocumentSessionManager caches viewports -> React 60 FPS Canvas renders drawing.
 
-3. "Auto Balloon" Triggered (Explicit HITL)
-   User clicks Auto Balloon -> IPC passes request to Node.js Main Process.
+3. "Smart Extract" Triggered (Explicit HITL)
+   User clicks Smart Extract -> IPC dispatches extraction request to Main Process.
 
-4. Local AI Extraction
-   Node.js spawns ONNX worker -> Extracts characteristics -> Places balloons avoiding collisions.
+4. Dual-Engine Extraction
+   Primary Vector AST Engine parses callouts -> (If stroked CAD paths detected, WASM OCR fallback engages) -> 
+   Applies Title Block tolerances & Grid Zones -> Emits unified characteristics.
 
-5. Data Persistence
-   Main Process writes characteristics to local SQLite `characteristics` table.
+5. Spatial Collision-Avoidance Ballooning (Sprint 4)
+   Balloons placed dynamically using R-Tree spatial index -> Draggable canvas overlay with smart leader lines.
 
-6. Interactive Editing
-   React UI queries SQLite via IPC -> User drags balloons or changes values -> Edits saved via Undo/Redo atomic transactions.
+6. Inspector Review & HITL Verification
+   Quality Engineer reviews items -> Magnified 300 DPI vector crop displayed in Left Dock for rapid confirmation.
 
-7. Export AS9102
-   User clicks Export -> Main Process compiles SQLite data into AS9102 Form 1/2/3 Excel (.xlsx) -> Saves to user Desktop.
+7. Physical Measurement Entry (Sprint 5)
+   Inspector enters actual physical measurements -> Instant Green (Pass), Amber (Marginal), or Red (Fail) calculation.
+   Auto-updates Live Lot Telemetry (e.g. "8/23 Measured | 100% Pass").
+
+8. Project File Save (.loonist)
+   Single-click save packages PDF, characteristics, balloons, and measurements into a portable .loonist archive.
+
+9. Multi-Artifact Compliance Export (Sprint 5)
+   User clicks Export -> Generates certified AS9102 Form 1/2/3 Excel (.xlsx) + Vector Marked Blueprint PDF (.pdf).
 ```
 
 ---
 
 ## 5. Deployment Strategy
-* **Desktop App:** Distributed via electron-builder targeting Windows (`.exe` NSIS installer) and macOS (`.dmg`). Auto-updates provided via GitHub Releases or S3 bucket polling.
-* **Cloud API:** Deployed globally to the Cloudflare Edge network via `wrangler publish` ensuring <50ms latency for global activations.
+* **Desktop App:** Packaged via `electron-builder` targeting Windows (`.exe` NSIS installer) and macOS (`.dmg`). All Windows releases are signed with a Sectigo EV Code Signing Certificate and RFC 3161 timestamping.
+* **Air-Gapped Delivery:** Distribution via verified SHA-256 binary checksums and offline USB cryptographic license certificates for classified defense facilities.
+* **Cloud API:** Deployed globally to the Cloudflare Edge network via `wrangler publish` ensuring <50ms response times worldwide.
