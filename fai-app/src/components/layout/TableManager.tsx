@@ -442,12 +442,21 @@ export const TableManager: React.FC<TableManagerProps> = ({
                         {char.subType}
                       </td>
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-mono truncate font-medium">
+                      <td 
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCell({ charId: char.id, field: 'rawText' });
+                          setEditingValue(char.rawText);
+                        }}
+                        className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-mono truncate font-medium cursor-text"
+                        title="Double-click to edit requirement"
+                      >
                         {editingCell?.charId === char.id && editingCell.field === 'rawText' ? (
                           <input
                             type="text"
                             value={editingValue}
                             autoFocus
+                            onFocus={(e) => e.target.select()}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setEditingValue(e.target.value)}
                             onBlur={() => handleCellSave(char)}
@@ -455,29 +464,31 @@ export const TableManager: React.FC<TableManagerProps> = ({
                               if (e.key === 'Enter') handleCellSave(char);
                               else if (e.key === 'Escape') setEditingCell(null);
                             }}
-                            className="w-full bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden"
+                            className="w-full bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden"
                           />
                         ) : (
-                          <span
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCell({ charId: char.id, field: 'rawText' });
-                              setEditingValue(char.rawText);
-                            }}
-                            title="Double-click to edit requirement"
-                            className="cursor-text hover:underline"
-                          >
+                          <span className="hover:underline">
                             {char.rawText}
                           </span>
                         )}
                       </td>
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold">
+                      <td 
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCell({ charId: char.id, field: 'cleanNominal' });
+                          setEditingValue(char.cleanNominal !== null ? String(char.cleanNominal) : '');
+                        }}
+                        className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold cursor-text"
+                        title="Double-click to edit nominal value"
+                      >
                         {editingCell?.charId === char.id && editingCell.field === 'cleanNominal' ? (
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={editingValue}
                             autoFocus
+                            onFocus={(e) => e.target.select()}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setEditingValue(e.target.value)}
                             onBlur={() => handleCellSave(char)}
@@ -485,18 +496,10 @@ export const TableManager: React.FC<TableManagerProps> = ({
                               if (e.key === 'Enter') handleCellSave(char);
                               else if (e.key === 'Escape') setEditingCell(null);
                             }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
                           />
                         ) : (
-                          <span
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCell({ charId: char.id, field: 'cleanNominal' });
-                              setEditingValue(char.cleanNominal !== null ? String(char.cleanNominal) : '');
-                            }}
-                            title="Double-click to edit nominal value"
-                            className="cursor-text hover:underline"
-                          >
+                          <span className="hover:underline">
                             {char.cleanNominal !== null ? char.cleanNominal : '--'}
                           </span>
                         )}
@@ -506,12 +509,24 @@ export const TableManager: React.FC<TableManagerProps> = ({
                         {char.units}
                       </td>
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right">
+                      <td 
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          if (!char.forReference) {
+                            setEditingCell({ charId: char.id, field: 'plusTol' });
+                            setEditingValue(char.plusTol !== null ? String(char.plusTol) : '0');
+                          }
+                        }}
+                        className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right ${char.forReference ? '' : 'cursor-text'}`}
+                        title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit +Tol'}
+                      >
                         {editingCell?.charId === char.id && editingCell.field === 'plusTol' ? (
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={editingValue}
                             autoFocus
+                            onFocus={(e) => e.target.select()}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setEditingValue(e.target.value)}
                             onBlur={() => handleCellSave(char)}
@@ -519,20 +534,10 @@ export const TableManager: React.FC<TableManagerProps> = ({
                               if (e.key === 'Enter') handleCellSave(char);
                               else if (e.key === 'Escape') setEditingCell(null);
                             }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
                           />
                         ) : (
-                          <span
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              if (!char.forReference) {
-                                setEditingCell({ charId: char.id, field: 'plusTol' });
-                                setEditingValue(char.plusTol !== null ? String(char.plusTol) : '0');
-                              }
-                            }}
-                            title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit +Tol'}
-                            className={char.forReference ? '' : 'cursor-text hover:underline'}
-                          >
+                          <span className={char.forReference ? '' : 'hover:underline'}>
                             {char.forReference || char.plusTol === null
                               ? '--'
                               : char.plusTol > 0
@@ -542,12 +547,24 @@ export const TableManager: React.FC<TableManagerProps> = ({
                         )}
                       </td>
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right">
+                      <td 
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          if (!char.forReference) {
+                            setEditingCell({ charId: char.id, field: 'minusTol' });
+                            setEditingValue(char.minusTol !== null ? String(char.minusTol) : '0');
+                          }
+                        }}
+                        className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right ${char.forReference ? '' : 'cursor-text'}`}
+                        title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit -Tol'}
+                      >
                         {editingCell?.charId === char.id && editingCell.field === 'minusTol' ? (
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={editingValue}
                             autoFocus
+                            onFocus={(e) => e.target.select()}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setEditingValue(e.target.value)}
                             onBlur={() => handleCellSave(char)}
@@ -555,20 +572,10 @@ export const TableManager: React.FC<TableManagerProps> = ({
                               if (e.key === 'Enter') handleCellSave(char);
                               else if (e.key === 'Escape') setEditingCell(null);
                             }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
                           />
                         ) : (
-                          <span
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              if (!char.forReference) {
-                                setEditingCell({ charId: char.id, field: 'minusTol' });
-                                setEditingValue(char.minusTol !== null ? String(char.minusTol) : '0');
-                              }
-                            }}
-                            title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit -Tol'}
-                            className={char.forReference ? '' : 'cursor-text hover:underline'}
-                          >
+                          <span className={char.forReference ? '' : 'hover:underline'}>
                             {char.forReference || char.minusTol === null
                               ? '--'
                               : char.minusTol === 0
@@ -586,13 +593,34 @@ export const TableManager: React.FC<TableManagerProps> = ({
                         {char.forReference || char.lowerLimit === null ? '--' : char.lowerLimit.toFixed(4)}
                       </td>
 
-                      {/* Measured Actual Column */}
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold bg-blue-50/20">
+                      {/* Measured Actual Column - Instant Click or Double-Click to Edit */}
+                      <td 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectCharacteristic(char);
+                          setEditingCell({ charId: char.id, field: 'measuredValue' });
+                          setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          onSelectCharacteristic(char);
+                          setEditingCell({ charId: char.id, field: 'measuredValue' });
+                          setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
+                        }}
+                        className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold cursor-pointer transition-colors ${
+                          editingCell?.charId === char.id && editingCell.field === 'measuredValue'
+                            ? 'bg-blue-500/20 ring-1 ring-blue-500'
+                            : 'hover:bg-blue-500/15'
+                        }`}
+                        title="Click to enter physical measurement"
+                      >
                         {editingCell?.charId === char.id && editingCell.field === 'measuredValue' ? (
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={editingValue}
                             autoFocus
+                            onFocus={(e) => e.target.select()}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setEditingValue(e.target.value)}
                             onBlur={() => handleCellSave(char)}
@@ -600,20 +628,18 @@ export const TableManager: React.FC<TableManagerProps> = ({
                               if (e.key === 'Enter') handleCellSave(char);
                               else if (e.key === 'Escape') setEditingCell(null);
                             }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            placeholder="0.0000"
+                            className="w-20 bg-white dark:bg-[#121212] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono font-bold text-right outline-hidden shadow-xs"
                           />
                         ) : (
-                          <span
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCell({ charId: char.id, field: 'measuredValue' });
-                              setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
-                            }}
-                            title="Double-click to enter physical measured actual"
-                            className="cursor-text hover:underline font-mono"
-                          >
-                            {char.measuredValue !== null && char.measuredValue !== undefined ? char.measuredValue.toFixed(4) : '--'}
-                          </span>
+                          <div className="flex items-center justify-end gap-1 group/measured">
+                            <span className="font-mono">
+                              {char.measuredValue !== null && char.measuredValue !== undefined ? char.measuredValue.toFixed(4) : '--'}
+                            </span>
+                            <span className="opacity-40 group-hover/measured:opacity-100 text-[10px] text-blue-500 dark:text-blue-400 font-sans transition-opacity">
+                              ✎
+                            </span>
+                          </div>
                         )}
                       </td>
 
