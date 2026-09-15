@@ -139,7 +139,8 @@
 | **ASME Y14.5 AST Parser** | ✅ **14 GD&T Symbols + Composite FCF** | ⚠️ Basic OCR symbol capture | ⚠️ Manual symbol picker | ⚠️ Manual feature builder |
 | **1-Click Multiplier Expander** | ✅ **Auto (`4X` $\to$ `1.1, 1.2, 1.3, 1.4`)** | ❌ Manual row cloning | ❌ Manual row cloning | ⚠️ Partial multi-cavity |
 | **Drawing Grid Zone Mapping** | ✅ **Automatic (e.g. Zone C-4)** | ⚠️ Manual margin mapping | ⚠️ Manual coordinate config | ⚠️ Manual zone setup |
-| **Exploded CAD / Scanned Fallback**| ✅ **Dual-Engine (Vector + WASM OCR)** | ⚠️ Brittle OCR | ⚠️ Brittle OCR | ⚠️ Add-on module |
+| **Hybrid Dual-Path Vision & OCR** | ✅ **Vector (<50ms) + Canvas Otsu/Deskew + WASM OCR** | ⚠️ Brittle cloud OCR | ⚠️ Brittle local OCR | ⚠️ Add-on module |
+| **Sentence & Prose Exclusion** | ✅ **Multi-Layer Heuristics + Residual Token Check** | ❌ Balloons text/cover sentences | ❌ Balloons text sentences | ❌ Manual exclusion |
 | **Native Project Archiving** | ✅ **`.loonist` Portable Package** | ⚠️ Proprietary database | ⚠️ Proprietary `.tdp` file | ❌ Enterprise DB locked |
 | **Measurement Pass/Fail Tracking**| ✅ **Live Real-Time Green/Red Calc** | ⚠️ Add-on CMM module | ⚠️ Add-on module | ✅ Built-in SPC |
 | **Marked PDF Drawing Export** | ✅ **High-Res Vector SVG Burner** | ✅ Included | ✅ Included | ✅ Included |
@@ -162,12 +163,18 @@
 - [x] (Sprint 3) Spatial proximity clustering merging broken multi-line callout stacks into compound characteristics.
 - [x] (Sprint 3) Drawing grid zone calculator converting $(x, y)$ coordinates to standard blueprint margin zones (e.g. `Zone C-4`).
 - [x] (Sprint 3) 1-Click multiplier expander splitting `4X` callouts into discrete sub-characteristics.
-- [ ] (Sprint 4) Dual-layer canvas supporting interactive balloon drag-and-drop with dynamic leader lines.
-- [ ] (Sprint 4) Spatial R-Tree collision-avoidance auto-balloon placement algorithm.
-- [ ] (Sprint 4) Magnified 300 DPI drawing crop display in characteristic review drawer for rapid visual sign-off.
-- [ ] (Sprint 4) Self-contained `.loonist` project package save, auto-save, and load engine.
-- [ ] (Sprint 5) Live physical measurement entry with real-time Pass/Fail tolerance evaluation (Green/Red indicators).
-- [ ] (Sprint 5) High-resolution marked blueprint PDF exporter burning vector balloon badges onto drawing sheets.
-- [ ] (Sprint 5) SAE AS9102 Rev B/C compliant multi-tab Excel compiler for Form 1, Form 2, and Form 3.
-- [ ] (Sprint 5) Tamper-evident SHA-256 hash-chained audit ledger on all write operations.
-- [ ] (Sprint 6) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.
+- [x] (Sprint 4) Dual-layer canvas supporting interactive balloon drag-and-drop with dynamic leader lines.
+- [x] (Sprint 4) Spatial R-Tree collision-avoidance auto-balloon placement algorithm (`RTreePlacementEngine`).
+- [x] (Sprint 4) Magnified 300 DPI drawing crop display in characteristic review drawer for rapid visual sign-off.
+- [x] (Sprint 4) Self-contained `.loonist` project package save, auto-save, and load engine.
+- [x] (Sprint 5) Live physical measurement entry with real-time Pass/Fail tolerance evaluation (Green/Red indicators).
+- [x] (Sprint 5) High-resolution marked blueprint PDF exporter burning vector balloon badges onto drawing sheets (`pdf-lib`).
+- [x] (Sprint 5) SAE AS9102 Rev B/C compliant multi-tab Excel compiler for Form 1, Form 2, and Form 3.
+- [x] (Sprint 5) Tamper-evident SHA-256 hash-chained audit ledger on all write operations.
+- [x] (Sprint 5) Monochromatic industrial CAD dark theme matching AutoCAD, SolidWorks, and Siemens NX (`#121212`, `#181818`, `#222222`).
+- [x] (Sprint 6) Hybrid Dual-Path Vision & Vector Ingestion with offline Canvas pre-processing (Otsu adaptive binarization, deskewing, blueprint inversion).
+- [x] (Sprint 6) 100% offline WebAssembly Deep Learning OCR engine (`ocrEngineService.ts`) with CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`).
+- [x] (Sprint 6) Prose & Tutorial Sentence Exclusion Engine with 60+ keyword heuristics and Step 14 residual token validation.
+- [x] (Sprint 6) Interactive optical marquee snip-to-capture tool (`box-capture`) and HUD provenance badges (`VECTOR` / `OCR` / `MANUAL`).
+- [x] (Sprint 6) Unified master test suite expanded to 14 feature test suites with 100% clean pass rate.
+- [ ] (Sprint 7) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.
