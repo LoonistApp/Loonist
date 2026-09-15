@@ -200,7 +200,10 @@ export class AiExtractionService {
           const inTitleBlockBox = (s.x > viewport.width - tbWidth && s.y > viewport.height - tbHeight);
           if (inTitleBlockBox) return false;
 
-          // 4g. Exclude conversational prose, tutorial instructions, and book disclaimers
+          // 4g. Exclude administrative boilerplate (ASME Y14.5 drafting standards, ITAR, AS9102 statements)
+          if (GdtParser.isAdministrativeBoilerplate(t)) return false;
+
+          // 4h. Exclude conversational prose, tutorial instructions, and book disclaimers
           if (GdtParser.isProseOrInstructionalText(t)) return false;
 
           return (
@@ -212,13 +215,7 @@ export class AiExtractionService {
             t.includes('[') || 
             t.includes('(') ||
             t.includes('TYP') ||
-            t.includes('PLCS') ||
-            t.startsWith('1.') ||
-            t.startsWith('2.') ||
-            t.startsWith('3.') ||
-            t.startsWith('4.') ||
-            t.startsWith('5.') ||
-            t.startsWith('6.')
+            t.includes('PLCS')
           );
         });
 
@@ -232,8 +229,16 @@ export class AiExtractionService {
         // 4. Cluster companion lines (e.g. diameter + depth + GD&T frame) into unified callouts
         const clusteredCallouts = SpatialClusteringEngine.clusterTextElements(candidateStrings);
 
+        const pageDimensionChars: EngineeringCharacteristic[] = [];
+        const pageNoteChars: EngineeringCharacteristic[] = [];
+
         for (const cluster of clusteredCallouts) {
           const t = cluster.combinedText;
+
+          // Exclude administrative boilerplate immediately
+          if (GdtParser.isAdministrativeBoilerplate(t)) {
+            continue;
+          }
 
           // Exclude conversational prose, tutorial instructions, and non-callout text immediately
           if (GdtParser.isProseOrInstructionalText(t)) {
@@ -244,17 +249,27 @@ export class AiExtractionService {
           const noteMatch = t.match(/^(\d+)\.\s+(.*)/);
           if (noteMatch) {
             const noteNum = noteMatch[1];
-            const zone = GridZoneCalculator.calculateZone(
-              cluster.boundingBox.x, 
-              cluster.boundingBox.y, 
-              viewport.width, 
-              viewport.height
-            );
-            characteristics.push({
-              id: `char-sheet-${pageNum}-${currentItemNumber}`,
-              itemNumber: currentItemNumber,
+            const noteContent = noteMatch[2].trim();
+
+            // Under SAE AS9102 Section 3.8, verify it contains an authentic physical/material inspection requirement
+            const hasInspectableRequirement = 
+              /\b(?:MATERIAL|FINISH|BURR|EDGE|HEAT\s+TREAT|ANODIZE|COAT|PLATE|PLATING|HARDNESS|TORQUE|SURFACE|Ra|MAX|MIN|SPEC|AMS|ASTM|MIL)\b/i.test(noteContent) ||
+              /\d+(?:\.\d+)?\s*(?:MAX|MIN|Ra|RC|HB)/i.test(noteContent);
+
+            if (!hasInspectableRequirement) {
+              continue;
+            }
+
+            // Industry Standard Clean Canvas Rule:
+            // Legitimate drawing notes (e.g. Material AMS 4928, Surface Finish 32 Ra, Deburr 0.015 MAX)
+            // are accounted for in AS9102 Form 3 Table with Reference Location set to "NOTE X",
+            // but their visual balloon rendering on the CAD sheet is suppressed (skipBalloonRender: true)
+            // to avoid visual number collision with drawing notes and keep the blueprint canvas clean.
+            pageNoteChars.push({
+              id: `char-sheet-${pageNum}-note-${noteNum}`,
+              itemNumber: 0, // Assigned sequentially after drawing dimensions
               sheetNumber: pageNum,
-              drawingZone: zone,
+              drawingZone: `NOTE ${noteNum}`,
               type: 'note',
               displayType: 'Note',
               subType: 'General Note',
@@ -274,7 +289,7 @@ export class AiExtractionService {
               isToleranceInherited: false,
               toleranceSource: `General Note #${noteNum}`,
               quantity: 1,
-              inspectionMethod: 'Visual / Visual Inspection',
+              inspectionMethod: /SURFACE|Ra/i.test(t) ? 'Optical Comparator' : /BURR|EDGE/i.test(t) ? 'Optical Comparator' : 'Visual / Visual Inspection',
               confidenceScore: isScannedSheet ? 0.88 : 0.98,
               verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
               extractionSource: isScannedSheet ? 'ocr' : 'vector',
@@ -282,9 +297,9 @@ export class AiExtractionService {
               isBasic: false,
               forReference: false,
               sourceCaptureOrSheet: `Sheet ${pageNum}`,
-              boundingBox: cluster.boundingBox
+              boundingBox: cluster.boundingBox,
+              skipBalloonRender: true
             });
-            currentItemNumber++;
             continue;
           }
 
@@ -510,6 +525,14 @@ export class AiExtractionService {
 
             currentItemNumber++;
           }
+        }
+
+        // Industry Standard: Append general inspectable notes sequentially after drawing dimensions
+        // so that blueprint balloons are numbered consecutively (1, 2, 3...) on drawing geometry,
+        // while notes are recorded with subsequent item numbers in AS9102 Form 3.
+        for (const noteChar of pageNoteChars) {
+          noteChar.itemNumber = currentItemNumber++;
+          characteristics.push(noteChar);
         }
 
         page.cleanup();

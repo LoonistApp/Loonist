@@ -207,6 +207,16 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
               />
               <span>Leader</span>
             </label>
+
+            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 dark:text-zinc-300 select-none" title="Toggle floating balloons on General Notes block (Default: Off for Clean Canvas)">
+              <input
+                type="checkbox"
+                checked={!!balloonAppearance.balloonGeneralNotes}
+                onChange={(e) => onUpdateBalloonAppearance({ ...balloonAppearance, balloonGeneralNotes: e.target.checked })}
+                className="rounded border-slate-300 text-blue-600 w-3 h-3 cursor-pointer"
+              />
+              <span>Notes</span>
+            </label>
           </div>
         </div>
       </RibbonGroup>

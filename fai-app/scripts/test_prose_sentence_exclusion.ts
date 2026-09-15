@@ -93,7 +93,29 @@ const validNotes = [
 for (const note of validNotes) {
   const isProse = GdtParser.isProseOrInstructionalText(note);
   assert(!isProse, `Legitimate drawing note was falsely flagged as prose: "${note}"`);
+  const isBoilerplate = GdtParser.isAdministrativeBoilerplate(note);
+  assert(!isBoilerplate, `Legitimate manufacturing note falsely flagged as administrative boilerplate: "${note}"`);
 }
 console.log(`✓ Verified all ${validNotes.length} authentic drawing notes are preserved for characteristic generation`);
 
-console.log('\n✅ ALL PROSE EXCLUSION & CAD INTEGRITY TESTS PASSED!');
+// 4. Administrative Boilerplate & Non-Inspectable Notes must be detected and excluded
+const administrativeBoilerplateSamples = [
+  '1. INTERPRET DRAWING IN ACCORDANCE WITH ASME Y14.5-2018 STANDARDS.',
+  '5. 100% FIRST ARTICLE INSPECTION PER SAE AS9102 REV C REQUIRED.',
+  '6. ITAR CONTROLLED: TECHNICAL DATA SUBJECT TO US EXPORT REGULATIONS.',
+  'DO NOT SCALE DRAWING',
+  'PROPRIETARY AND CONFIDENTIAL - ALL RIGHTS RESERVED',
+  'THIRD ANGLE PROJECTION',
+  'UNLESS OTHERWISE SPECIFIED ALL DIMENSIONS ARE IN INCHES',
+  'WORKMANSHIP SHALL BE IN ACCORDANCE WITH MIL-STD-454'
+];
+
+for (const sample of administrativeBoilerplateSamples) {
+  const isBoilerplate = GdtParser.isAdministrativeBoilerplate(sample);
+  assert(isBoilerplate, `Administrative boilerplate was NOT flagged as boilerplate: "${sample}"`);
+  const isProse = GdtParser.isProseOrInstructionalText(sample);
+  assert(isProse, `Administrative boilerplate was NOT excluded by prose filter: "${sample}"`);
+}
+console.log(`✓ Verified all ${administrativeBoilerplateSamples.length} administrative boilerplate statements are strictly excluded`);
+
+console.log('\n✅ ALL PROSE & ADMINISTRATIVE BOILERPLATE EXCLUSION TESTS PASSED!');

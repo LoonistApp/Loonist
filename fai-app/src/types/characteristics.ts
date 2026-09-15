@@ -177,6 +177,9 @@ export interface EngineeringCharacteristic {
   // Custom user-dragged balloon coordinates (overrides default auto-placement)
   customBalloonPosition?: { x: number; y: number };
 
+  // Clean Canvas Rule: Suppresses floating balloon rendering on CAD canvas for general notes while preserving row in Form 3 table
+  skipBalloonRender?: boolean;
+
   // Sprint 5: Physical Quality Inspection & Conformance Measurement
   measuredValue?: number | null;
   conformanceStatus?: ConformanceStatus;
@@ -193,6 +196,7 @@ export interface BalloonAppearance {
   fontSize: number;
   color: string;
   showLeaderLine: boolean;
+  balloonGeneralNotes?: boolean; // When true, renders balloons on general notes block. Default false (Clean Canvas).
 }
 
 export interface ProjectProperties {

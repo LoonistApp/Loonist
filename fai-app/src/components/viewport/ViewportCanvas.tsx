@@ -499,8 +499,12 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
 
         {/* Interactive AS9102 Balloon Markers & Dimension Highlights */}
         {sheet && (
-          <div className="absolute inset-0 pointer-events-none">
             {activeSheetCharacteristics.map((char) => {
+              // Clean Canvas Rule: Suppress floating balloons on general notes block unless explicitly enabled
+              if (char.skipBalloonRender && !balloonAppearance?.balloonGeneralNotes) {
+                return null;
+              }
+
               const isSelected = selectedCharId === char.id;
               const isFlagged = char.verificationStatus === 'needs_review';
               const isBeingDragged = draggedBalloonPos?.id === char.id;

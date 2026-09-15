@@ -97,10 +97,39 @@ if (residualWords.length > 0) {
 }
 ```
 
+### 3.4 Administrative Boilerplate Exclusion (`GdtParser.isAdministrativeBoilerplate`)
+Under **SAE AS9102 Section 3.8**, drafting standard references, legal notices, and quality assurance procedure statements are *not* physical design characteristics. The engine classifies and unconditionally purges text matching:
+1. **Drafting standard citations:** `INTERPRET DRAWINGS?`, `ACCORDANCE WITH (?:ASME|ISO|ANSI|DIN)`, `ASME Y14`, `ISO 1101`, `ANSI Y14`.
+2. **ITAR & export compliance:** `ITAR CONTROLLED`, `EXPORT REGULATION`, `US EXPORT`, `COMMERCE CONTROL`, `EAR99`, `PROPRIETARY AND CONFIDENTIAL`, `RESTRICTED RIGHTS`, `ALL RIGHTS RESERVED`.
+3. **Procedural quality notices:** `FIRST ARTICLE INSPECTION PER SAE AS9102`, `100% INSPECTION REQUIRED`, `QUALITY SYSTEM REQUIREMENT`.
+4. **Drawing sheet boilerplate:** `DO NOT SCALE DRAWING`, `THIRD ANGLE PROJECTION`, `UNLESS OTHERWISE SPECIFIED`, `TOLERANCES UNLESS NOTED`.
+
+### 3.5 Clean Canvas Rule for General Notes (`skipBalloonRender`)
+To prevent balloon number conflicts with existing drawing note sequence numbers (`1.`, `2.`, `3.`) and eliminate visual clutter:
+1. Genuine manufacturing notes (`MATERIAL`, `SURFACE FINISH`, `BURR 0.015 MAX`) are accounted for in the **AS9102 Form 3 Characteristic Table** with Reference Location set to `NOTE X`.
+2. Their blueprint canvas balloon markers are suppressed (`skipBalloonRender: true`), keeping the drawing canvas reserved exclusively for dimensional geometry and GD&T frames.
+3. Users can toggle canvas ballooning for notes via the **Balloons Ribbon Tab** (`Balloon Notes` checkbox).
+4. Drawing dimensions receive sequential balloon numbers starting at `#1, #2, #3...` first, while notes are appended sequentially afterwards, guaranteeing zero balloon number gaps on the CAD canvas.
+
+---
+
+## 4. Source Code Reference
+
+Implemented in [`gdtParser.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/gdtParser.ts#L640-L720) and [`aiExtractionService.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/aiExtractionService.ts#L240-L290):
+
+```typescript
+// Administrative Boilerplate Check
+if (GdtParser.isAdministrativeBoilerplate(clean)) {
+  return true; // Excluded from ballooning and characteristics
+}
+```
+
 ---
 
 ## 5. Verification & Test Suite
 * Verified in dedicated suite [`test_prose_sentence_exclusion.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/scripts/test_prose_sentence_exclusion.ts):
   * 12/12 tutorial sentences strictly rejected (`nominal === null`).
   * 12/12 genuine CAD callouts (`1.250`, `Ø.500 ± .005`, `2X 45° CHAMFER`, `3.00 BORE`, `0.050 WALL`) accurately parsed.
-  * 5/5 legitimate drawing notes (`MATERIAL: 6061-T6`, `ANODIZE`, `HEAT TREAT`) protected.
+  * 5/5 legitimate manufacturing notes (`MATERIAL: 6061-T6`, `ANODIZE`, `HEAT TREAT`) protected.
+  * 8/8 administrative boilerplate statements (`ASME Y14.5`, `ITAR CONTROLLED`, `SAE AS9102`) strictly excluded.
+* Verified in unified master test suite: 14/14 suites passing (100% success rate).

@@ -36,6 +36,11 @@ export class MarkedPdfExporter {
       const pageIndex = char.sheetNumber - 1;
       if (pageIndex < 0 || pageIndex >= numPages) continue;
 
+      // Clean Canvas Rule: Skip burning balloons on general notes block unless explicitly enabled
+      if (char.skipBalloonRender && !appearance?.balloonGeneralNotes) {
+        continue;
+      }
+
       const page = pdfDoc.getPage(pageIndex);
       const { height: pageHeight } = page.getSize();
 

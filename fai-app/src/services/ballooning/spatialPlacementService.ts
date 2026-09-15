@@ -130,6 +130,11 @@ export class SpatialPlacementService {
     const sheetMargin = SpatialPlacementService.SHEET_MARGIN;
 
     const updatedSheetChars = sheetChars.map((char) => {
+      // Clean Canvas Rule: Skip balloon placement for notes whose canvas balloon is suppressed
+      if (char.skipBalloonRender) {
+        return char;
+      }
+
       // If user has explicitly dragged this balloon, respect their custom position unless forceReset is active
       if (!forceReset && char.customBalloonPosition && char.customBalloonPosition.x > 0) {
         placedBalloons.push({

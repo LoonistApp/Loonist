@@ -639,12 +639,49 @@ export class GdtParser {
   }
 
   /**
+   * Identifies administrative boilerplate, drafting standard citations, ITAR/export control notices,
+   * quality management procedural statements, and legal disclaimers.
+   * Under SAE AS9102 Section 3.8, these are NOT design characteristics and must NEVER be ballooned.
+   */
+  public static isAdministrativeBoilerplate(text: string): boolean {
+    const clean = text.trim();
+    if (!clean) return false;
+
+    // 1. Drafting standard citations e.g. "INTERPRET DRAWING IN ACCORDANCE WITH ASME Y14.5-2018"
+    if (/\b(?:INTERPRET\s+(?:DRAWINGS?|DIMENSIONS?)|ACCORDANCE\s+WITH\s+(?:ASME|ISO|ANSI|DIN)|ASME\s+Y14|ISO\s+1101|ANSI\s+Y14|DRAFTING\s+STANDARDS?)\b/i.test(clean)) {
+      return true;
+    }
+
+    // 2. ITAR, export control, proprietary, copyright, and confidentiality notices
+    if (/\b(?:ITAR\s+CONTROLLED|EXPORT\s+CONTROL(?:LED)?|EXPORT\s+REGULATIONS?|US\s+EXPORT|COMMERCE\s+CONTROL|EAR99|TECHNICAL\s+DATA\s+SUBJECT|PROPRIETARY\s+AND\s+CONFIDENTIAL|CONFIDENTIAL\s+INFORMATION|RESTRICTED\s+RIGHTS|ALL\s+RIGHTS\s+RESERVED|COPYRIGHT\s+\d{4})\b/i.test(clean)) {
+      return true;
+    }
+
+    // 3. Procedural inspection/quality statements e.g. "100% FIRST ARTICLE INSPECTION PER SAE AS9102 REV C REQUIRED"
+    if (/\b(?:FIRST\s+ARTICLE\s+INSPECTION|SAE\s+AS9102|AS9102\s+REV|100%\s+INSPECTION\s+REQUIRED|QUALITY\s+SYSTEM\s+REQUIREMENT|SAMPLING\s+PER\s+MIL-STD)\b/i.test(clean)) {
+      return true;
+    }
+
+    // 4. Drawing sheet boilerplate notes
+    if (/\b(?:DO\s+NOT\s+SCALE\s+(?:DRAWING|PRINT)|THIRD\s+ANGLE\s+PROJECTION|CAD\s+GENERATED\s+DRAWING|WORKMANSHIP\s+SHALL\s+BE\s+IN\s+ACCORDANCE|UNLESS\s+OTHERWISE\s+SPECIFIED|TOLERANCES\s+UNLESS\s+NOTED)\b/i.test(clean)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Detects conversational English sentences, tutorial instructions, book disclaimers,
    * and paragraph text that should never be ballooned as CAD dimensions.
    */
   public static isProseOrInstructionalText(text: string): boolean {
     const clean = text.trim();
     if (!clean) return false;
+
+    // 0. Administrative boilerplate (ASME drafting standards, ITAR, AS9102 procedural statements)
+    if (GdtParser.isAdministrativeBoilerplate(clean)) {
+      return true;
+    }
 
     // 1. Extreme prose / tutorial / book disclaimer indicators - ALWAYS prose even if numbered
     const STRONG_PROSE_REGEX = /\b(?:autodesk|solidworks|catia|creo|inventor|kkmsoft|tutorial|workbook|handbook|course|lesson|disclaimer|copyright|rights\s+reserved|all\s+rights|apologies\s+in\s+advance|practice\s+with|designer'?s?\s+choice|luck\s+in\s+your|miscellaneous\s+parts|detailed\s+drawings|simple\s+sketches|answers?\s+here)\b/i;
@@ -654,8 +691,12 @@ export class GdtParser {
 
     // 2. Preserve genuine drawing notes starting with note index e.g. "1. MATERIAL: 6061-T6"
     if (/^\d+\.\s+[A-Z0-9]/.test(clean) && clean.length < 200) {
-      // If it contains real engineering note vocabulary, it is definitely a valid note
-      if (/\b(?:MATERIAL|FINISH|BURR|EDGE|HEAT\s+TREAT|ANODIZE|COAT|PLATE|PLATING|TOLERANCE|PAINT|CLEAN|HARDNESS|TORQUE|PER|SPEC|ASTM|MIL|AMS|ASME|ISO|PASSIVATE|CAD|MODEL|INSPECT|SURFACE|CHAMFER|RADIUS|DIMENSIONS?|UNLESS|NOTED|ALL)\b/i.test(clean)) {
+      // Re-verify it is not administrative boilerplate
+      if (GdtParser.isAdministrativeBoilerplate(clean)) {
+        return true;
+      }
+      // If it contains real manufacturing/material note vocabulary, it is a valid note
+      if (/\b(?:MATERIAL|FINISH|BURR|EDGE|HEAT\s+TREAT|ANODIZE|COAT|PLATE|PLATING|TOLERANCE|PAINT|CLEAN|HARDNESS|TORQUE|PER|SPEC|ASTM|MIL|AMS|PASSIVATE|CAD|MODEL|SURFACE|CHAMFER|RADIUS|DIMENSIONS?|UNLESS|NOTED|ALL)\b/i.test(clean)) {
         return false;
       }
       // If it's short without conversational narrative, preserve as note
