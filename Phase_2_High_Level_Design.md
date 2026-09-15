@@ -19,7 +19,8 @@ Unlike legacy incumbents (**InspectionXpert**, **DISCUS**, **High QA**) that eit
 
 ### 1.2 Core Architectural Principles & Competitive Moats
 * **100% Air-Gapped Local-First Execution (ITAR Moat):** Customer engineering drawings and dimensional records NEVER cross external network boundaries. This natively satisfies strict defense data sovereignty (ITAR 22 CFR § 120-130 and CMMC Level 2).
-* **Dual-Engine Ingestion Pipeline:** Combines a lightning-fast vector glyph and coordinate scanner with a client-side WASM raster OCR fallback to effortlessly handle native CAD vector PDFs, exploded stroked vector fonts, and scanned paper blueprints.
+* **Dual-Path Hybrid Vision & Vector Ingestion:** Combines a lightning-fast vector glyph and coordinate scanner ($<50\text{ms}$ for $>85\%$ of native CAD drawings) with an offline Canvas pre-processing (Otsu adaptive binarization, deskewing, blueprint inversion) and WebAssembly Deep Learning OCR pipeline with CAD symbol restoration (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`) for scanned blueprints and optical marquee crops.
+* **Prose & Tutorial Sentence Exclusion Engine:** Multi-layer natural language and residual token validation eliminating false ballooning on tutorial cover sheets, book disclaimers, and narrative instructions while preserving genuine engineering notes.
 * **Real-Time Measurement Compliance Engine:** Interactive data inspector allowing quality engineers to enter physical measurements with instantaneous (<5ms) Pass/Fail tolerance boundary calculation and visual indicators (Green = Within Limits, Red = Non-Conformance).
 * **Self-Contained Project Archiving (`.loonist` format):** Complete state persistence bundling drawing hashes, SQLite records, balloon coordinates, and measurement history into a single portable archive for offline handoffs.
 * **Dual-Artifact Export Pipeline:** One-click generation of certified multi-tab **SAE AS9102 Form 1, 2, and 3** Excel workbooks and high-resolution **Marked Blueprint PDFs** with vector balloon badges burned directly onto the drawing sheets.
@@ -109,16 +110,25 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * **Concurrency:** `PRAGMA journal_mode=WAL` (Write-Ahead Logging) enables non-blocking concurrent reads and instantaneous atomic writes.
 * **Persistent Undo/Redo:** Backed by an atomic `TransactionHistory` table recording forward and reverse SQL operations (`reverse_query`), allowing inspectors to traverse edit history across application restarts.
 
-### 3.3 Dual-Engine Local Characteristic Extraction Pipeline
-1. **Primary Vector AST Engine:**
-   * Reads raw vector glyph streams via PDF.js.
+### 3.3 Hybrid Dual-Path Vision & Characteristic Extraction Pipeline
+1. **Primary Vector AST Engine (Path A - Native CAD):**
+   * Reads raw vector glyph streams via PDF.js with instant $<50\text{ms}$ performance on native CAD drawings.
    * Clusters multi-line companion stacks via [`SpatialClusteringEngine`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/spatialClusteringEngine.ts).
    * Parses all 14 geometric characteristics and dual-tier composite frames via [`GdtParser`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/gdtParser.ts).
    * Automatically inherits Title Block general tolerances based on decimal precision (`.X`, `.XX`, `.XXX`, `.XXXX`) and ISO 2768-m via [`ToleranceEngine`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/toleranceEngine.ts).
    * Maps blueprint coordinates to drawing margin zones (e.g. `Zone C-4`) via [`GridZoneCalculator`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/gridZoneCalculator.ts).
    * Expands quantity multipliers (`4X`) into individual inspection sub-items (`1.1, 1.2, 1.3, 1.4`) via [`MultiplierParser`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/multiplierParser.ts).
-2. **Secondary Local Raster OCR Fallback:**
-   * For scanned paper drawings or 3D CAD models (PTC Creo, CATIA) where text is exploded into stroked vector curves (`m/l/c`), a client-side WASM OCR worker renders drawing tiles and extracts bounding boxes locally with zero internet connectivity.
+2. **Vision Pre-Processing & Deep Learning OCR Pipeline (Path B - Scans & Exploded Paths):**
+   * **Canvas Pre-Processing ([`imagePreprocessingService.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/imagePreprocessingService.ts)):** Executes Otsu's adaptive binarization maximizing between-class variance into clean $0/255$ black-on-white text, applies horizontal projection profile deskewing ($-4^\circ$ to $+4^\circ$), detects and inverts dark ammonia blueprints, and applies aspect-preserving white margin padding.
+   * **Offline WebAssembly OCR Engine ([`ocrEngineService.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/ocrEngineService.ts)):** Employs an air-gapped Tesseract.js WASM worker pool constrained to an engineering-whitelisted character dictionary with dual-orientation passes ($0^\circ$ and $90^\circ$ for vertical blueprint callouts).
+   * **CAD Symbol Normalizer:** Reconstructs standard ASME Y14.5 drafting glyphs (`O` $\to$ `Ø`, `+-` $\to$ `±`, `c` $\to$ `°`, `DP` $\to$ `↧`, `CB` $\to$ `⌴`, `CS` $\to$ `⌵`) and records confidence telemetry.
+3. **Prose & Tutorial Sentence Exclusion Engine:**
+   * Prevents false ballooning on tutorial cover sheets, book disclaimers, and instructional text containing numbers.
+   * Heuristic scanner evaluates 60+ tutorial/disclaimer keywords (`autodesk`, `inventor`, `tutorial`, `practice with`, `apologies in advance`, `luck in your pursuits`).
+   * Evaluates narrative sentence syntax ($\ge 5$ words with conversational conjunctions) while preserving genuine engineering notes (`MATERIAL`, `ANODIZE`, `HEAT TREAT`).
+   * Step 14 residual token validation strips standard CAD terms and strictly requires zero residual English words $\ge 3$ characters.
+4. **Interactive Optical Marquee Snip-to-Capture Tool ([`ViewportCanvas.tsx`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/components/viewport/ViewportCanvas.tsx)):**
+   * Allows inspectors to drag a marquee capture box over any blueprint region, running instant high-DPI canvas pre-processing and OCR extraction with `VECTOR` / `OCR` / `MANUAL` HUD provenance badges.
 
 ### 3.4 Project Persistence Engine (`.loonist` format)
 * **Packaging:** A self-contained ZIP archive containing:
@@ -157,8 +167,8 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
   - Keeps active sheet rasterized in GPU memory while offloading inactive pages to maintain a strict $<1.5\text{GB}$ memory envelope.
 
 ### 3.9 Unified Verification & Test Harness
-* **Master Test Suite:** 12 automated end-to-end test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, and UI theme persistence.
-* **Execution:** Run via `npm test` with 100% pass rate requirement across all release branches.
+* **Master Test Suite:** 14 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, and prose sentence exclusion.
+* **Execution:** Run via `npm test` (`scripts/run_all_feature_tests.ts`) with 100% pass rate requirement across all release branches.
 
 ---
 
@@ -174,9 +184,12 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 3. "Smart Extract" Triggered (Explicit HITL)
    User clicks Smart Extract -> IPC dispatches extraction request to Main Process.
 
-4. Dual-Engine Extraction
-   Primary Vector AST Engine parses callouts -> (If stroked CAD paths detected, WASM OCR fallback engages) -> 
-   Applies Title Block tolerances & Grid Zones -> Emits unified characteristics.
+4. Dual-Path Hybrid Extraction & Prose Filtering
+   Ingestion Router checks vector tokens:
+   - Path A: Primary Vector AST Engine parses CAD callouts in <50ms with 100% mathematical precision.
+   - Path B: Vision Pipeline triggers Canvas pre-processing (Otsu binarization, deskewing) + Offline WASM OCR + CAD glyph normalization.
+   Prose & Tutorial Sentence Exclusion Engine discards book disclaimers and narrative instructions.
+   Applies Title Block general tolerances & Grid Zones -> Emits unified characteristics.
 
 5. Spatial Collision-Avoidance Ballooning (Sprint 4)
    Balloons placed dynamically using R-Tree spatial index -> Draggable canvas overlay with smart leader lines.
