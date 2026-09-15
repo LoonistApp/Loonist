@@ -33,6 +33,7 @@
 | 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Domain Analysis** | DDD Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
 | 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Context Diagrams, IPC Security Boundaries, SQLite Undo/Redo Engine, Cloudflare Licensing API, Industrial CAD UI. |
 | 🛠️ [`Phase_3_Low_Level_Design.md`](./Phase_3_Low_Level_Design.md) | **Phase 3: Low-Level System Design** | Desktop Application internals, ONNX hardware execution, R-Tree collision, Measurement Engine, PDF/Excel exporters, SHA-256 audit ledger, 6-Sprint Roadmap. |
+| 🔬 [`Algorithms/`](./Algorithms/) | **Algorithms Catalog (12 Core Algorithms)** | Mathematical formulations, flowcharts, and source mappings for all 12 vision, parsing, spatial, and compliance algorithms. |
 
 ### 🚀 Sprint Technical Walkthroughs & Implementation Journals
 | Sprint | Journal / Walkthrough | Status | Key Deliverables & Systems |
