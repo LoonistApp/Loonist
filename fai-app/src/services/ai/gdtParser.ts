@@ -45,13 +45,14 @@ export class GdtParser {
   ): ParsedDimensionResult {
     const text = rawText.trim();
 
-    // 1. Filter out drawing view titles, section headers, detail labels, and scales immediately
+    // 1. Filter out drawing view titles, section headers, detail labels, scales, and prose immediately
     if (
       /^(?:DETAIL|SECTION|VIEW)\s+[A-Z]/i.test(text) ||
       /SCALE\s*[:\s]\s*\d+\s*:\s*\d+/i.test(text) ||
       /\[SCALE\s+\d+:\d+\]/i.test(text) ||
       /^(?:TOP|FRONT|SIDE|ISOMETRIC|AUXILIARY)\s+VIEW/i.test(text) ||
-      /^(?:GENERAL\s+)?NOTES?:?/i.test(text)
+      /^(?:GENERAL\s+)?NOTES?:?/i.test(text) ||
+      GdtParser.isProseOrInstructionalText(text)
     ) {
       return {
         rawText: text,
@@ -63,7 +64,7 @@ export class GdtParser {
         type: 'linear',
         enclosure: 'standard',
         isToleranceInherited: false,
-        toleranceSource: 'Ignored View Title',
+        toleranceSource: 'Prose / Excluded Text',
         units: preset.unit,
         multiplier: 1
       };
@@ -195,8 +196,8 @@ export class GdtParser {
       };
     }
 
-    // 9. Check for Chamfer Callouts (e.g. ".060 X 45°", "45° X .060", "2X .030 X 45°")
-    const chamferMatch = textToParse.match(/([0-9]*\.?[0-9]+)\s*[xX]\s*(?:45|30|60)°|(?:45|30|60)°\s*[xX]\s*([0-9]*\.?[0-9]+)/i);
+    // 9. Check for Chamfer Callouts (e.g. ".060 X 45°", "45° X .060", "0.5 X 45c CHAMFER", "ALL CHAMFERS = 0.5 X 45°")
+    const chamferMatch = textToParse.match(/(?:ALL\s+CHAMFERS\s*=\s*)?([0-9]*\.?[0-9]+)\s*(?:mm\s*)?[xX]\s*(?:45|30|60)(?:°|c|\b)(?:\s*CHAMFER)?|(?:45|30|60)(?:°|c|\b)\s*[xX]\s*([0-9]*\.?[0-9]+)(?:\s*(?:mm)?\s*CHAMFER)?/i);
     if (chamferMatch) {
       const nomStr = chamferMatch[1] || chamferMatch[2];
       const nom = parseFloat(nomStr);
@@ -350,9 +351,71 @@ export class GdtParser {
     }
 
     // 14. Fallback: Untoleranced Dimension -> Resolve via Title Block Precision Matrix
+    // First, verify this is not prose or instructional text
+    if (GdtParser.isProseOrInstructionalText(cleanText) || GdtParser.isProseOrInstructionalText(textToParse)) {
+      return {
+        rawText: text,
+        nominal: null,
+        upperTol: 0,
+        lowerTol: 0,
+        minLimit: null,
+        maxLimit: null,
+        type: 'linear',
+        enclosure: 'standard',
+        isToleranceInherited: false,
+        toleranceSource: 'Prose Text / Non-Callout (Excluded)',
+        units: preset.unit,
+        multiplier
+      };
+    }
+
+    // Second: Residual Word Validation
+    // Strip numbers, decimals, fractions, standard drafting symbols, and whitelisted CAD keywords
+    const strippedResidual = textToParse
+      .replace(/(?:\d+\.?\d*|\.\d+)/g, '')
+      .replace(/\b(?:TYP|TYPICAL|MAX|MIN|REF|REFERENCE|THRU|THROUGH|DP|DEPTH|BORE|CBORE|COUNTERBORE|CSINK|COUNTERSINK|CHAMFER|CHAM|PLCS|PLACES|DIA|DIAMETER|RAD|RADIUS|DEG|IN|MM|UNF|UNC|UNEF|NPT|METRIC|THREAD|THD|GA|GAGE|GAUGE|SQ|SQUARE|BASIC|TRUE|POS|SURF|PCD|BCD|STOCK|WALL|FLAT|OD|ID|PITCH|LEAD|SLOT|KEYWAY|DRILL|TAP|REAM)\b/gi, '')
+      .replace(/[\(\)\[\]\{\}\/\\:;,\-_+=*#°Ø±↧⌴⌵"'`~!?<>@$%^&]/g, '')
+      .trim();
+
+    // If there are lingering alphabetic words (length >= 3), this is descriptive sentence text, not a dimension
+    const residualWords = strippedResidual.match(/[a-zA-Z]{3,}/g) || [];
+    if (residualWords.length > 0) {
+      return {
+        rawText: text,
+        nominal: null,
+        upperTol: 0,
+        lowerTol: 0,
+        minLimit: null,
+        maxLimit: null,
+        type: 'linear',
+        enclosure: 'standard',
+        isToleranceInherited: false,
+        toleranceSource: 'Non-Callout Text (Excluded)',
+        units: preset.unit,
+        multiplier
+      };
+    }
+
     const numMatch = textToParse.match(/(?:\d+\.?\d*|\.\d+)/);
     const nominal = numMatch ? parseFloat(numMatch[0]) : null;
-    const isAngular = cleanText.includes('°') || cleanText.toLowerCase().includes('deg');
+    if (nominal === null || isNaN(nominal)) {
+      return {
+        rawText: text,
+        nominal: null,
+        upperTol: 0,
+        lowerTol: 0,
+        minLimit: null,
+        maxLimit: null,
+        type: 'linear',
+        enclosure: 'standard',
+        isToleranceInherited: false,
+        toleranceSource: 'Invalid Nominal',
+        units: preset.unit,
+        multiplier
+      };
+    }
+
+    const isAngular = cleanText.includes('°') || cleanText.toLowerCase().includes('deg') || /(?:^|\s|\d)(?:\d+(?:\.\d+)?)c(?:\s|$)/i.test(cleanText);
     const tol = numMatch 
       ? ToleranceEngine.resolveTitleBlockTolerance(numMatch[0], isAngular, preset)
       : { upperTol: preset.threeDecimals, lowerTol: preset.threeDecimals, source: 'Default Standard' };
@@ -567,11 +630,64 @@ export class GdtParser {
 
   private static inferType(text: string): CharacteristicType {
     const t = text.toUpperCase();
-    if (t.includes('Ø') || t.includes('DIA')) return 'diameter';
-    if (t.includes('R ') || t.startsWith('R') || t.includes('RAD')) return 'radius';
-    if (t.includes('°') || t.includes('DEG')) return 'angle';
+    if (t.includes('Ø') || t.includes('DIA') || /\bP\s*\d/.test(text)) return 'diameter';
+    if ((t.startsWith('R') && !t.startsWith('REF') && !t.startsWith('RUNOUT')) || t.includes('RAD')) return 'radius';
+    if (t.includes('CHAMFER') || ((t.includes('X') || t.includes('×')) && (t.includes('45°') || t.includes('45C') || t.includes('30°')))) return 'chamfer';
     if (t.includes('UNF') || t.includes('UNC') || t.includes('THD') || t.includes('THREAD')) return 'thread';
-    if (t.includes('X') && t.includes('45°')) return 'chamfer';
+    if (t.includes('°') || t.includes('DEG') || /(?:^|\s)\d+(?:\.\d+)?c\b/i.test(text) || /\d+c\b/i.test(text)) return 'angle';
     return 'linear';
+  }
+
+  /**
+   * Detects conversational English sentences, tutorial instructions, book disclaimers,
+   * and paragraph text that should never be ballooned as CAD dimensions.
+   */
+  public static isProseOrInstructionalText(text: string): boolean {
+    const clean = text.trim();
+    if (!clean) return false;
+
+    // 1. Extreme prose / tutorial / book disclaimer indicators - ALWAYS prose even if numbered
+    const STRONG_PROSE_REGEX = /\b(?:autodesk|solidworks|catia|creo|inventor|kkmsoft|tutorial|workbook|handbook|course|lesson|disclaimer|copyright|rights\s+reserved|all\s+rights|apologies\s+in\s+advance|practice\s+with|designer'?s?\s+choice|luck\s+in\s+your|miscellaneous\s+parts|detailed\s+drawings|simple\s+sketches|answers?\s+here)\b/i;
+    if (STRONG_PROSE_REGEX.test(clean)) {
+      return true;
+    }
+
+    // 2. Preserve genuine drawing notes starting with note index e.g. "1. MATERIAL: 6061-T6"
+    if (/^\d+\.\s+[A-Z0-9]/.test(clean) && clean.length < 200) {
+      // If it contains real engineering note vocabulary, it is definitely a valid note
+      if (/\b(?:MATERIAL|FINISH|BURR|EDGE|HEAT\s+TREAT|ANODIZE|COAT|PLATE|PLATING|TOLERANCE|PAINT|CLEAN|HARDNESS|TORQUE|PER|SPEC|ASTM|MIL|AMS|ASME|ISO|PASSIVATE|CAD|MODEL|INSPECT|SURFACE|CHAMFER|RADIUS|DIMENSIONS?|UNLESS|NOTED|ALL)\b/i.test(clean)) {
+        return false;
+      }
+      // If it's short without conversational narrative, preserve as note
+      if (!/\b(?:this|that|these|those|some|any|we|you|your|our|please|don't|can|will|should|would)\b/i.test(clean)) {
+        return false;
+      }
+    }
+
+    // Never exclude standard GD&T frames or symbol-led callouts
+    if (clean.includes('|') || clean.includes('⌖') || clean.includes('⏥') || clean.includes('Ø') || clean.includes('±')) {
+      return false;
+    }
+
+    // 3. Natural language prose words common in book/tutorial/instructional paragraphs
+    const PROSE_WORDS_REGEX = /\b(?:this|that|these|those|contains?|containing|detailed|drawings?|miscellaneous|parts?|practice|inventor|package|matter|some|challenging|others?|none|meant|difficult|however|intended|specific|modeling|tools?|hints?|provided|cases?|event|find|missing|please|accept|apologies|advance|don't|stop|instead|consider|opportunity|exercise|exercises|designer'?s?|choice|provide|liking|right|wrong|answers?|work|through|keep|mind|best|creating|simple|sketches|build|constructed|features?|which|more|complex|luck|pursuits?|software|copyright|rights?\s+reserved|autodesk|kkmsoft|all\s+rights|disclaimer|tutorial|guide|course|lesson|sample|workbook|handbook|instructions?|overview|introduction|preface|chapter|page|website|email|author|publish|published|edition)\b/i;
+
+    if (PROSE_WORDS_REGEX.test(clean)) {
+      return true;
+    }
+
+    // 4. High word count with grammatical punctuation or conversational conjunctions
+    const words = clean.split(/\s+/);
+    if (words.length >= 5) {
+      if (
+        /[,;]\s+[a-z]/i.test(clean) || 
+        /\.\s+[A-Z]/.test(clean) || 
+        /\b(?:and|or|in|to|for|of|with|by|from|at|on|the|a|an|is|are|be|have|has|had|you|your|we|our|they|their|can|could|will|would|should|may|might)\b/i.test(clean)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

@@ -149,6 +149,7 @@ export class SpatialClusteringEngine {
       t.includes('⌵') || 
       /^(?:DEPTH|DP|THRU|THRU ALL|C'?BORE|C'?SINK)\b/i.test(t)
     ) {
+      if (prevText.includes('CHAMFER')) return false;
       return true;
     }
 
@@ -180,8 +181,13 @@ export class SpatialClusteringEngine {
       return true;
     }
 
-    // 7. General notes continuation (indented text under a note number)
-    if (/^\d+\./.test(prevText) && !/^\d+\./.test(t) && !t.includes('|')) {
+    // 7. General notes continuation (indented text under a note number like "1. FINISH ALL OVER")
+    if (/^\d+\.\s+[A-Za-z]/.test(prevText) && !/^\d+\./.test(t) && !t.includes('|')) {
+      return true;
+    }
+
+    // 8. Engineering qualifiers on separate line: e.g. "TYP", "TYPICAL", "4 PLCS", "2 PLACES", "MAX", "MIN", "REF"
+    if (/^(?:TYP|TYPICAL|\(?\d+\s*PLCS\)?|\(?\d+\s*PLACES?\)?|MAX|MIN|REF)\b/i.test(t)) {
       return true;
     }
 

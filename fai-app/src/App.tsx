@@ -63,6 +63,7 @@ export function App() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [hudCropDataUrl, setHudCropDataUrl] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [tableFilter, setTableFilter] = useState<'all' | 'critical' | 'review'>('all');
 
   // Aerospace CAD Dark Mode Theme State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -664,14 +665,20 @@ export function App() {
   // Manual OCR / Marquee Box Capture
   const handleBoxCapture = useCallback(async (
     box: { x: number; y: number; width: number; height: number },
-    pageNumber: number
+    pageNumber: number,
+    cropCanvas?: HTMLCanvasElement
   ) => {
     try {
       const maxItemNumber = characteristics.reduce((max, c) => Math.max(max, c.itemNumber), 0);
       const nextItemNumber = maxItemNumber + 1;
-      const newChar = await AiExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber);
+      const newChar = await AiExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber, cropCanvas);
       setCharacteristics((prev) => [...prev, newChar]);
       setSelectedCharId(newChar.id);
+      if (cropCanvas) {
+        try {
+          setHudCropDataUrl(cropCanvas.toDataURL());
+        } catch {}
+      }
       setActiveTool('select');
     } catch (err) {
       console.error('Failed to capture marquee box:', err);
@@ -899,6 +906,26 @@ export function App() {
     }
   }, [isLeftPanelOpen, isBottomPanelOpen]);
 
+  const handleResetLayout = useCallback(() => {
+    handleLeftWidthChange(320);
+    handleBottomHeightChange(220);
+    setIsLeftPanelOpen(true);
+    setIsBottomPanelOpen(true);
+  }, [handleLeftWidthChange, handleBottomHeightChange]);
+
+  const handleNewProject = useCallback(() => {
+    if (characteristics.length > 0 && !window.confirm('Start a new inspection project? Unsaved changes will be cleared.')) {
+      return;
+    }
+    setPdfDoc(null);
+    setBlueprintDoc(null);
+    setCharacteristics([]);
+    setSelectedCharId(null);
+    setProjectFiles([]);
+    setActiveFileId('');
+    docCacheRef.current.clear();
+  }, [characteristics.length]);
+
   const currentSheet = blueprintDoc?.sheets[activeSheetIndex] || null;
 
   return (
@@ -906,7 +933,7 @@ export function App() {
       {isLoading && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600 animate-pulse z-50" />
       )}
-      {/* 1. TOP RIBBON BAR (InspectionXpert Benchmark) */}
+      {/* 1. TOP RIBBON BAR (Desktop Engineering Ribbon System) */}
       <RibbonBar
         onSmartExtract={handleSmartExtract}
         isExtracting={isExtracting}
@@ -916,6 +943,9 @@ export function App() {
         onExportExcel={handleExportExcel}
         onExportPdf={handleExportMarkedPdf}
         onRenumberAll={handleRenumberAll}
+        onRepositionBalloons={handleRepositionBalloons}
+        onLoadSample={handleLoadSample}
+        onNewProject={handleNewProject}
         activeTool={activeTool}
         onToolChange={setActiveTool}
         onFitPage={handleFitPage}
@@ -937,7 +967,20 @@ export function App() {
         onToggleLeftPanel={handleToggleLeftPanel}
         onToggleBottomPanel={handleToggleBottomPanel}
         onToggleFullDrawing={handleToggleFullDrawing}
+        onToggleMaximizeLeft={handleToggleMaximizeLeft}
+        onToggleMaximizeBottom={handleToggleMaximizeBottom}
+        onResetLayout={handleResetLayout}
         characteristicsCount={characteristics.length}
+        characteristics={characteristics}
+        selectedCharId={selectedCharId}
+        selectedChar={selectedChar}
+        onDeleteCharacteristic={handleDeleteCharacteristic}
+        blueprintDoc={blueprintDoc}
+        activeSheetIndex={activeSheetIndex}
+        onSelectSheet={setActiveSheetIndex}
+        projectProps={projectProps}
+        tableFilter={tableFilter}
+        onSetTableFilter={setTableFilter}
         isDrawerOpen={isDrawerOpen}
         onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
         isDarkMode={isDarkMode}
@@ -958,6 +1001,7 @@ export function App() {
             projectProps={projectProps}
             onUpdateProjectProps={setProjectProps}
             onExportExcel={handleExportExcel}
+            onExportPdf={handleExportMarkedPdf}
             hudCropDataUrl={hudCropDataUrl}
             isOpen={isLeftPanelOpen}
             onToggleOpen={setIsLeftPanelOpen}
@@ -1087,6 +1131,8 @@ export function App() {
           onHeightChange={handleBottomHeightChange}
           isMaximized={isBottomPanelMaximized}
           onToggleMaximize={handleToggleMaximizeBottom}
+          filterType={tableFilter}
+          onFilterChange={setTableFilter}
         />
       )}
 

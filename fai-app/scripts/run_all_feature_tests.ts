@@ -84,6 +84,18 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 5 / UI',
     script: 'scripts/test_table_scroll.ts',
     description: 'Verifies independent table body scrolling within locked resizable panel height and sticky column headers'
+  },
+  {
+    name: 'Image Pre-Processing & OCR Vision Pipeline',
+    sprint: 'Sprint 5 / Vision',
+    script: 'scripts/test_ocr_vision_pipeline.ts',
+    description: 'Verifies Otsu binarization, deskewing, and CAD symbol normalization for scanned drawings & optical snip-capture'
+  },
+  {
+    name: 'Prose & Tutorial Sentence Exclusion Engine',
+    sprint: 'Sprint 5 / Parser',
+    script: 'scripts/test_prose_sentence_exclusion.ts',
+    description: 'Verifies strict exclusion of conversational sentences, tutorial paragraphs, and book disclaimers from ballooning'
   }
 ];
 

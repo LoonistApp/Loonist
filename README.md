@@ -42,22 +42,26 @@
 | **Sprint 3** | 📄 [`Sprint_3_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_3_Technical_Walkthrough.md) | ✅ Complete | ASME Y14.5 GD&T AST parser (14 characteristics), Title Block tolerance engine (.X-.XXXX), spatial clustering, grid zones, WASM OCR fallback. |
 | **Sprint 4** | 📄 [`Sprint_4_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_4_Technical_Walkthrough.md) | ✅ Complete | Spatial R-Tree AABB collision engine, dynamic vector leader lines, Multi-Document Session Manager, Antigravity dual-axis draggable splitters. |
 | **Sprint 5** | 📄 [`Sprint_5_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_5_Technical_Walkthrough.md) | ✅ Complete | Physical measurement engine (Bilateral/Unilateral/Limit), high-density frozen sticky CAD table, Vector PDF exporter (`pdf-lib`), certified AS9102 Excel exporter, SHA-256 audit ledger, neutral dark theme. |
+| **Sprint 6** | 📄 [`Sprint_6_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_6_Technical_Walkthrough.md) | ✅ Complete | Hybrid dual-path vision pipeline, Canvas pre-processing (Otsu adaptive binarization, deskewing, blueprint inversion), offline Tesseract WASM OCR, CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`), and Prose & Tutorial Sentence Exclusion Engine. |
 
 ---
 
 ## 📊 Codebase & Verification Metrics
 
-- **Total Production Codebase:** **11,748 Lines of Code** across 52 files (11,149 LOC across 45 primary engine files in `src/` and `scripts/`).
-- **Automated Verification Harness:** **12 Test Suites (33 unit & integration tests)** running via `scripts/run_all_feature_tests.ts` with **100% clean pass rate** and zero TypeScript compilation errors (`npx tsc --noEmit`).
+- **Total Production Codebase:** **12,800+ Lines of Code** across 57 engine files in `src/` and `scripts/`.
+- **Automated Verification Harness:** **14 Test Suites (45+ unit & integration tests)** running via `scripts/run_all_feature_tests.ts` with **100% clean pass rate** and zero TypeScript compilation errors (`tsc -b`).
 - **Core Engine Modules:**
-  - `src/services/measurement/measurementEngine.ts` (Physical tolerance evaluation)
-  - `src/services/spatial/collisionAvoidance.ts` (R-Tree collision & leader line math)
-  - `src/services/session/multiDocSessionManager.ts` (Multi-document drawing session cache)
+  - `src/services/ai/ocrEngineService.ts` (100% offline WebAssembly deep learning OCR & CAD symbol restoration)
+  - `src/services/ai/imagePreprocessingService.ts` (Otsu adaptive binarization, deskewing, dark blueprint inversion)
+  - `src/services/ai/gdtParser.ts` (ASME Y14.5 AST parser, Prose & Tutorial Sentence Exclusion, residual word check)
+  - `src/services/ai/aiExtractionService.ts` (Dual-path vector + OCR ingestion router, candidate filtering)
+  - `src/services/compliance/measurementEngine.ts` (Physical tolerance evaluation)
+  - `src/services/ballooning/spatialPlacementService.ts` (R-Tree collision & leader line math)
   - `src/services/export/markedPdfExporter.ts` (Vector PDF badge & arrow burn-in)
   - `src/services/export/as9102ExcelExporter.ts` (SAE AS9102 Form 1, 2, 3 multi-sheet OpenXML generator)
-  - `src/services/audit/auditLedgerService.ts` (Cryptographic SHA-256 tamper-evident ledger)
-  - `src/components/table/TableManager.tsx` (High-density CAD table with dual sticky-frozen `#ID`/`#Cha` columns)
-  - `src/styles/theme.css` (Neutral industrial grayscale CAD theme tokens)
+  - `src/services/compliance/auditLedgerService.ts` (Cryptographic SHA-256 tamper-evident ledger)
+  - `src/components/layout/TableManager.tsx` (High-density CAD table with dual sticky-frozen `#ID`/`#Cha` columns)
+  - `src/index.css` (Neutral industrial monochromatic CAD dark theme tokens)
 
 ---
 

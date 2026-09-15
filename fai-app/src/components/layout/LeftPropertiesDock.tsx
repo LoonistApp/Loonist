@@ -11,6 +11,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   FileSpreadsheet, 
+  FileDown,
   CheckCircle2,
   AlertTriangle,
   Trash2,
@@ -32,8 +33,9 @@ interface LeftPropertiesDockProps {
   projectProps: ProjectProperties;
   onUpdateProjectProps: (props: ProjectProperties) => void;
 
-  // Export
+  // Export Deliverables
   onExportExcel: () => void;
+  onExportPdf?: () => void;
 
   // Crop preview data URL from ViewportCanvas
   hudCropDataUrl?: string | null;
@@ -68,6 +70,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
   projectProps,
   onUpdateProjectProps,
   onExportExcel,
+  onExportPdf,
   hudCropDataUrl,
   isOpen = true,
   onToggleOpen,
@@ -316,8 +319,28 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                 {/* HEADS-UP DISPLAY (HUD) CROP PREVIEW (InspectionXpert Signature Feature) */}
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                    <span>Heads-Up Display (Drawing Crop)</span>
-                    <span className="font-mono text-blue-600">{selectedChar.drawingZone}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span>Drawing Crop</span>
+                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase ${
+                        selectedChar.extractionSource === 'ocr'
+                          ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                          : selectedChar.extractionSource === 'manual'
+                          ? 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700'
+                          : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                      }`}>
+                        {selectedChar.extractionSource || 'Vector'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold font-mono ${
+                        (selectedChar.confidenceScore ?? 1.0) >= 0.90
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
+                      }`}>
+                        {Math.round((selectedChar.confidenceScore ?? 1.0) * 100)}% Conf
+                      </span>
+                      <span className="font-mono text-blue-600 dark:text-blue-400">{selectedChar.drawingZone}</span>
+                    </div>
                   </div>
                   <div className="w-full h-16 bg-slate-900 rounded border border-slate-700 flex items-center justify-center overflow-hidden relative shadow-inner p-1">
                     {hudCropDataUrl ? (
@@ -831,59 +854,91 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
           </div>
         )}
 
-        {/* TAB 3: EXPORT TO EXCEL (InspectionXpert AS9102 Templates & Snapshot Manager) */}
+        {/* TAB 3: UNIFIED EXPORT DELIVERABLES (InspectionXpert AS9102 Certified Center) */}
         {activePanelTab === 'excel' && (
-          <div className="p-3 flex flex-col gap-3">
-            <span className="font-bold text-slate-900 text-xs uppercase tracking-wide border-b border-slate-200 pb-1">
-              AS9102 Excel Templates
-            </span>
+          <div className="p-3 flex flex-col gap-4">
+            {/* Section 1: Marked Vector Blueprint PDF */}
+            <div className="flex flex-col gap-2">
+              <span className="font-bold text-slate-900 text-xs uppercase tracking-wide border-b border-slate-200 pb-1 flex items-center justify-between">
+                <span>Marked Blueprint PDF</span>
+                <span className="text-[10px] font-mono text-slate-400 font-normal">Vector Stamped</span>
+              </span>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Export drawing with permanent ASME Y14.5 inspection balloons, leader lines, and certified AS9102 title stamp.
+              </p>
+              {onExportPdf && (
+                <button
+                  type="button"
+                  onClick={onExportPdf}
+                  disabled={characteristics.length === 0}
+                  className="flex items-center justify-center gap-2 w-full py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold text-xs rounded border border-red-700 shadow-xs transition cursor-pointer"
+                  title="Export Marked Vector Blueprint PDF with permanent balloons"
+                >
+                  <FileDown className="w-4 h-4 text-white" />
+                  <span>Export Marked PDF (.pdf)</span>
+                </button>
+              )}
+            </div>
 
-            <div className="flex flex-col gap-1.5 border border-slate-200 rounded p-2 bg-slate-50 max-h-48 overflow-y-auto">
-              {[
-                { name: 'AS9102B.xlsx', label: 'SAE AS9102 Rev B (Inches)' },
-                { name: 'AS9102B-Metric.xlsx', label: 'SAE AS9102 Rev B (Metric)' },
-                { name: 'AS9102C-2023.xlsx', label: 'SAE AS9102 Rev C (Current)' },
-                { name: 'PPAP-Level3.xlsx', label: 'Automotive PPAP Level 3' }
-              ].map((tmpl) => (
-                <label key={tmpl.name} className="flex items-center gap-2 p-1.5 rounded hover:bg-white cursor-pointer transition">
-                  <input
-                    type="radio"
-                    name="excel-template"
-                    checked={selectedTemplate === tmpl.name}
-                    onChange={() => setSelectedTemplate(tmpl.name)}
-                    className="text-blue-600"
-                  />
-                  <div className="flex flex-col">
-                    <span className="font-bold text-slate-800 text-[11px]">{tmpl.name}</span>
-                    <span className="text-[10px] text-slate-500">{tmpl.label}</span>
-                  </div>
+            {/* Section 2: AS9102 Excel Workbook */}
+            <div className="flex flex-col gap-2 pt-1 border-t border-slate-200">
+              <span className="font-bold text-slate-900 text-xs uppercase tracking-wide border-b border-slate-200 pb-1 flex items-center justify-between">
+                <span>AS9102 Excel Deliverables</span>
+                <span className="text-[10px] font-mono text-slate-400 font-normal">Forms 1, 2, 3</span>
+              </span>
+
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mt-1">
+                Select Form Template
+              </label>
+              <div className="flex flex-col gap-1.5 border border-slate-200 rounded p-2 bg-slate-50 max-h-48 overflow-y-auto">
+                {[
+                  { name: 'AS9102B.xlsx', label: 'SAE AS9102 Rev B (Inches)' },
+                  { name: 'AS9102B-Metric.xlsx', label: 'SAE AS9102 Rev B (Metric)' },
+                  { name: 'AS9102C-2023.xlsx', label: 'SAE AS9102 Rev C (Current)' },
+                  { name: 'PPAP-Level3.xlsx', label: 'Automotive PPAP Level 3' }
+                ].map((tmpl) => (
+                  <label key={tmpl.name} className="flex items-center gap-2 p-1.5 rounded hover:bg-white cursor-pointer transition">
+                    <input
+                      type="radio"
+                      name="excel-template"
+                      checked={selectedTemplate === tmpl.name}
+                      onChange={() => setSelectedTemplate(tmpl.name)}
+                      className="text-blue-600"
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-bold text-slate-800 text-[11px]">{tmpl.name}</span>
+                      <span className="text-[10px] text-slate-500">{tmpl.label}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mt-1">
+                Document Snapshots
+              </span>
+
+              <div className="flex flex-col gap-1.5 text-[11px] text-slate-600">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600 cursor-pointer" />
+                  <span>Include Callout Heads-Up Crops</span>
                 </label>
-              ))}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600 cursor-pointer" />
+                  <span>Include Full Drawing Sheet Previews</span>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={onExportExcel}
+                disabled={characteristics.length === 0}
+                className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs rounded border border-emerald-700 shadow-xs transition cursor-pointer"
+                title="Export Certified SAE AS9102 Form 1, Form 2, and Form 3 Multi-Sheet Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-white" />
+                <span>Export AS9102 Excel Workbook (.xlsx)</span>
+              </button>
             </div>
-
-            <span className="font-bold text-slate-900 text-xs uppercase tracking-wide border-b border-slate-200 pb-1 mt-1">
-              Document Snapshots
-            </span>
-
-            <div className="flex flex-col gap-1.5 text-[11px] text-slate-600">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600" />
-                <span>Include Callout Heads-Up Crops</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600" />
-                <span>Include Full Drawing Sheet Previews</span>
-              </label>
-            </div>
-
-            <button
-              type="button"
-              onClick={onExportExcel}
-              className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded border border-emerald-700 shadow-xs transition"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-white" />
-              <span>Export AS9102 Excel Workbook (.xlsx)</span>
-            </button>
           </div>
         )}
       </div>

@@ -142,6 +142,7 @@ export interface EngineeringCharacteristic {
   displayType: 'Dimension' | 'GEOMETRIC TOLERANCE' | 'Symbol' | 'Note' | 'Surface Finish';
   subType: string;                // e.g. "Linear Dimension", "Diameter", "Radius", "Position", "Datum", "Note"
   classification: 'Critical' | 'Major' | 'Minor';
+  isCritical?: boolean;
   operation?: string;
   comments?: string;
   isBasic: boolean;
@@ -167,6 +168,8 @@ export interface EngineeringCharacteristic {
   // High-Confidence Quality Metrics
   confidenceScore: number;        // 0.0 to 1.0
   verificationStatus: VerificationStatus;
+  extractionSource?: 'vector' | 'ocr' | 'manual';
+  extractionConfidence?: number;  // Direct OCR/vision raw confidence (0.0 to 1.0)
   
   // Spatial coordinates on the blueprint canvas
   boundingBox: BoundingBox;

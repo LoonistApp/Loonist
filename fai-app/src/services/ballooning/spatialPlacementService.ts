@@ -16,7 +16,7 @@ export interface CandidatePosition {
 
 export class SpatialPlacementService {
   private static readonly BADGE_SIZE = 28;
-  private static readonly BADGE_MARGIN = 8;
+  private static readonly BADGE_MARGIN = 12;
   private static readonly SHEET_MARGIN = 12;
 
   /**
@@ -73,29 +73,29 @@ export class SpatialPlacementService {
       },
       // North-West (Top-Left diagonal)
       {
-        x: Math.round(box.x - badgeSize - 4),
-        y: Math.round(box.y - badgeSize - 4),
+        x: Math.round(box.x - badgeSize - margin),
+        y: Math.round(box.y - badgeSize - margin),
         direction: 'NW',
         penalty: 50
       },
       // North-East (Top-Right diagonal)
       {
-        x: Math.round(box.x + box.width + 4),
-        y: Math.round(box.y - badgeSize - 4),
+        x: Math.round(box.x + box.width + margin),
+        y: Math.round(box.y - badgeSize - margin),
         direction: 'NE',
         penalty: 60
       },
       // South-West (Bottom-Left diagonal)
       {
-        x: Math.round(box.x - badgeSize - 4),
-        y: Math.round(box.y + box.height + 4),
+        x: Math.round(box.x - badgeSize - margin),
+        y: Math.round(box.y + box.height + margin),
         direction: 'SW',
         penalty: 70
       },
       // South-East (Bottom-Right diagonal)
       {
-        x: Math.round(box.x + box.width + 4),
-        y: Math.round(box.y + box.height + 4),
+        x: Math.round(box.x + box.width + margin),
+        y: Math.round(box.y + box.height + margin),
         direction: 'SE',
         penalty: 80
       }
@@ -150,33 +150,36 @@ export class SpatialPlacementService {
 
       for (const cand of candidates) {
         let score = cand.penalty;
+        // Evaluate candidate at its actual sheet-bounded coordinates
+        const clampedX = Math.max(sheetMargin, Math.min(sheetWidth - badgeSize - sheetMargin, cand.x));
+        const clampedY = Math.max(sheetMargin, Math.min(sheetHeight - badgeSize - sheetMargin, cand.y));
+
         const balloonRect: BoundingRect = {
-          x: cand.x,
-          y: cand.y,
+          x: clampedX,
+          y: clampedY,
           width: badgeSize,
           height: badgeSize
         };
 
         // 1. Boundary Check: Penalize going out of drawing sheet margins
         if (
-          balloonRect.x < sheetMargin ||
-          balloonRect.y < sheetMargin ||
-          balloonRect.x + balloonRect.width > sheetWidth - sheetMargin ||
-          balloonRect.y + balloonRect.height > sheetHeight - sheetMargin
+          cand.x < sheetMargin ||
+          cand.y < sheetMargin ||
+          cand.x + badgeSize > sheetWidth - sheetMargin ||
+          cand.y + badgeSize > sheetHeight - sheetMargin
         ) {
           score += 10000;
         }
 
-        // 2. Obstacle Check: Penalty for overlapping any dimension text box (except its own)
+        // 2. Obstacle Check: Penalty for overlapping any dimension text box (never overlap own callout text!)
         for (const obs of obstacleBoxes) {
-          // If it intersects its own parent bounding box slightly, mild penalty; if another callout, huge penalty
           const isOwnBox =
             obs.x === char.boundingBox.x &&
             obs.y === char.boundingBox.y &&
             obs.width === char.boundingBox.width;
 
           if (SpatialPlacementService.checkIntersection(balloonRect, obs, 2)) {
-            score += isOwnBox ? 150 : 800;
+            score += isOwnBox ? 3000 : 800;
           }
         }
 
@@ -189,13 +192,13 @@ export class SpatialPlacementService {
 
         if (score < lowestScore) {
           lowestScore = score;
-          bestCandidate = cand;
+          bestCandidate = { ...cand, x: clampedX, y: clampedY };
         }
       }
 
       // Lock in chosen coordinates
-      const finalX = Math.max(sheetMargin, Math.min(sheetWidth - badgeSize - sheetMargin, bestCandidate.x));
-      const finalY = Math.max(sheetMargin, Math.min(sheetHeight - badgeSize - sheetMargin, bestCandidate.y));
+      const finalX = bestCandidate.x;
+      const finalY = bestCandidate.y;
 
       placedBalloons.push({
         x: finalX,

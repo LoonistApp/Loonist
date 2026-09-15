@@ -43,6 +43,8 @@ interface TableManagerProps {
   onHeightChange?: (height: number) => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  filterType?: 'all' | 'critical' | 'review';
+  onFilterChange?: (filter: 'all' | 'critical' | 'review') => void;
 }
 
 export const TableManager: React.FC<TableManagerProps> = ({
@@ -59,10 +61,17 @@ export const TableManager: React.FC<TableManagerProps> = ({
   panelHeight = 220,
   onHeightChange,
   isMaximized = false,
-  onToggleMaximize
+  onToggleMaximize,
+  filterType: externalFilterType,
+  onFilterChange
 }) => {
   const [activeTab, setActiveTab] = useState<'characteristics' | 'bom' | 'specifications'>('characteristics');
-  const [filterType, setFilterType] = useState<'all' | 'critical' | 'review'>('all');
+  const [internalFilterType, setInternalFilterType] = useState<'all' | 'critical' | 'review'>('all');
+  const activeFilter = externalFilterType !== undefined ? externalFilterType : internalFilterType;
+  const setFilterType = useCallback((f: 'all' | 'critical' | 'review') => {
+    setInternalFilterType(f);
+    onFilterChange?.(f);
+  }, [onFilterChange]);
   const [editingCell, setEditingCell] = useState<{
     charId: string;
     field: 'rawText' | 'cleanNominal' | 'plusTol' | 'minusTol' | 'measuredValue';
@@ -170,11 +179,11 @@ export const TableManager: React.FC<TableManagerProps> = ({
 
   const filteredCharacteristics = useMemo(() => {
     return characteristics.filter((c) => {
-      if (filterType === 'critical') return c.classification === 'Critical';
-      if (filterType === 'review') return c.verificationStatus === 'needs_review';
+      if (activeFilter === 'critical') return c.classification === 'Critical' || c.subType === 'GDT' || c.isCritical;
+      if (activeFilter === 'review') return c.verificationStatus === 'needs_review';
       return true;
     });
-  }, [characteristics, filterType]);
+  }, [characteristics, activeFilter]);
 
   return (
     <footer
@@ -248,7 +257,7 @@ export const TableManager: React.FC<TableManagerProps> = ({
               type="button"
               onClick={() => setFilterType('all')}
               className={`px-1.5 py-0.5 rounded text-[10px] transition cursor-pointer ${
-                filterType === 'all' 
+                activeFilter === 'all' 
                   ? 'bg-slate-800 dark:bg-[#333333] text-white font-bold' 
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
@@ -259,7 +268,7 @@ export const TableManager: React.FC<TableManagerProps> = ({
               type="button"
               onClick={() => setFilterType('critical')}
               className={`px-1 rounded transition cursor-pointer ${
-                filterType === 'critical' 
+                activeFilter === 'critical' 
                   ? 'bg-red-600 text-white font-bold' 
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
@@ -270,7 +279,7 @@ export const TableManager: React.FC<TableManagerProps> = ({
               type="button"
               onClick={() => setFilterType('review')}
               className={`px-1 rounded transition cursor-pointer ${
-                filterType === 'review' 
+                activeFilter === 'review' 
                   ? 'bg-amber-500 text-white font-bold' 
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}

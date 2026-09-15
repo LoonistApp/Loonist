@@ -16,7 +16,11 @@ interface ViewportCanvasProps {
   balloonAppearance?: BalloonAppearance;
   onSelectCharacteristic?: (char: EngineeringCharacteristic) => void;
   onUpdateCharacteristic?: (char: EngineeringCharacteristic) => void;
-  onBoxCapture?: (box: { x: number; y: number; width: number; height: number }, pageNumber: number) => void;
+  onBoxCapture?: (
+    box: { x: number; y: number; width: number; height: number },
+    pageNumber: number,
+    cropCanvas?: HTMLCanvasElement
+  ) => void;
   onScaleChange: (scale: number) => void;
   onTransformChange?: (x: number, y: number) => void;
   onFpsUpdate?: (fps: number) => void;
@@ -189,7 +193,9 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     e.stopPropagation();
     onSelectCharacteristic?.(char);
 
-    const defaultBadgeX = Math.max(12, Math.round(char.boundingBox.x - 34));
+    const defaultBadgeX = char.boundingBox.x < 42
+      ? Math.round(char.boundingBox.x + char.boundingBox.width + 12)
+      : Math.max(12, Math.round(char.boundingBox.x - 34));
     const defaultBadgeY = Math.round(char.boundingBox.y + (char.boundingBox.height / 2) - 14);
     const initialX = char.customBalloonPosition?.x ?? defaultBadgeX;
     const initialY = char.customBalloonPosition?.y ?? defaultBadgeY;
@@ -303,7 +309,35 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
       const bh = Math.round(Math.abs(selectionBox.currentY - selectionBox.startY));
       setSelectionBox(null);
       if (bw >= 10 && bh >= 8) {
-        onBoxCapture?.({ x: bx, y: by, width: bw, height: bh }, sheet.pageNumber);
+        let cropCanvas: HTMLCanvasElement | undefined;
+        if (canvasRef.current) {
+          try {
+            const mainCanvas = canvasRef.current;
+            cropCanvas = document.createElement('canvas');
+            const dpr = window.devicePixelRatio || 1;
+            cropCanvas.width = Math.max(1, Math.round(bw * dpr * 2));
+            cropCanvas.height = Math.max(1, Math.round(bh * dpr * 2));
+            const ctx = cropCanvas.getContext('2d');
+            if (ctx) {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+              ctx.drawImage(
+                mainCanvas,
+                bx * dpr,
+                by * dpr,
+                bw * dpr,
+                bh * dpr,
+                0,
+                0,
+                cropCanvas.width,
+                cropCanvas.height
+              );
+            }
+          } catch (err) {
+            console.warn('Could not generate crop for capture box:', err);
+          }
+        }
+        onBoxCapture?.({ x: bx, y: by, width: bw, height: bh }, sheet.pageNumber, cropCanvas);
       }
       return;
     }
@@ -487,8 +521,10 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
                 }
               }
 
-              // Centered default badge coordinates to the left of the callout
-              const defaultBadgeX = Math.max(12, Math.round(char.boundingBox.x - 34));
+              // Centered default badge coordinates (East if near left sheet margin, West default)
+              const defaultBadgeX = char.boundingBox.x < 42
+                ? Math.round(char.boundingBox.x + char.boundingBox.width + 12)
+                : Math.max(12, Math.round(char.boundingBox.x - 34));
               const defaultBadgeY = Math.round(char.boundingBox.y + (char.boundingBox.height / 2) - 14 + subOffset);
 
               // Position: active drag -> custom saved position -> default calculation

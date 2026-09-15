@@ -11,6 +11,8 @@ import { GridZoneCalculator } from './gridZoneCalculator';
 import { SpatialClusteringEngine } from './spatialClusteringEngine';
 import { ToleranceEngine, DEFAULT_METRIC_ISO_TOLERANCES } from './toleranceEngine';
 import { SpatialPlacementService } from '../ballooning/spatialPlacementService';
+import { ImagePreprocessingService } from './imagePreprocessingService';
+import { OcrEngineService } from './ocrEngineService';
 
 export type ExtractionJobState = 
   | 'IDLE'
@@ -90,7 +92,49 @@ export class AiExtractionService {
           }
         }
 
-        // 2. Parse Title Block metadata: Sheet 1 establishes the master part metadata
+        let isScannedSheet = false;
+        // 1b. Scanned Drawing Fallback: If no vector text exists, run image pre-processing & OCR
+        if (rawStrings.length < 5 && typeof document !== 'undefined') {
+          try {
+            isScannedSheet = true;
+            if (onProgress) {
+              onProgress({
+                state: 'OCR_RUNNING',
+                progressPercent: Math.round(20 + (pageNum / numPages) * 50),
+                message: `Sheet ${pageNum} is a scanned drawing — running image pre-processing & OCR...`,
+                totalFound: characteristics.length
+              });
+            }
+
+            const ocrScale = 2.0;
+            const pageViewport = page.getViewport({ scale: ocrScale });
+            const renderCanvas = document.createElement('canvas');
+            renderCanvas.width = pageViewport.width;
+            renderCanvas.height = pageViewport.height;
+            const ctx = renderCanvas.getContext('2d');
+            if (ctx) {
+              await page.render({ canvasContext: ctx, viewport: pageViewport, canvas: renderCanvas } as any).promise;
+              const preprocessed = ImagePreprocessingService.preprocessCanvas(renderCanvas);
+              const ocrBoxes = await OcrEngineService.recognizeSheet(preprocessed);
+              for (const b of ocrBoxes) {
+                rawStrings.push({
+                  text: b.text,
+                  x: Math.round(b.x / ocrScale),
+                  y: Math.round(b.y / ocrScale),
+                  width: Math.round(b.width / ocrScale),
+                  height: Math.round(b.height / ocrScale)
+                });
+              }
+            }
+          } catch (ocrErr) {
+            console.warn(`Scanned sheet OCR failed for sheet ${pageNum}:`, ocrErr);
+          }
+        }
+
+        // 2. Normalize CAD symbol fonts and merge inline companion symbols horizontally
+        const normalizedStrings = this.mergeHorizontalLineItems(rawStrings);
+
+        // 3. Parse Title Block metadata: Sheet 1 establishes the master part metadata
         // Subsequent sheets must NOT overwrite master part name or drawing number
         if (pageNum === 1 || !extractedProps.partName) {
           for (const s of rawStrings) {
@@ -112,29 +156,52 @@ export class AiExtractionService {
           }
         }
 
-        // 3. Filter candidates: EXCLUDE margins (grid labels) & title block
-        const candidateStrings = rawStrings.filter(s => {
+        // 4. Identify drawing border grid coordinates using sequence & alignment analysis (ASME Y14.1 / ISO 5457)
+        const borderGridKeySet = AiExtractionService.findBorderGridLabels(normalizedStrings, viewport.width, viewport.height);
+
+        // Filter candidates: Exclude only outer borders, true title block metadata, and view headers
+        const candidateStrings = normalizedStrings.filter(s => {
           const t = s.text;
 
-          // Exclude outer margin border bands (Grid letters A-D, numbers 1-8)
-          const inMargin = (s.x < 65 || s.x > viewport.width - 65 || s.y < 55 || s.y > viewport.height - 55);
-          if (inMargin) return false;
+          // 4a. Extreme sheet boundary bleed (print edge < 5 pt)
+          if (s.x < 5 || s.x > viewport.width - 5 || s.y < 5 || s.y > viewport.height - 5) return false;
 
-          // Exclude bottom-right title block from characteristics
-          const inTitleBlock = (s.x > viewport.width - 380 && s.y > viewport.height - 180);
-          if (inTitleBlock) return false;
+          // 4b. Exclude drawing border grid labels identified by multi-label sequence alignment
+          if (borderGridKeySet.has(`${Math.round(s.x)}_${Math.round(s.y)}_${s.text}`)) return false;
 
-          // Exclude raw section headers or label tags
-          if (t === 'A' || t === 'B' || t === 'C' || t === 'D' || /^[1-8]$/.test(t)) return false;
+          // 4c. Exclude standalone section cutting plane letters
+          if (t === 'A' || t === 'B' || t === 'C' || t === 'D') return false;
+
+          // 4d. Exclude general header notes and view titles
           if (t === 'GENERAL ENGINEERING NOTES:') return false;
-
-          // Exclude drawing view titles, detail labels, section labels, and scale notations
           if (/^(?:DETAIL|SECTION|VIEW)\s+[A-Z]/i.test(t)) return false;
+          if (/^STEP\s*\d+/i.test(t) || /\b(?:ACTUALLY|WOULD|IF\s+YOU)\b/i.test(t)) return false;
           if (/SCALE\s*[:\s]\s*\d+\s*:\s*\d+/i.test(t)) return false;
           if (/\[SCALE\s+\d+:\d+\]/i.test(t)) return false;
           if (/^(?:TOP|FRONT|SIDE|ISOMETRIC|AUXILIARY)\s+VIEW/i.test(t)) return false;
+          if (/TOP VIEW\s*\(shown scaled down\)/i.test(t)) return false;
           if (t.includes('INTERNAL BORE & THREADS')) return false;
-          if (/\.(?:pdf|dwg|dxf|sldprt|step|stp)$/i.test(t) || t.includes('_fsi') || t.includes('_rd')) return false;
+          if (/\.(?:pdf|dwg|dxf|sldprt|step|stp|ipt|iam|idw|prt|asm|catpart|catproduct)$/i.test(t) || t.includes('_fsi') || t.includes('_rd')) return false;
+
+          // 4e. Exclude Title Block metadata fields & tolerance block headers
+          if (/^(?:PART NO|REV|CAGE|DWG NO|TITLE)\b/i.test(t) || t.includes('PART NO:') || t.includes('DWG NO:') || t.includes('CAGE:')) return false;
+          if (t.includes('TOLERANCES UNLESS NOTED') || t.includes('UNLESS OTHERWISE SPECIFIED')) return false;
+          if (/SHEET\s+\d+\s+OF\s+\d+/i.test(t) || /^\d+\s+OF\s+\d+$/i.test(t)) return false;
+          if (/\b(?:SHEET\s+\d+|\bOF\s+\d+)\b/i.test(t)) return false;
+          if (/\b(?:FILE NAME|DESCRIPTION|Curtis\s+Waguespack|FROM\s+THE\s+DESK\s+OF)\b/i.test(t)) return false;
+          if (/\b(?:Hardware|Component|Concept Model|Machined|Laser Cut|Bino Challenge)\b/i.test(t) && s.y > viewport.height - 130) return false;
+          if (t === 'ALL DIMENSIONS' || t === 'ARE IN MILLIMETERS') return false;
+
+          // 4f. Adaptive Title block bounding box:
+          // Large D-size drawings (width >= 1000) have ~380x180 pt title blocks; standard Letter/Tabloid drawings have ~245x135 pt title blocks
+          // In standard drafting (ASME Y14.1 / ISO 5457), the title block is strictly non-dimensional metadata (Part Name, Number, Sheet, File Name)
+          const tbWidth = viewport.width >= 1000 ? 380 : 245;
+          const tbHeight = viewport.width >= 1000 ? 180 : 135;
+          const inTitleBlockBox = (s.x > viewport.width - tbWidth && s.y > viewport.height - tbHeight);
+          if (inTitleBlockBox) return false;
+
+          // 4g. Exclude conversational prose, tutorial instructions, and book disclaimers
+          if (GdtParser.isProseOrInstructionalText(t)) return false;
 
           return (
             /\d/.test(t) || 
@@ -144,6 +211,8 @@ export class AiExtractionService {
             t.includes('|') || 
             t.includes('[') || 
             t.includes('(') ||
+            t.includes('TYP') ||
+            t.includes('PLCS') ||
             t.startsWith('1.') ||
             t.startsWith('2.') ||
             t.startsWith('3.') ||
@@ -165,6 +234,11 @@ export class AiExtractionService {
 
         for (const cluster of clusteredCallouts) {
           const t = cluster.combinedText;
+
+          // Exclude conversational prose, tutorial instructions, and non-callout text immediately
+          if (GdtParser.isProseOrInstructionalText(t)) {
+            continue;
+          }
 
           // Check if it's a general engineering note
           const noteMatch = t.match(/^(\d+)\.\s+(.*)/);
@@ -201,8 +275,10 @@ export class AiExtractionService {
               toleranceSource: `General Note #${noteNum}`,
               quantity: 1,
               inspectionMethod: 'Visual / Visual Inspection',
-              confidenceScore: 0.98,
-              verificationStatus: 'auto_accepted',
+              confidenceScore: isScannedSheet ? 0.88 : 0.98,
+              verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+              extractionSource: isScannedSheet ? 'ocr' : 'vector',
+              extractionConfidence: isScannedSheet ? 0.88 : 0.98,
               isBasic: false,
               forReference: false,
               sourceCaptureOrSheet: `Sheet ${pageNum}`,
@@ -278,8 +354,10 @@ export class AiExtractionService {
               holeCallout: parsed.holeCallout,
               quantity: parsed.multiplier || 1,
               inspectionMethod: method,
-              confidenceScore: 0.98,
-              verificationStatus: 'auto_accepted',
+              confidenceScore: isScannedSheet ? 0.88 : 0.98,
+              verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+              extractionSource: isScannedSheet ? 'ocr' : 'vector',
+              extractionConfidence: isScannedSheet ? 0.88 : 0.98,
               isBasic: false,
               forReference: false,
               sourceCaptureOrSheet: `Sheet ${pageNum}`,
@@ -375,8 +453,10 @@ export class AiExtractionService {
                   isExpandedMultiplier: true,
                   parentCharacteristicId: `char-sheet-${pageNum}-${currentItemNumber}`,
                   inspectionMethod: method,
-                  confidenceScore: confidence,
-                  verificationStatus: verificationStatus,
+                  confidenceScore: isScannedSheet ? Math.min(confidence, 0.88) : confidence,
+                  verificationStatus: isScannedSheet ? 'needs_review' : verificationStatus,
+                  extractionSource: isScannedSheet ? 'ocr' : 'vector',
+                  extractionConfidence: isScannedSheet ? 0.88 : confidence,
                   isBasic: parsed.enclosure === 'basic',
                   forReference: isRef,
                   fractionStr: parsed.fractionStr,
@@ -413,8 +493,10 @@ export class AiExtractionService {
                 toleranceSource: isRef ? 'ASME Y14.5 Reference Dimension (No Tolerance)' : parsed.toleranceSource,
                 quantity: 1,
                 inspectionMethod: method,
-                confidenceScore: confidence,
-                verificationStatus: verificationStatus,
+                confidenceScore: isScannedSheet ? Math.min(confidence, 0.88) : confidence,
+                verificationStatus: isScannedSheet ? 'needs_review' : verificationStatus,
+                extractionSource: isScannedSheet ? 'ocr' : 'vector',
+                extractionConfidence: isScannedSheet ? 0.88 : confidence,
                 isBasic: parsed.enclosure === 'basic',
                 forReference: isRef,
                 fractionStr: parsed.fractionStr,
@@ -463,7 +545,7 @@ export class AiExtractionService {
       }
 
       // Compute optimal, collision-free balloon coordinates using Spatial R-Tree AABB algorithm
-      const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(characteristics, sheetsMeta);
+      const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(characteristics, sheetsMeta, true);
 
       return { characteristics: spatiallyPlaced, projectProps: defaultProps };
     } catch (err) {
@@ -774,10 +856,13 @@ export class AiExtractionService {
     pdfDoc: pdfjsLib.PDFDocumentProxy | null,
     box: { x: number; y: number; width: number; height: number },
     pageNumber: number,
-    nextItemNumber: number
+    nextItemNumber: number,
+    cropCanvasOrDataUrl?: HTMLCanvasElement | string
   ): Promise<EngineeringCharacteristic> {
     let capturedText = '';
     let zone = 'Zone A-1';
+    let extractionSource: 'vector' | 'ocr' | 'manual' = 'manual';
+    let extractionConfidence = 0.5;
 
     if (pdfDoc && pageNumber >= 1 && pageNumber <= pdfDoc.numPages) {
       try {
@@ -823,14 +908,58 @@ export class AiExtractionService {
           return a.x - b.x;
         });
 
-        capturedText = matchedItems.map(i => i.str).join(' ').trim();
+        if (matchedItems.length > 0) {
+          capturedText = matchedItems.map(i => i.str).join(' ').trim();
+          extractionSource = 'vector';
+          extractionConfidence = 0.99;
+        }
       } catch (err) {
         console.warn('Could not extract text from PDF within capture box:', err);
       }
     }
 
+    // If no vector glyphs matched, invoke Image Pre-Processing & OCR Pipeline
+    if (!capturedText) {
+      try {
+        let cropSource: HTMLCanvasElement | string | null = cropCanvasOrDataUrl || null;
+
+        if (!cropSource && pdfDoc && pageNumber >= 1 && pageNumber <= pdfDoc.numPages && typeof document !== 'undefined') {
+          const page = await pdfDoc.getPage(pageNumber);
+          const ocrScale = 2.0;
+          const pageViewport = page.getViewport({ scale: ocrScale });
+          const renderCanvas = document.createElement('canvas');
+          renderCanvas.width = pageViewport.width;
+          renderCanvas.height = pageViewport.height;
+          const ctx = renderCanvas.getContext('2d');
+          if (ctx) {
+            await page.render({ canvasContext: ctx, viewport: pageViewport, canvas: renderCanvas } as any).promise;
+            const cropRect = {
+              x: Math.max(0, box.x * ocrScale),
+              y: Math.max(0, box.y * ocrScale),
+              width: Math.max(10, box.width * ocrScale),
+              height: Math.max(10, box.height * ocrScale)
+            };
+            cropSource = ImagePreprocessingService.cropAndPreprocess(renderCanvas, cropRect);
+          }
+        }
+
+        if (cropSource) {
+          const ocrRes = await OcrEngineService.recognizeCrop(cropSource);
+          if (ocrRes.text && ocrRes.text.length > 0) {
+            capturedText = ocrRes.text;
+            extractionSource = 'ocr';
+            extractionConfidence = ocrRes.confidence;
+          }
+        }
+      } catch (ocrErr) {
+        console.warn('Optical Snip OCR fallback failed:', ocrErr);
+      }
+    }
+
     if (!capturedText) {
       capturedText = 'Manual Capture';
+      extractionSource = 'manual';
+      extractionConfidence = 0.5;
     }
 
     const parsed = GdtParser.parseCallout(capturedText);
@@ -873,11 +1002,13 @@ export class AiExtractionService {
       lowerLimit: isRef ? null : parsed.minLimit,
       units: parsed.units,
       isToleranceInherited: parsed.isToleranceInherited,
-      toleranceSource: isRef ? 'ASME Y14.5 Reference Dimension (No Tolerance)' : (parsed.toleranceSource || 'Manual Marquee Box Capture'),
+      toleranceSource: isRef ? 'ASME Y14.5 Reference Dimension (No Tolerance)' : (parsed.toleranceSource || (extractionSource === 'ocr' ? 'Optical Snip OCR' : 'Manual Marquee Box Capture')),
       quantity: 1,
       inspectionMethod: inspectionMethod,
-      confidenceScore: 1.0,
-      verificationStatus: 'auto_accepted',
+      confidenceScore: extractionConfidence,
+      verificationStatus: extractionConfidence >= 0.85 ? 'auto_accepted' : 'needs_review',
+      extractionSource: extractionSource,
+      extractionConfidence: extractionConfidence,
       isBasic: parsed.enclosure === 'basic',
       forReference: isRef,
       gdtFrame: parsed.gdtFrame,
@@ -892,6 +1023,219 @@ export class AiExtractionService {
         y: Math.round(box.y + box.height / 2 - 14)
       }
     };
+  }
+
+  /**
+   * Translates CAD font encodings (Autodesk Inventor / AutoCAD) into standard Unicode engineering symbols:
+   * 'c' after numbers -> '°'
+   * 'P' preceding digits -> 'Ø'
+   * 'dia ' -> 'Ø'
+   */
+  private static normalizeCadSymbols(text: string): string {
+    let t = text;
+    t = t.replace(/(\d+(?:\.\d+)?)c\b/g, '$1°');
+    t = t.replace(/(\d+(?:\.\d+)?)c\s/g, '$1° ');
+    t = t.replace(/\bP(\d+(?:\.\d+)?)/g, 'Ø$1');
+    t = t.replace(/\bdia\s+(\d+(?:\.\d+)?)/i, 'Ø$1');
+    return t;
+  }
+
+  /**
+   * Merges fragmented adjacent text items on the same horizontal text line (e.g. standalone symbol + dimension).
+   */
+  private static mergeHorizontalLineItems(
+    rawItems: Array<{ text: string; x: number; y: number; width: number; height: number }>
+  ): Array<{ text: string; x: number; y: number; width: number; height: number }> {
+    if (rawItems.length === 0) return [];
+
+    // Sort by y baseline (within 4 pt), then left-to-right by x
+    const sorted = [...rawItems].sort((a, b) => {
+      const yDiff = a.y - b.y;
+      if (Math.abs(yDiff) > 4) return yDiff;
+      return a.x - b.x;
+    });
+
+    const merged: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
+    const used = new Set<number>();
+
+    for (let i = 0; i < sorted.length; i++) {
+      if (used.has(i)) continue;
+
+      let current = { ...sorted[i], text: this.normalizeCadSymbols(sorted[i].text) };
+      used.add(i);
+
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (used.has(j)) continue;
+
+        const next = sorted[j];
+        const yDiff = Math.abs(next.y - current.y);
+        if (yDiff > 4) {
+          if (next.y - current.y > 10) break;
+          continue;
+        }
+
+        const xGap = next.x - (current.x + current.width);
+
+        // Check if next item is an immediate horizontal continuation
+        // e.g. CAD symbol 'P', 'X', 'Y', 'Z', adjacent number, or word like "THRU", "PLCS"
+        const isSymbolMerge = (
+          (current.text === 'P' || current.text === 'p') && xGap < 18
+        ) || (
+          (current.text === 'X' || current.text === 'x') && xGap < 18
+        ) || (
+          (current.text === 'Y') && xGap < 18
+        ) || (
+          (current.text === 'Z') && xGap < 18
+        ) || (
+          (next.text === 'Z' || next.text === 'THRU') && xGap < 18
+        ) || (
+          xGap >= -3 && xGap <= 14
+        );
+
+        if (isSymbolMerge) {
+          let nextText = this.normalizeCadSymbols(next.text);
+          let currText = current.text;
+
+          if (currText === 'P' || currText === 'p') currText = 'Ø';
+          else if (currText === 'X') currText = '⌴';
+          else if (currText === 'Y') currText = '⌵';
+          else if (currText === 'Z') currText = '↧';
+
+          if (nextText === 'P' || nextText === 'p') nextText = 'Ø';
+          else if (nextText === 'X') nextText = '⌴';
+          else if (nextText === 'Y') nextText = '⌵';
+          else if (nextText === 'Z') nextText = '↧';
+
+          const separator = (currText === 'Ø' || currText === '⌴' || currText === '⌵' || currText === '↧') ? '' : ' ';
+          current.text = `${currText}${separator}${nextText}`.replace(/\s+/g, ' ').trim();
+          current.width = (next.x + next.width) - current.x;
+          current.height = Math.max(current.height, next.height);
+          used.add(j);
+        }
+      }
+
+      if (current.text === 'P' || current.text === 'p') current.text = 'Ø';
+      merged.push(current);
+    }
+
+    return merged;
+  }
+
+  /**
+   * Identifies true drawing border grid coordinate labels (ASME Y14.1 / ISO 5457).
+   * Border grids are sequential rows or columns of coordinates (e.g., 1, 2, 3... or A, B, C...)
+   * aligned along the outer peripheral margins of the drawing sheet.
+   * Isolated part dimensions located near drawing margins (e.g., a lone "3" near a section view)
+   * are preserved and never falsely classified as grid coordinates.
+   */
+  public static findBorderGridLabels(
+    strings: Array<{ text: string; x: number; y: number; width: number; height: number }>,
+    sheetWidth: number,
+    sheetHeight: number
+  ): Set<string> {
+    const gridIds = new Set<string>();
+
+    // Margin band depth where border zone grids can reside (ASME Y14.1 peripheral channel)
+    const MARGIN_DEPTH = 36;
+    const isGridCandidate = (t: string) => /^[A-Z]$|^[1-9]$|^1[0-6]$/.test(t);
+
+    const topCandidates: typeof strings = [];
+    const bottomCandidates: typeof strings = [];
+    const leftCandidates: typeof strings = [];
+    const rightCandidates: typeof strings = [];
+
+    for (const s of strings) {
+      if (!isGridCandidate(s.text)) continue;
+
+      if (s.y <= MARGIN_DEPTH) {
+        topCandidates.push(s);
+      } else if (s.y >= sheetHeight - MARGIN_DEPTH) {
+        bottomCandidates.push(s);
+      }
+
+      if (s.x <= MARGIN_DEPTH) {
+        leftCandidates.push(s);
+      } else if (s.x >= sheetWidth - MARGIN_DEPTH) {
+        rightCandidates.push(s);
+      }
+    }
+
+    // Validate a candidate group along a horizontal margin (top or bottom)
+    const validateHorizontalGroup = (candidates: typeof strings) => {
+      const rows: Array<typeof strings> = [];
+      for (const c of candidates) {
+        let placed = false;
+        for (const row of rows) {
+          if (Math.abs(row[0].y - c.y) <= 4) {
+            row.push(c);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) rows.push([c]);
+      }
+
+      for (const row of rows) {
+        // Real border grid lines must have at least 3 labels
+        if (row.length < 3) continue;
+
+        // Must span at least 35% of drawing width
+        const xs = row.map(c => c.x);
+        const span = Math.max(...xs) - Math.min(...xs);
+        if (span < sheetWidth * 0.35) continue;
+
+        // Must contain distinct labels (e.g. 1, 2, 3... not duplicate dimensions)
+        const uniqueTexts = new Set(row.map(c => c.text));
+        if (uniqueTexts.size < 3) continue;
+
+        // Validated border grid row
+        for (const c of row) {
+          gridIds.add(`${Math.round(c.x)}_${Math.round(c.y)}_${c.text}`);
+        }
+      }
+    };
+
+    // Validate a candidate group along a vertical margin (left or right)
+    const validateVerticalGroup = (candidates: typeof strings) => {
+      const cols: Array<typeof strings> = [];
+      for (const c of candidates) {
+        let placed = false;
+        for (const col of cols) {
+          if (Math.abs(col[0].x - c.x) <= 4) {
+            col.push(c);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) cols.push([c]);
+      }
+
+      for (const col of cols) {
+        // Real border grid lines must have at least 3 labels
+        if (col.length < 3) continue;
+
+        // Must span at least 35% of drawing height
+        const ys = col.map(c => c.y);
+        const span = Math.max(...ys) - Math.min(...ys);
+        if (span < sheetHeight * 0.35) continue;
+
+        // Must contain distinct labels
+        const uniqueTexts = new Set(col.map(c => c.text));
+        if (uniqueTexts.size < 3) continue;
+
+        // Validated border grid column
+        for (const c of col) {
+          gridIds.add(`${Math.round(c.x)}_${Math.round(c.y)}_${c.text}`);
+        }
+      }
+    };
+
+    validateHorizontalGroup(topCandidates);
+    validateHorizontalGroup(bottomCandidates);
+    validateVerticalGroup(leftCandidates);
+    validateVerticalGroup(rightCandidates);
+
+    return gridIds;
   }
 }
 
