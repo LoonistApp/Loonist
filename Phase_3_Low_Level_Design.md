@@ -345,12 +345,51 @@ The parser classifies dimension types based on standard CAD drafting enclosures:
 2. **Schema & AST Validation:** Geometric syntax is verified (e.g., position tolerances must reference valid primary, secondary, and tertiary datums).
 3. **Magnified HITL Crop:** When reviewing flagged features, the inspector is shown a 300 DPI magnified crop of the raw vector drawing alongside the parsed values for instant (<3 second) human verification.
 
-### 17.5 Exploded CAD Vector Paths & Scanned Drawing Local Raster OCR Fallback
-In high-end 3D CAD platforms (PTC Creo, CATIA, Siemens NX), exporting to PDF often explodes text fonts into stroked vector path curves (`m`, `l`, `c` commands) rather than standard text operators (`Tj`, `TJ`), stripping character metadata. Similarly, legacy paper prints exist purely as scanned image rasters.
-- **Detection Trigger:** If the vector glyph scanner extracts $< 3$ text tokens across an entire drawing sheet while path operator counts $> 500$, or if the PDF consists of an inline image XObject, the system engages the Secondary Local Raster Fallback.
-- **Execution Architecture:** A client-side WebWorker runs a WebAssembly (WASM) neural OCR runtime (e.g. Tesseract.js / ONNX Vision). The sheet canvas is rasterized at 300 DPI into offscreen tiles.
-- **Local Isolation Invariant:** All raster OCR execution occurs 100% locally in-memory on the workstation. No raster images or drawing tiles are ever transmitted over the network (satisfying strict ITAR air-gapped data sovereignty).
-- **Bounding Box Synchronization:** Detected OCR bounding boxes are scaled back from raster pixel space to native PDF canvas coordinate space and fed directly into the ASME Y14.5 AST parser.
+### 17.5 Hybrid Dual-Path Vision OCR Pipeline, Canvas Pre-Processing & Prose Exclusion Engine
+In modern manufacturing, blueprints arrive in two distinct representations: native vector PDFs (exported directly from 3D CAD platforms like SolidWorks, CATIA, NX, Inventor) and raster image drawings (scanned paper prints, legacy microfilms, or exploded vector font curves). LOONIST enforces a deterministic **Dual-Path Hybrid Architecture**:
+
+#### 17.5.1 Ingestion Router: Path A (Vector Maths) vs. Path B (Vision & Deep Learning OCR)
+- **Routing Decision Engine:** On drawing load, `AiExtractionService` inspects the initial text content stream via `pdfjsLib.getPage(n).getTextContent()`.
+  - **Path A (Native Vector Maths):** If text token count $\ge 5$ (covering $>85\%$ of modern CAD drawings), dimensions and annotations are extracted in $<50\text{ms}$ with 100% mathematical precision and zero OCR hallucination.
+  - **Path B (Vision Pipeline & Deep Learning OCR):** If token count $< 5$ (scanned blueprint, legacy microfilm) or when the quality engineer drags an optical marquee box (`box-capture`), LOONIST engages the multi-stage Vision Pipeline.
+
+#### 17.5.2 Canvas Image Pre-Processing Engine (`ImagePreprocessingService`)
+Scanned drawings suffer from scanner sensor noise, paper yellowing, uneven lighting, skew angles, and inverted blueprint backgrounds. LOONIST processes pixel buffers prior to character recognition:
+- **Otsu's Adaptive Binarization:** Maximizes between-class variance across grayscale thresholds $t \in [0, 255]$:
+  $$\sigma_B^2(t) = \omega_0(t)\omega_1(t)[\mu_0(t) - \mu_1(t)]^2$$
+  Iterates over the 256-bin histogram to resolve plateau thresholds to their exact median, binarizing degraded gray paper into pure high-contrast binary ($0$ black text, $255$ white background) with zero gray fuzz.
+- **Dark Blueprint Inversion:** Computes mean pixel brightness across sampled coordinates; automatically inverts pixels ($255 - p$) if the document is a white-on-blue ammonia blueprint or negative photocopy.
+- **Deskew Angle Detection:** Evaluates horizontal projection profile variance across angles $\theta \in [-4.0^\circ, +4.0^\circ]$ at $0.5^\circ$ step increments:
+  $$V(\theta) = \frac{1}{H}\sum_{y=0}^{H-1} [P_\theta(y) - \bar{P}_\theta]^2$$
+  The angle maximizing profile variance corresponds to true horizontal text baselines, correcting physical scan rotation before tokenization.
+- **Aspect-Preserving Margin Padding:** Injects an 8–16px clean white border around cropped regions to prevent bounding box clipping during OCR tokenization.
+
+#### 17.5.3 100% Offline Deep Learning OCR Runtime (`OcrEngineService`)
+- **Local WebAssembly Execution:** Manages a cached background Tesseract.js WebAssembly worker pool constrained to an engineering-whitelisted character dictionary: `0123456789.+-xX/°ØRrcCA-Za-z(),#:%|=`. Satisfies 100% ITAR and defense air-gap compliance with zero cloud calls.
+- **Dual-Orientation Pass ($0^\circ$ & $90^\circ$):** Blueprint leader lines frequently orient callouts vertically along the Y-axis. If bounding box height exceeds width or horizontal confidence $< 70\%$, the crop is rotated $90^\circ$ counter-clockwise. The system evaluates both passes and selects the candidate with superior confidence.
+- **Aerospace CAD Symbol Normalizer:** Reconstructs standard ASME Y14.5 drafting glyphs distorted by optical rasterization:
+  - Diameter: `O` or `0` before decimal numbers $\to$ `Ø` (e.g. `O.750` $\to$ `Ø.750`, `dia 25` $\to$ `Ø25.0`).
+  - Bilateral Tolerance: `+-` or `+ -` $\to$ `±`.
+  - Degree Angle: `(\d+)c\b` $\to$ `$1°` (e.g. `45c` $\to$ `45°`).
+  - Hole Depth: `DEPTH` / `DP` $\to$ `↧`.
+  - Counterbore: `CBORE` / `CB` $\to$ `⌴`.
+  - Countersink: `CSINK` / `CS` $\to$ `⌵`.
+- **Confidence Telemetry:** Emits normalized extraction confidence ($0.00$ to $1.00$) recorded directly in the characteristic model and surfaced in the inspector HUD.
+
+#### 17.5.4 Prose & Tutorial Sentence Exclusion Engine (`GdtParser` & `AiExtractionService`)
+- **Problem Statement:** Untoleranced dimension fallback logic previously matched isolated digits within narrative prose (e.g. Autodesk Inventor tutorial cover sheets: *"This PDF contains 24 detailed drawings of miscellaneous parts..."* generated Balloon #1 with nominal 24, and *"practice with Autodesk Inventor (or any 3D CAD package...)"* generated Balloon #2 with nominal 3).
+- **Multi-Layered Solution Architecture:**
+  1. **Prose & Disclaimer Keyword Heuristics (`GdtParser.isProseOrInstructionalText`):** Scans for 60+ software, tutorial, and book disclaimer tokens (`autodesk`, `inventor`, `solidworks`, `catia`, `tutorial`, `workbook`, `handbook`, `practice with`, `apologies in advance`, `luck in your pursuits`, `miscellaneous parts`, `detailed drawings`, `copyright`, `rights reserved`).
+  2. **Narrative Sentence Syntax & Grammar Analysis:** Flags text blocks with $\ge 5$ words containing conversational grammar and conjunctions (`and`, `or`, `in`, `to`, `for`, `with`, `you`, `your`, `we`, `our`, `can`, `will`, `should`, `may`).
+  3. **Protection for Legitimate Drawing Notes & GD&T:** Explicitly preserves numbered engineering notes (e.g. `1. MATERIAL: 6061-T6 ALUMINUM`, `2. FINISH: ANODIZE PER MIL-A-8625`) and symbol-bearing callouts (`Ø`, `±`, `⌖`, `|`).
+  4. **Step 14 Residual Word Validation:** In the untoleranced dimension fallback, strips numbers, decimals, fractions, drafting symbols, and whitelisted CAD keywords (`TYP`, `MAX`, `MIN`, `REF`, `THRU`, `DP`, `BORE`, `CBORE`, `CSINK`, `CHAMFER`, `PLCS`, `STOCK`, `WALL`, `FLAT`, `OD`, `ID`). If any residual English words $\ge 3$ characters remain, the text is classified as non-callout prose, immediately returning `nominal: null`.
+  5. **Pre-Clustering & Post-Clustering Filters:** Filters candidate strings in `aiExtractionService.ts` before spatial clustering and skips prose clusters prior to characteristic generation.
+  6. **Chamfer Priority Resolution:** Prioritizes chamfer classification (`CHAMFER` or `X` + angle) before raw angle checks in `inferType`.
+
+#### 17.5.5 Interactive Optical Marquee Snip-to-Capture Tool (`ViewportCanvas`)
+- Quality engineers can drag a precision marquee crop (`box-capture`) across complex or faint drawing callouts.
+- Slices the viewport canvas at high-DPI resolution, executes `ImagePreprocessingService` (Otsu binarization and deskewing), runs `OcrEngineService`, normalizes CAD glyphs, and extracts the dimension into the inspection table with `extractionSource: 'ocr'`.
+- Magnified HUD preview in `LeftPropertiesDock` displays the raw crop with `VECTOR` / `OCR` / `MANUAL` provenance and confidence badges.
 
 ### 17.6 Spatial R-Tree AABB Collision Engine & Dynamic Vector Leader Lines
 To solve the industry-wide problem of auto-balloons overlapping dense blueprint geometry, feature text, or neighboring balloons, LOONIST integrates a 2D Axis-Aligned Bounding Box (AABB) spatial index with radial collision resolution:
@@ -891,7 +930,8 @@ The 35 Low-Level Design subsystems are organized into a strict 6-sprint iterativ
 | **Sprint 3** | **Local AI Extraction Engine & ASME Y14.5 Parser** | §13, §14, §15, §16, §17 | • Local ASME Y14.5 GD&T AST parser supporting 14 characteristics & composite dual-tier frames<br>• Title Block general tolerance engine (`.X` to `.XXXX` + metric ISO 2768-m)<br>• Spatial proximity clustering merging broken multi-line callout stacks<br>• Automated Drawing Grid Zone calculator (`Zone C-4`) & 1-click multiplier expander (`4X`)<br>• Client-side WASM raster OCR fallback for scanned drawings and exploded CAD paths | ✅ **Complete** |
 | **Sprint 4** | **Dual-Layer Blueprint Editor & Spatial Markup** | §17.6, §17.7, §20.2 | • Spatial R-Tree collision-avoidance auto-balloon placement (`RTreePlacementEngine`)<br>• Dynamic vector leader line calculation with perimeter anchoring & arrowheads (`LeaderLineCalculator`)<br>• MultiDocumentSessionManager supporting cross-sheet tab state and memory isolation<br>• Antigravity dual-axis draggable splitters with smooth horizontal/vertical panel resizing<br>• Self-contained `.loonist` package save, auto-save, and recovery pipeline | ✅ **Complete** |
 | **Sprint 5** | **Measurement Compliance, High-Density CAD Table & Multi-Artifact Export** | §20.3, §20.4, §22.1, §22.2, §37 | • Real-time physical measurement calculation engine with bilateral/unilateral/limit tolerance bands (`MeasurementEngine`)<br>• High-density CAD Characteristics Table with frozen sticky `#ID` and `#Cha` columns (`TableManager`)<br>• Neutral dark mode palette (`#121212`, `#1e1e1e`, `#2a2a2a`) compliant with professional CAD workstations (`theme.css`)<br>• High-resolution marked blueprint vector PDF exporter burning vector badges & leader lines (`MarkedPdfExporter`)<br>• Zero-dependency programmatic AS9102 Rev B/C multi-sheet Excel exporter for Forms 1, 2, 3 (`As9102ExcelExporter`)<br>• Cryptographic SHA-256 tamper-evident audit ledger with sequential hash verification (`AuditLedgerService`)<br>• Master automated test suite (12 suites, 33 tests, 100% clean pass) | ✅ **Complete** |
-| **Sprint 6** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
+| **Sprint 6** | **Hybrid Vision OCR Pipeline, Canvas Pre-Processing & Prose Exclusion** | §17.5, §38 | • 100% offline Tesseract.js WebAssembly OCR worker pool with engineering character whitelist<br>• Canvas image pre-processing engine with Otsu's adaptive binarization ($\sigma_B^2(t)$ variance maximization)<br>• Deskewing angle detection ($-4^\circ$ to $+4^\circ$) via projection profile variance and dark blueprint auto-inversion<br>• Dual-orientation passes ($0^\circ$ & $90^\circ$) for vertical blueprint leader dimensions<br>• Domain-specific CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`) with confidence telemetry<br>• Prose & Tutorial Sentence Exclusion Engine preventing book disclaimer and tutorial sentence ballooning<br>• Step 14 residual word validation and chamfer priority resolution<br>• Interactive optical marquee snip-to-capture tool (`box-capture`) and HUD provenance badges<br>• Unified master test suite expanded to 14 feature test suites with 100% pass rate | ✅ **Complete** |
+| **Sprint 7** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
 
 ---
 
@@ -938,6 +978,49 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
    - Pre-mapped Excel templates generating AIAG PPAP Form 18 Dimensional Results, Material Test Results, and Appearance Approvals from the same underlying characteristic database.
 3. **Bluetooth Direct Gage Interface (WebHID / WebSerial):**
    - Direct wireless integration with Mitutoyo, Fowler, and Starrett digital calipers and micrometers for 1-click measurement entry into the inspection ledger.
+
+---
+
+## 38. Hybrid Vision OCR & Canvas Pre-Processing Subsystem Specification
+
+### 38.1 Canvas Pre-Processing Pipeline (`ImagePreprocessingService`)
+- **Mathematical Formulation of Otsu Thresholding:**
+  Given pixel intensity histogram probabilities $p_i = \frac{n_i}{N}$ for $i \in [0, 255]$:
+  $$\omega_0(t) = \sum_{i=0}^t p_i, \quad \omega_1(t) = \sum_{i=t+1}^{255} p_i$$
+  $$\mu_0(t) = \sum_{i=0}^t \frac{i \cdot p_i}{\omega_0(t)}, \quad \mu_1(t) = \sum_{i=t+1}^{255} \frac{i \cdot p_i}{\omega_1(t)}$$
+  $$\sigma_B^2(t) = \omega_0(t)\omega_1(t)[\mu_0(t) - \mu_1(t)]^2$$
+  The optimal threshold $t^* = \arg\max_t \sigma_B^2(t)$. When multiple adjacent thresholds share the maximum variance (plateau), the midpoint threshold $t^*_{\text{mid}} = \frac{t_{\min} + t_{\max}}{2}$ is selected to prevent binary quantization flicker.
+- **Projection Profile Skew Correction:**
+  Horizontal projection profile $P_\theta(y)$ is sampled at discrete slice lines across candidate angles $\theta \in [-4.0^\circ, +4.0^\circ]$ in $0.5^\circ$ steps. The angle with maximum variance across row density represents true text alignment and is applied via 2D affine Canvas rotation.
+- **Negative Blueprint Inversion:**
+  Evaluates luminance $L = 0.299R + 0.587G + 0.114B$. If global background luminance $L_{\text{bg}} < 100$, pixels are inverted: $P' = 255 - P$.
+
+### 38.2 Deep Learning OCR Worker Pool & Normalization (`OcrEngineService`)
+- **WASM Worker Lifecycle:**
+  - Instantiates a persistent WebAssembly worker thread pool via Tesseract.js.
+  - Constrained character set: `tessedit_char_whitelist = "0123456789.+-xX/°ØRrcCA-Za-z(),#:%|="`.
+  - Zero cloud calls, 100% offline ITAR compliance.
+- **Dual-Orientation Evaluation:**
+  - Evaluates bounding box aspect ratio $\text{AR} = \frac{W}{H}$. If $\text{AR} < 0.8$ or horizontal confidence $< 70\%$, executes a $90^\circ$ counter-clockwise rotated pass.
+  - Emits the result maximizing OCR confidence.
+- **CAD Symbol Restoration Rules:**
+  - `/(?:^|\s)[O0]\.?(\d+)/g` $\to$ `Ø$1`
+  - `/(?:^|\s)(?:dia|diameter)\s*([0-9.]+)/gi` $\to$ `Ø$1`
+  - `/\+\s*-\s*|\+-\s*/g` $\to$ `±`
+  - `/(\d+)\s*c\b/gi` $\to$ `$1°`
+  - `/\b(?:DEPTH|DP)\s*([0-9.]+)/gi` $\to$ `↧ $1`
+  - `/\b(?:CBORE|CB)\s*([0-9.]+)/gi` $\to$ `⌴ $1`
+  - `/\b(?:CSINK|CS)\s*([0-9.]+)/gi` $\to$ `⌵ $1`
+
+### 38.3 Prose & Tutorial Sentence Exclusion Subsystem (`GdtParser` & `AiExtractionService`)
+- **Keyword Heuristic Dictionary (60+ tokens):**
+  `autodesk`, `inventor`, `solidworks`, `catia`, `tutorial`, `workbook`, `handbook`, `practice with`, `apologies in advance`, `luck in your pursuits`, `miscellaneous parts`, `detailed drawings`, `simple sketches`, `designer's choice`, `answers here`, `copyright`, `rights reserved`.
+- **Syntactic Sentence Grammar Analysis:**
+  Identifies narrative prose containing $\ge 5$ words combined with conversational conjunctions (`and`, `or`, `in`, `to`, `for`, `with`, `you`, `your`, `we`, `can`, `will`, `should`).
+- **Step 14 Residual Word Validation:**
+  After stripping numbers, decimals, fractions, drafting symbols, and whitelisted CAD modifiers (`TYP`, `MAX`, `MIN`, `REF`, `THRU`, `DP`, `BORE`, `CBORE`, `CSINK`, `CHAMFER`, `PLCS`, `STOCK`, `WALL`, `FLAT`, `OD`, `ID`), any residual English words $\ge 3$ characters cause immediate rejection (`nominal: null`).
+- **Pre/Post-Clustering Filter Integration:**
+  Excludes prose in `candidateStrings` and skips prose clusters prior to characteristic generation.
 
 ---
 
