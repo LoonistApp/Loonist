@@ -103,7 +103,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs select-none p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs select-none p-4"
       onClick={() => {
         if (isTemplateOpen) {
           setIsTemplateOpen(false);
@@ -113,7 +113,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       }}
     >
       <div 
-        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-none ring-1 ring-black/20"
+        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-none"
         style={{ width: '500px', maxWidth: '95vw' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -158,7 +158,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <span className="font-medium text-slate-900">{currentTemplate.label}</span>
                 </div>
                 <ChevronDown 
-                  className={`w-4 h-4 text-slate-500 transition-transform duration-150 ${isTemplateOpen ? 'rotate-180' : ''}`} 
+                  className={`w-4 h-4 text-slate-500 transition-transform ${isTemplateOpen ? 'rotate-180' : ''}`} 
                 />
               </button>
 
@@ -282,7 +282,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               disabled={!hasSelection}
               className={`h-8 px-5 inline-flex items-center justify-center text-xs font-semibold tracking-wide rounded-none transition ${
                 hasSelection
-                  ? 'bg-slate-800 hover:bg-slate-900 border border-slate-900 text-white cursor-pointer shadow-2xs'
+                  ? 'bg-slate-800 hover:bg-slate-900 border border-slate-700 text-white cursor-pointer shadow-2xs'
                   : 'bg-slate-200 border border-slate-300 text-slate-400 cursor-not-allowed opacity-60 shadow-none'
               }`}
             >

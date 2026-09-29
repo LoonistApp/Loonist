@@ -198,12 +198,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-modal flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto"
+      className="fixed inset-0 z-modal flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none p-3 p-4 overflow-y-auto"
       style={{ zIndex: 99999 }}
       onClick={onClose}
     >
       <div
-        className="relative bg-white dark:bg-[#161618] border border-slate-300 dark:border-zinc-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 rounded-lg ring-1 ring-black/30 transition-all duration-150"
+        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-lg transition-all"
         style={{
           width: activeTab === 'options' ? 'min(940px, calc(100vw - 32px))' : 'min(680px, calc(100vw - 32px))',
           height: activeTab === 'options' ? 'min(660px, calc(100vh - 36px))' : 'auto',
@@ -212,13 +212,13 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div className="h-11 bg-slate-100 dark:bg-[#1c1c1f] border-b border-slate-200 dark:border-zinc-800 px-4 flex items-center justify-between shrink-0">
+        <div className="h-11 bg-slate-100 border-b border-slate-200 px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-1 rounded bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
+            <div className="p-1 rounded bg-slate-200 text-slate-700">
               <Settings className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 tracking-wide uppercase">
+              <h2 className="text-xs font-bold text-slate-900 tracking-wide uppercase">
                 {activeTab === 'options' ? 'Application Options' : 'Project Options'}
               </h2>
             </div>
@@ -227,7 +227,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white transition cursor-pointer"
+            className="p-1 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition cursor-pointer"
             title="Close [Esc]"
           >
             <X className="w-4 h-4" />
@@ -235,13 +235,13 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
         </div>
 
         {/* 3-Tab Horizontal Switcher */}
-        <div className="h-9 bg-slate-50 dark:bg-[#141416] border-b border-slate-200 dark:border-zinc-800 px-4 flex items-center gap-2 shrink-0">
+        <div className="h-9 bg-slate-50 border-b border-slate-200 px-4 flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('tolerances')}
             className={`flex items-center gap-1.5 h-full px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${activeTab === 'tolerances'
-                ? 'border-slate-800 dark:border-zinc-200 text-slate-900 dark:text-white'
-                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                ? 'border-slate-800 text-slate-900 '
+                : 'border-transparent text-slate-500 hover:text-slate-900 '
               }`}
           >
             <Ruler className="w-3.5 h-3.5" />
@@ -252,8 +252,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             type="button"
             onClick={() => setActiveTab('compliance')}
             className={`flex items-center gap-1.5 h-full px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${activeTab === 'compliance'
-                ? 'border-slate-800 dark:border-zinc-200 text-slate-900 dark:text-white'
-                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                ? 'border-slate-800 text-slate-900 '
+                : 'border-transparent text-slate-500 hover:text-slate-900 '
               }`}
           >
             <FileCheck className="w-3.5 h-3.5" />
@@ -264,8 +264,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             type="button"
             onClick={() => setActiveTab('options')}
             className={`flex items-center gap-1.5 h-full px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${activeTab === 'options'
-                ? 'border-sky-600 dark:border-sky-400 text-sky-700 dark:text-sky-300'
-                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                ? 'border-blue-600 text-blue-700 '
+                : 'border-transparent text-slate-500 hover:text-slate-900 '
               }`}
           >
             <Settings className="w-3.5 h-3.5" />
@@ -289,22 +289,22 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                           Title Block Tolerances
                         </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        <p className="text-[11px] text-slate-500">
                           General tolerances applied when drawing dimensions lack explicit ± limits.
                         </p>
                       </div>
 
                       {/* Units Toggle */}
-                      <div className="inline-flex rounded border border-slate-300 dark:border-zinc-700 p-0.5 bg-slate-100 dark:bg-zinc-800/80">
+                      <div className="inline-flex rounded border border-slate-300 p-0.5 bg-slate-100">
                         <button
                           type="button"
                           onClick={() => handleUnitChange('in')}
                           className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${draft.units === 'in'
-                              ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-2xs'
-                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                              ? 'bg-white text-slate-900 shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-900 '
                             }`}
                         >
                           Inches (in)
@@ -313,8 +313,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           type="button"
                           onClick={() => handleUnitChange('mm')}
                           className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${draft.units === 'mm'
-                              ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-2xs'
-                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                              ? 'bg-white text-slate-900 shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-900 '
                             }`}
                         >
                           Millimeters (mm)
@@ -323,9 +323,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     </div>
 
                     {/* Preset Selector with 1-Tap Buttons & Dropdown */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-zinc-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
+                    <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300 whitespace-nowrap mr-1">
+                        <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap mr-1">
                           Industry Presets:
                         </span>
                         {draft.units === 'in' ? (
@@ -335,8 +335,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                               onClick={() => handlePresetSelect('asme-precision')}
                               className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
                                 draft.tolerancePreset === 'asme-precision'
-                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
-                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                               }`}
                             >
                               Aerospace Precision (ASME)
@@ -346,8 +346,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                               onClick={() => handlePresetSelect('asme-commercial')}
                               className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
                                 draft.tolerancePreset === 'asme-commercial'
-                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
-                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                               }`}
                             >
                               Commercial
@@ -357,8 +357,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                               onClick={() => handlePresetSelect('sheet-metal-inch')}
                               className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
                                 draft.tolerancePreset === 'sheet-metal-inch'
-                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
-                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                               }`}
                             >
                               Sheet Metal
@@ -371,8 +371,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                               onClick={() => handlePresetSelect('iso-medium')}
                               className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
                                 draft.tolerancePreset === 'iso-medium'
-                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
-                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                               }`}
                             >
                               ISO 2768-m
@@ -382,8 +382,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                               onClick={() => handlePresetSelect('iso-fine')}
                               className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
                                 draft.tolerancePreset === 'iso-fine'
-                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
-                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                               }`}
                             >
                               ISO 2768-f
@@ -393,8 +393,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                               onClick={() => handlePresetSelect('sheet-metal-metric')}
                               className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
                                 draft.tolerancePreset === 'sheet-metal-metric'
-                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
-                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-bold'
+                                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                               }`}
                             >
                               Sheet Metal
@@ -405,7 +405,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       <select
                         value={draft.tolerancePreset || 'custom'}
                         onChange={(e) => handlePresetSelect(e.target.value as TolerancePresetKey)}
-                        className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                        className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-800 font-medium cursor-pointer"
                       >
                         {draft.units === 'in' ? (
                           <>
@@ -427,8 +427,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
 
                     {/* 5-Column Decimal Tolerance Grid */}
                     <div className="grid grid-cols-5 gap-2.5">
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           ± .X (1 Place)
                         </label>
                         <input
@@ -436,12 +436,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           step={draft.units === 'mm' ? '0.1' : '0.01'}
                           value={draft.tolerances.oneDecimal}
                           onChange={(e) => handleToleranceInput('oneDecimal', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
                         />
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           ± .XX (2 Places)
                         </label>
                         <input
@@ -449,12 +449,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           step={draft.units === 'mm' ? '0.05' : '0.005'}
                           value={draft.tolerances.twoDecimals}
                           onChange={(e) => handleToleranceInput('twoDecimals', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
                         />
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           ± .XXX (3 Places)
                         </label>
                         <input
@@ -462,12 +462,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           step={draft.units === 'mm' ? '0.01' : '0.001'}
                           value={draft.tolerances.threeDecimals}
                           onChange={(e) => handleToleranceInput('threeDecimals', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
                         />
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           ± .XXXX (4 Places)
                         </label>
                         <input
@@ -475,12 +475,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           step={draft.units === 'mm' ? '0.002' : '0.0001'}
                           value={draft.tolerances.fourDecimals}
                           onChange={(e) => handleToleranceInput('fourDecimals', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
                         />
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           ± Angles (°)
                         </label>
                         <input
@@ -488,28 +488,28 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           step="0.1"
                           value={draft.tolerances.angular}
                           onChange={(e) => handleToleranceInput('angular', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="h-px bg-slate-200 dark:bg-zinc-800" />
+                  <div className="h-px bg-slate-200" />
 
                   {/* Section 2: Extraction & Ballooning Behavior */}
                   <div className="flex flex-col gap-3">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                         Extraction & Ballooning Behavior
                       </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      <p className="text-[11px] text-slate-500">
                         Rules for auto-detecting dimensions, drawing notes, and quantity patterns.
                       </p>
                     </div>
 
                     {/* Multiplier Behavior Segment */}
-                    <div className="bg-slate-50 dark:bg-zinc-900/50 p-3 rounded-lg border border-slate-200 dark:border-zinc-800 flex flex-col gap-2">
-                      <span className="text-[11px] font-semibold text-slate-700 dark:text-zinc-200">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-col gap-2">
+                      <span className="text-[11px] font-semibold text-slate-700">
                         Quantity Multipliers (e.g., 4X ⌀.250 Holes):
                       </span>
                       <div className="grid grid-cols-2 gap-2">
@@ -517,14 +517,14 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           type="button"
                           onClick={() => setDraft({ ...draft, multiplierBehavior: 'single_balloon' })}
                           className={`flex flex-col p-2 rounded border text-left transition cursor-pointer ${draft.multiplierBehavior === 'single_balloon'
-                              ? 'border-slate-800 dark:border-zinc-200 bg-white dark:bg-zinc-800 shadow-2xs'
-                              : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
+                              ? 'border-slate-800 bg-white shadow-2xs'
+                              : 'border-slate-200 hover:border-slate-300 '
                             }`}
                         >
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          <span className="text-xs font-bold text-slate-900">
                             1 Balloon (Qty = 4)
                           </span>
-                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          <span className="text-[10px] text-slate-500">
                             Single row in Form 3 with quantity count.
                           </span>
                         </button>
@@ -533,14 +533,14 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           type="button"
                           onClick={() => setDraft({ ...draft, multiplierBehavior: 'split_sub_balloons' })}
                           className={`flex flex-col p-2 rounded border text-left transition cursor-pointer ${draft.multiplierBehavior === 'split_sub_balloons'
-                              ? 'border-slate-800 dark:border-zinc-200 bg-white dark:bg-zinc-800 shadow-2xs'
-                              : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
+                              ? 'border-slate-800 bg-white shadow-2xs'
+                              : 'border-slate-200 hover:border-slate-300 '
                             }`}
                         >
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          <span className="text-xs font-bold text-slate-900">
                             Split into Sub-Balloons
                           </span>
-                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          <span className="text-[10px] text-slate-500">
                             Creates 1.1, 1.2, 1.3, 1.4 for individual measurement.
                           </span>
                         </button>
@@ -549,32 +549,32 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
 
                     {/* Practical Checkbox Rules */}
                     <div className="flex flex-col gap-2">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-zinc-300">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={draft.autoBalloonNotes}
                           onChange={(e) => setDraft({ ...draft, autoBalloonNotes: e.target.checked })}
-                          className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                          className="rounded border-slate-300 accent-slate-800 w-3.5 h-3.5 cursor-pointer"
                         />
                         <span>Auto-balloon Drawing Notes (as AS9102 Form 3 General Characteristics)</span>
                       </label>
 
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-zinc-300">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={draft.autoDetectZones}
                           onChange={(e) => setDraft({ ...draft, autoDetectZones: e.target.checked })}
-                          className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                          className="rounded border-slate-300 accent-slate-800 w-3.5 h-3.5 cursor-pointer"
                         />
                         <span>Auto-detect Sheet Zone Coordinates (e.g. Sheet 1, Zone B-4)</span>
                       </label>
 
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-zinc-300">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={draft.skipReferenceDimensions}
                           onChange={(e) => setDraft({ ...draft, skipReferenceDimensions: e.target.checked })}
-                          className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                          className="rounded border-slate-300 accent-slate-800 w-3.5 h-3.5 cursor-pointer"
                         />
                         <span>Exclude Reference Dimensions (dimensions enclosed in parentheses)</span>
                       </label>
@@ -588,17 +588,17 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   {/* Section 1: Balloon Numbering Sequence */}
                   <div className="flex flex-col gap-3">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                         Balloon Numbering Sequence
                       </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      <p className="text-[11px] text-slate-500">
                         Format and indexing rules for balloon callouts on drawing sheets.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           Starting Number
                         </label>
                         <input
@@ -606,23 +606,23 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           min={1}
                           value={draft.startingNumber}
                           onChange={(e) => setDraft({ ...draft, startingNumber: Math.max(1, parseInt(e.target.value) || 1) })}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1 text-xs font-bold text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-900"
                         />
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           Increment Step
                         </label>
-                        <div className="flex rounded border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-800">
+                        <div className="flex rounded border border-slate-300 p-0.5 bg-white">
                           {[1, 5, 10].map((step) => (
                             <button
                               key={step}
                               type="button"
                               onClick={() => setDraft({ ...draft, incrementStep: step })}
                               className={`flex-1 py-0.5 rounded text-xs font-semibold transition cursor-pointer ${draft.incrementStep === step
-                                  ? 'bg-slate-800 text-white dark:bg-zinc-700'
-                                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                                  ? 'bg-slate-800 text-white '
+                                  : 'text-slate-600 hover:text-slate-900 '
                                 }`}
                             >
                               +{step}
@@ -631,8 +631,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           Prefix (Optional)
                         </label>
                         <input
@@ -640,25 +640,25 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           placeholder="e.g. D- or S1-"
                           value={draft.balloonPrefix || ''}
                           onChange={(e) => setDraft({ ...draft, balloonPrefix: e.target.value })}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1 text-xs font-mono text-slate-900 dark:text-white"
+                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-mono text-slate-900"
                         />
                       </div>
                     </div>
 
                     {/* Sub-Delimiter */}
-                    <div className="flex items-center justify-between bg-slate-50 dark:bg-zinc-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
-                      <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
+                    <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <span className="text-[11px] font-semibold text-slate-600">
                         Sub-Characteristic Delimiter:
                       </span>
-                      <div className="inline-flex rounded border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-800">
+                      <div className="inline-flex rounded border border-slate-300 p-0.5 bg-white">
                         {(['.', '-', '/'] as DelimiterStyle[]).map((delim) => (
                           <button
                             key={delim}
                             type="button"
                             onClick={() => setDraft({ ...draft, subDelimiter: delim })}
                             className={`px-3 py-0.5 rounded text-xs font-mono font-bold transition cursor-pointer ${draft.subDelimiter === delim
-                                ? 'bg-slate-800 text-white dark:bg-zinc-700'
-                                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                                ? 'bg-slate-800 text-white '
+                                : 'text-slate-600 hover:text-slate-900 '
                               }`}
                           >
                             1{delim}1
@@ -668,28 +668,28 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="h-px bg-slate-200 dark:bg-zinc-800" />
+                  <div className="h-px bg-slate-200" />
 
                   {/* Section 2: AS9102 Compliance & Export */}
                   <div className="flex flex-col gap-3">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                         AS9102 Quality Report & Export
                       </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      <p className="text-[11px] text-slate-500">
                         Configure standard compliance headers, export watermarking, and target formats.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           Aerospace Standard Revision
                         </label>
                         <select
                           value={draft.as9102Revision}
                           onChange={(e) => setDraft({ ...draft, as9102Revision: e.target.value as As9102StandardRevision })}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium cursor-pointer"
                         >
                           <option value="Rev C">SAE AS9102 Rev C (Current 2023)</option>
                           <option value="Rev B">SAE AS9102 Rev B (Legacy)</option>
@@ -697,13 +697,13 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           Drawing Security Watermark
                         </label>
                         <select
                           value={draft.watermark}
                           onChange={(e) => setDraft({ ...draft, watermark: e.target.value as SecurityWatermark })}
-                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium cursor-pointer"
                         >
                           <option value="NONE">None (Clean Drawing)</option>
                           <option value="ITAR RESTRICTED">ITAR RESTRICTED — Defense Article</option>
@@ -715,13 +715,13 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                      <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                         Primary Export Format Template
                       </label>
                       <select
                         value={draft.exportFormat || 'AS9102'}
                         onChange={(e) => setDraft({ ...draft, exportFormat: e.target.value as ExportFormatTemplate })}
-                        className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                        className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium cursor-pointer"
                       >
                         <option value="AS9102">AS9102 Excel Forms 1, 2, 3 (.xlsx)</option>
                         <option value="NET_INSPECT">Net-Inspect Aerospace Portal Direct CSV (.csv)</option>
@@ -733,24 +733,24 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             </div>
 
             {/* Footer Actions */}
-            <div className="h-12 bg-slate-100 dark:bg-[#1a1a1c] border-t border-slate-200 dark:border-zinc-800 px-4 flex items-center justify-between shrink-0">
+            <div className="h-12 bg-slate-100 border-t border-slate-200 px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={handleResetDefaults}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
                   title="Reset all settings to default aerospace recommendations"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reset Defaults</span>
                 </button>
 
-                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 dark:text-zinc-300 select-none">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 select-none">
                   <input
                     type="checkbox"
                     checked={saveAsDefault}
                     onChange={(e) => setSaveAsDefault(e.target.checked)}
-                    className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                    className="rounded border-slate-300 accent-slate-800 w-3.5 h-3.5 cursor-pointer"
                   />
                   <span>Save as default for future projects</span>
                 </label>
@@ -760,7 +760,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-1.5 text-xs font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200/60 dark:hover:bg-zinc-800/80 rounded-md transition cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-md transition cursor-pointer"
                 >
                   Cancel
                 </button>
