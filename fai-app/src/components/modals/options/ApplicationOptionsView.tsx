@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   Search,
   RotateCcw,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useApplicationOptions } from '../../../stores/useApplicationOptionsStore';
 import type { ApplicationOptions } from '../../../types/applicationOptions';
+import { DEFAULT_APPLICATION_OPTIONS } from '../../../types/applicationOptions';
 import { WorkspaceTab } from './tabs/WorkspaceTab';
 import { MasterDataTab } from './tabs/MasterDataTab';
 import { TemplatesTab } from './tabs/TemplatesTab';
@@ -38,12 +39,19 @@ export interface ApplicationOptionsViewProps {
   hideFooter?: boolean;
 }
 
-export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
+/** Lets a parent dialog with its own footer save or reset the options draft. */
+export interface ApplicationOptionsHandle {
+  save: () => void;
+  reset: () => void;
+  cancel: () => void;
+}
+
+export const ApplicationOptionsView = forwardRef<ApplicationOptionsHandle, ApplicationOptionsViewProps>(({
   onSave,
   onClose,
   initialSection = 'workspace',
   hideFooter = false
-}) => {
+}, ref) => {
   const [globalOptions, actions] = useApplicationOptions();
   const [draftOptions, setDraftOptions] = useState<ApplicationOptions>(() =>
     JSON.parse(JSON.stringify(globalOptions))
@@ -51,13 +59,16 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
   const [activeSection, setActiveSection] = useState<OptionsSectionId>(initialSection);
   const [navSearch, setNavSearch] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
+  // Workspace changes preview live; this snapshot lets Cancel put them back
+  const initialWorkspace = useRef(JSON.parse(JSON.stringify(globalOptions.workspace)));
 
   const handleSave = () => {
     actions.updateWorkspace(draftOptions.workspace);
     actions.updateMasterData(draftOptions.masterData);
     actions.updateTemplates(draftOptions.templates);
     actions.updateNetInspect(draftOptions.netInspect);
-    actions.updateLicensing(draftOptions.licensing);
+    // License changes are saved the moment they happen; only the server URL comes from the draft
+    actions.updateLicensing({ apiUrl: draftOptions.licensing.apiUrl });
     actions.updateItarPrivacy(draftOptions.itarPrivacy);
     // Remove stored template files for templates deleted in this session
     templateFileStore.prune(draftOptions.templates.templates.map(t => t.id)).catch(err =>
@@ -66,12 +77,21 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
     onSave?.();
   };
 
+  // Resets the unsaved draft only (applied on Save, discarded on Cancel); the license is kept
   const handleReset = () => {
-    if (confirm('Reset all application options to factory aerospace defaults?')) {
-      actions.resetToDefaults();
-      setDraftOptions(JSON.parse(JSON.stringify(actions.get())));
+    if (confirm('Reset application options to their defaults? Your license is kept. Changes apply when you save.')) {
+      setDraftOptions(prev => ({
+        ...JSON.parse(JSON.stringify(DEFAULT_APPLICATION_OPTIONS)),
+        licensing: prev.licensing
+      }));
     }
   };
+
+  const handleCancel = () => {
+    actions.updateWorkspace(initialWorkspace.current);
+  };
+
+  useImperativeHandle(ref, () => ({ save: handleSave, reset: handleReset, cancel: handleCancel }));
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -282,7 +302,10 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
             {onClose && (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  handleCancel();
+                  onClose();
+                }}
                 className="px-3.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-md transition cursor-pointer"
               >
                 Cancel
@@ -301,4 +324,6 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
       )}
     </div>
   );
-};
+});
+
+ApplicationOptionsView.displayName = 'ApplicationOptionsView';

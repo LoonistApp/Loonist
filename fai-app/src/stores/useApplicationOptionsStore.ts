@@ -192,7 +192,8 @@ export const applicationOptionsActions = {
   },
 
   resetToDefaults: () => {
-    globalState = JSON.parse(JSON.stringify(DEFAULT_APPLICATION_OPTIONS));
+    // Never reset the workstation's license binding
+    globalState = { ...JSON.parse(JSON.stringify(DEFAULT_APPLICATION_OPTIONS)), licensing: globalState.licensing };
     notify();
   },
 

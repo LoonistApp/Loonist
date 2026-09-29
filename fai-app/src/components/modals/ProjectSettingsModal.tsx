@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -19,7 +19,7 @@ import type {
 import { DEFAULT_PROJECT_SETTINGS } from '../../types/settings';
 import type { TitleBlockTolerancePreset } from '../../types/characteristics';
 import { DEFAULT_AEROSPACE_TOLERANCES } from '../../types/characteristics';
-import { ApplicationOptionsView } from './options/ApplicationOptionsView';
+import { ApplicationOptionsView, type ApplicationOptionsHandle } from './options/ApplicationOptionsView';
 
 export type SettingsTab = 'tolerances' | 'compliance' | 'options';
 
@@ -101,6 +101,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
     ...settings
   }));
   const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const optionsRef = useRef<ApplicationOptionsHandle>(null);
 
   // Sync draft whenever modal opens or external settings update
   useEffect(() => {
@@ -121,6 +122,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Same as Cancel: undo live-previewed workspace changes
+        optionsRef.current?.cancel();
         onClose();
       }
     };
@@ -180,6 +183,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
     });
   };
 
+  // Cancel, the X button, Esc and clicking outside all discard unsaved changes
+  const handleCancel = () => {
+    optionsRef.current?.cancel();
+    onClose();
+  };
+
   const handleSave = () => {
     if (saveAsDefault) {
       try {
@@ -188,26 +197,33 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
         console.warn('Failed to save project settings default to localStorage', err);
       }
     }
+    // One Save for the whole dialog: project settings and application options together
+    optionsRef.current?.save();
     onUpdateSettings(draft);
     onClose();
   };
 
+  // Reset Defaults applies to the tab being viewed
   const handleResetDefaults = () => {
-    setDraft({ ...DEFAULT_PROJECT_SETTINGS });
+    if (activeTab === 'options') {
+      optionsRef.current?.reset();
+    } else {
+      setDraft({ ...DEFAULT_PROJECT_SETTINGS });
+    }
   };
 
   const modalContent = (
     <div
       className="fixed inset-0 z-modal flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none p-3 p-4 overflow-y-auto"
       style={{ zIndex: 99999 }}
-      onClick={onClose}
+      onClick={handleCancel}
     >
       <div
-        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-lg transition-all"
+        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-lg"
+        // One fixed size for every tab so the dialog and its tab bar never move
         style={{
-          width: activeTab === 'options' ? 'min(940px, calc(100vw - 32px))' : 'min(680px, calc(100vw - 32px))',
-          height: activeTab === 'options' ? 'min(660px, calc(100vh - 36px))' : 'auto',
-          maxHeight: 'calc(100vh - 36px)',
+          width: 'min(940px, calc(100vw - 32px))',
+          height: 'min(660px, calc(100vh - 36px))',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -219,14 +235,14 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-xs font-bold text-slate-900 tracking-wide uppercase">
-                {activeTab === 'options' ? 'Application Options' : 'Project Options'}
+                Settings
               </h2>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancel}
             className="p-1 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition cursor-pointer"
             title="Close [Esc]"
           >
@@ -273,15 +289,16 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           </button>
         </div>
 
-        {activeTab === 'options' ? (
-          <ApplicationOptionsView
-            onSave={onClose}
-            onClose={onClose}
-            hideFooter={false}
-          />
-        ) : (
-          <>
-            {/* Tab Content Container */}
+        {/* Options stays mounted while hidden so unsaved edits survive tab switches */}
+        <div
+          className="flex flex-col flex-1 min-h-0"
+          style={{ display: activeTab === 'options' ? 'flex' : 'none' }}
+        >
+          <ApplicationOptionsView ref={optionsRef} hideFooter />
+        </div>
+
+        {activeTab !== 'options' && (
+            /* Tab Content Container */
             <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5 min-h-[360px]">
               {activeTab === 'tolerances' && (
                 <>
@@ -731,15 +748,16 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 </>
               )}
             </div>
+        )}
 
-            {/* Footer Actions */}
+            {/* Footer Actions (shared by all tabs) */}
             <div className="h-12 bg-slate-100 border-t border-slate-200 px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={handleResetDefaults}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
-                  title="Reset all settings to default aerospace recommendations"
+                  title="Reset the settings on this tab to their defaults"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reset Defaults</span>
@@ -759,7 +777,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleCancel}
                   className="px-3.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-md transition cursor-pointer"
                 >
                   Cancel
@@ -770,12 +788,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   className="btn-primary-action flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold shadow-xs transition cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Save Settings</span>
+                  <span>Save</span>
                 </button>
               </div>
             </div>
-          </>
-        )}
       </div>
     </div>
   );
