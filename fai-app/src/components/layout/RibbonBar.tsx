@@ -1,26 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { BalloonAppearance, EngineeringCharacteristic, ProjectProperties } from '../../types/characteristics';
 import type { ViewportTool, BlueprintDocument } from '../../types/blueprint';
-import { 
-  PanelLeft, 
-  PanelBottom, 
-  Maximize2, 
-  Sun, 
-  Moon, 
-  Save, 
-  FolderOpen, 
-  FileText, 
-  X
+import {
+  PanelLeft,
+  PanelBottom,
+  Sun,
+  Moon,
+  X,
+  Settings,
+  HelpCircle,
+  FilePlus,
+  Save,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { RibbonTabNav, type RibbonTabId } from './ribbon/RibbonTabNav';
 import { FileBackstageModal } from './ribbon/FileBackstageModal';
 import { HomeRibbonTab } from './ribbon/tabs/HomeRibbonTab';
-import { DrawingRibbonTab } from './ribbon/tabs/DrawingRibbonTab';
-import { BalloonsRibbonTab } from './ribbon/tabs/BalloonsRibbonTab';
-import { InspectionRibbonTab } from './ribbon/tabs/InspectionRibbonTab';
-import { ReportsRibbonTab } from './ribbon/tabs/ReportsRibbonTab';
-import { ViewRibbonTab } from './ribbon/tabs/ViewRibbonTab';
 import { SettingsRibbonTab } from './ribbon/tabs/SettingsRibbonTab';
+import { ProjectSettingsModal, type SettingsTab } from '../modals/ProjectSettingsModal';
+import { DEFAULT_PROJECT_SETTINGS } from '../../types/settings';
 
 export interface ProjectFileTab {
   id: string;
@@ -31,8 +30,10 @@ export interface ProjectFileTab {
 
 export interface RibbonBarProps {
   // Document actions
-  onSmartExtract: () => void;
+  onSmartExtract: (scope?: 'active' | 'all') => void;
   isExtracting: boolean;
+  extractScope?: 'active' | 'all';
+  onSetExtractScope?: (scope: 'active' | 'all') => void;
   onAddFile: () => void;
   onSaveProject?: () => void;
   onOpenProject?: () => void;
@@ -42,6 +43,12 @@ export interface RibbonBarProps {
   onRepositionBalloons?: () => void;
   onLoadSample?: () => void;
   onNewProject?: () => void;
+
+  // Quick Access Undo / Redo
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 
   // Viewport actions
   activeTool: ViewportTool;
@@ -75,6 +82,11 @@ export interface RibbonBarProps {
   onToggleMaximizeBottom?: () => void;
   onResetLayout?: () => void;
 
+  // Top Action: Run Inspection
+  onRunInspection?: () => void;
+  isInspecting?: boolean;
+  hasInspectionResults?: boolean;
+
   // Characteristics Review Drawer & Active Feature
   characteristicsCount?: number;
   characteristics?: EngineeringCharacteristic[];
@@ -91,18 +103,32 @@ export interface RibbonBarProps {
 
   // Project properties & AS9102 Navigation
   projectProps?: ProjectProperties;
+  onUpdateProjectProps?: (props: ProjectProperties) => void;
   onSelectFormTab?: (form: 'form1' | 'form2' | 'form3') => void;
   tableFilter?: 'all' | 'critical' | 'review';
   onSetTableFilter?: (filter: 'all' | 'critical' | 'review') => void;
 
+  // Project Settings Subsystem
+  settings?: import('../../types/settings').ProjectSettings;
+  onUpdateSettings?: (settings: import('../../types/settings').ProjectSettings) => void;
+
   // CAD Dark Mode Theme
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
+
+  // External Help & Documentation Website
+  helpUrl?: string;
+  onOpenHelp?: () => void;
 }
 
 export const RibbonBar: React.FC<RibbonBarProps> = ({
   onSmartExtract,
   isExtracting,
+  extractScope = 'active',
+  onSetExtractScope,
+  onRunInspection,
+  isInspecting = false,
+  hasInspectionResults = false,
   onAddFile,
   onSaveProject,
   onOpenProject,
@@ -112,14 +138,10 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onRepositionBalloons,
   onLoadSample,
   onNewProject,
-  activeTool,
-  onToolChange,
-  onFitPage,
-  onFitWidth,
+  helpUrl,
+  onOpenHelp,
   onRotateClockwise,
   onRotateCounterClockwise,
-  onZoomIn,
-  onZoomOut,
   balloonAppearance,
   onUpdateBalloonAppearance,
   balloonsLocked,
@@ -132,42 +154,191 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   isBottomPanelOpen = true,
   onToggleLeftPanel,
   onToggleBottomPanel,
-  onToggleFullDrawing,
-  onToggleMaximizeLeft,
-  onToggleMaximizeBottom,
-  onResetLayout,
   characteristicsCount = 0,
   characteristics = [],
+  activeSheetIndex = 0,
   isDrawerOpen = false,
   onToggleDrawer,
-  selectedCharId = null,
-  selectedChar = null,
-  onDeleteCharacteristic,
   blueprintDoc = null,
-  activeSheetIndex = 0,
-  onSelectSheet,
   projectProps = {
-    partName: 'TURBINE MOUNT BRACKET',
-    partNumber: 'AS9102-TMB-001',
-    partRevision: 'C',
-    drawingName: 'Turbine Mount Bracket',
-    drawingNumber: 'AS9102-TMB-001',
-    drawingRevision: 'C',
-    cageCode: '1A2B3',
-    lotSize: 200,
+    partName: '',
+    partNumber: '',
+    partRevision: '',
+    drawingName: '',
+    drawingNumber: '',
+    drawingRevision: '',
+    cageCode: '',
+    lotSize: 1,
     samplingLevel: 'II',
     samplingType: 'NORMAL',
     aql: '1.0'
   },
-  onSelectFormTab,
+  onUpdateProjectProps,
   tableFilter = 'all',
   onSetTableFilter,
+  settings,
+  onUpdateSettings,
   isDarkMode = false,
-  onToggleDarkMode
+  onToggleDarkMode,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false
 }) => {
   const [activeTab, setActiveTab] = useState<RibbonTabId>('home');
   const [isRibbonCollapsed, setIsRibbonCollapsed] = useState(false);
   const [showBackstage, setShowBackstage] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<SettingsTab>('tolerances');
+
+  const handleOpenSettingsModal = useCallback((tab: SettingsTab = 'tolerances') => {
+    setSettingsModalInitialTab(tab);
+    setIsSettingsModalOpen(true);
+  }, []);
+
+  // Global Shortcut: Ctrl+, or Cmd+, opens Settings (first tab: Blueprint & Tolerances)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        handleOpenSettingsModal('tolerances');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleOpenSettingsModal]);
+  
+  // Windows System Menu & Window Controls State
+  const [isLogoMenuOpen, setIsLogoMenuOpen] = useState(false);
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const logoMenuRef = useRef<HTMLDivElement>(null);
+
+  // External Help Website launcher
+  const handleOpenHelpWebsite = useCallback(() => {
+    if (onOpenHelp) {
+      onOpenHelp();
+      return;
+    }
+    window.open(helpUrl || 'https://loonist.com/help', '_blank');
+  }, [helpUrl, onOpenHelp]);
+
+  // Close Logo System Menu on outside click
+  useEffect(() => {
+    if (!isLogoMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (logoMenuRef.current && !logoMenuRef.current.contains(e.target as Node)) {
+        setIsLogoMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isLogoMenuOpen]);
+
+  // Query initial window maximized state & subscribe to resize
+  useEffect(() => {
+    const checkMaximized = async () => {
+      if (window.api?.isWindowMaximized) {
+        try {
+          const res = await window.api.isWindowMaximized();
+          setIsWindowMaximized(Boolean(res?.isMaximized));
+          return;
+        } catch {
+          // fallback
+        }
+      }
+      const isMax = Boolean(document.fullscreenElement) ||
+        (window.outerWidth >= screen.availWidth - 10 && window.outerHeight >= screen.availHeight - 20);
+      setIsWindowMaximized(isMax);
+    };
+
+    void checkMaximized();
+    window.addEventListener('resize', checkMaximized);
+    return () => window.removeEventListener('resize', checkMaximized);
+  }, []);
+
+  // Global hotkeys (F1 to open Help website, Esc to close system menu)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        handleOpenHelpWebsite();
+      } else if (e.key === 'Escape') {
+        setIsLogoMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleOpenHelpWebsite]);
+
+  // Windows System Menu actions (IPC with browser fallback)
+  const handleRestoreWindow = async () => {
+    setIsLogoMenuOpen(false);
+    if (window.api?.restoreWindow) {
+      try {
+        await window.api.restoreWindow();
+        setIsWindowMaximized(false);
+        return;
+      } catch (e) {
+        console.warn('Failed to restore window via IPC:', e);
+      }
+    }
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {}
+    }
+    setIsWindowMaximized(false);
+  };
+
+  const handleMinimizeWindow = async () => {
+    setIsLogoMenuOpen(false);
+    if (window.api?.minimizeWindow) {
+      try {
+        await window.api.minimizeWindow();
+        return;
+      } catch (e) {
+        console.warn('Failed to minimize window via IPC:', e);
+      }
+    }
+  };
+
+  const handleMaximizeWindow = async () => {
+    setIsLogoMenuOpen(false);
+    if (window.api?.maximizeWindow) {
+      try {
+        const res = await window.api.maximizeWindow();
+        setIsWindowMaximized(Boolean(res?.isMaximized));
+        return;
+      } catch (e) {
+        console.warn('Failed to maximize window via IPC:', e);
+      }
+    }
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch {}
+    }
+    setIsWindowMaximized(true);
+  };
+
+  const handleCloseWindow = async () => {
+    setIsLogoMenuOpen(false);
+    if (window.api?.closeWindow) {
+      try {
+        await window.api.closeWindow();
+        return;
+      } catch (e) {
+        console.warn('Failed to close window via IPC:', e);
+      }
+    }
+    window.close();
+  };
+
+  const handleLogoDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLogoMenuOpen(false);
+    void handleCloseWindow();
+  };
 
   const hasDrawing = Boolean(blueprintDoc);
   const effectiveCharCount = characteristicsCount || characteristics.length;
@@ -175,97 +346,192 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   return (
     <header className="flex flex-col w-full bg-slate-100 dark:bg-[#121212] border-b border-slate-300 dark:border-zinc-800 select-none text-slate-800 dark:text-slate-200 text-xs shadow-xs z-30">
       {/* 1. TOP APPLICATION BAR WITH QUICK ACCESS TOOLBAR & TITLE (Height: 30px) */}
-      <div className="h-7 bg-[#14181f] dark:bg-[#0d1117] text-slate-200 px-3 flex items-center justify-between border-b border-[#212733] dark:border-[#21262d]">
-        {/* Left: Branding & Quick Access Toolbar */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider text-white">
-            <span className="w-4 h-4 rounded-xs bg-blue-600 flex items-center justify-center text-[10px] text-white font-mono font-black shadow-xs">
-              L
-            </span>
-            <span className="text-xs tracking-tight font-black">LOONIST</span>
-          </div>
+      <div className="h-7 bg-slate-100 dark:bg-[#0d1117] text-slate-700 dark:text-slate-200 px-2 flex items-center justify-between border-b border-slate-200 dark:border-[#21262d]">
+        {/* Left: System Menu Logo & Quick Access Toolbar */}
+        <div className="flex items-center gap-1.5">
+          {/* Logo Button & System Menu Dropdown */}
+          <div className="relative" ref={logoMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsLogoMenuOpen((prev) => !prev)}
+              onDoubleClick={handleLogoDoubleClick}
+              title="LOONIST System Menu (Click to open, double-click to close)"
+              className="flex items-center justify-center w-5 h-5 rounded-[3px] transition cursor-pointer shadow-xs"
+              style={{ backgroundColor: '#008ba3', color: '#ffffff' }}
+            >
+              {/* Cyan Hexagon with CAD Glyphs matching user specification */}
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l8.5 5v10L12 22l-8.5-5V7L12 2zm0 2.4L5.5 8.2v7.6L12 19.6l6.5-3.8V8.2L12 4.4z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
 
-          <span className="text-[#333d4e] dark:text-[#282e39]">|</span>
-
-          {/* Quick Access Toolbar (QAT) */}
-          <div className="flex items-center gap-1">
-            {onAddFile && (
-              <button
-                type="button"
-                onClick={onAddFile}
-                className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#252c38] transition cursor-pointer"
-                title="Open Blueprint Drawing (PDF) [Ctrl+O]"
+            {/* Native Windows CAD System Menu Dropdown */}
+            {isLogoMenuOpen && (
+              <div
+                className="absolute top-full left-0 mt-1 bg-white dark:bg-[#1f242c] border border-slate-300 dark:border-zinc-700 shadow-xl rounded-[2px] py-1 text-[12px] font-normal z-50 select-none animate-in fade-in zoom-in-95 duration-75"
+                style={{ width: '190px', minWidth: '190px', fontFamily: 'Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif' }}
               >
-                <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
-              </button>
-            )}
-            {onSaveProject && (
-              <button
-                type="button"
-                onClick={onSaveProject}
-                disabled={!hasDrawing && effectiveCharCount === 0}
-                className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#252c38] disabled:opacity-30 transition cursor-pointer"
-                title="Save Project Package (.loonist) [Ctrl+S]"
-              >
-                <Save className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {onLoadSample && (
-              <button
-                type="button"
-                onClick={onLoadSample}
-                className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#252c38] transition cursor-pointer"
-                title="Load Sample Aerospace Blueprint"
-              >
-                <FileText className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+                {/* 1. Restore */}
+                <button
+                  type="button"
+                  disabled={!isWindowMaximized}
+                  onClick={handleRestoreWindow}
+                  className={`w-full px-3 py-1 flex items-center gap-2.5 text-left transition-colors ${
+                    isWindowMaximized
+                      ? 'text-slate-900 dark:text-slate-100 hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] cursor-pointer'
+                      : 'text-slate-400 dark:text-zinc-500 cursor-default'
+                  }`}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M4.5 4.5V2.5h8v8h-2m-6 3h8v-8h-8v8z" />
+                    </svg>
+                  </span>
+                  <span>Restore</span>
+                </button>
 
-          <span className="hidden lg:inline-block text-[#333d4e] dark:text-[#282e39]">|</span>
+                {/* 2. Move (Disabled) */}
+                <div className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-400 dark:text-zinc-500 cursor-default">
+                  <span className="w-4 h-4 shrink-0" />
+                  <span>Move</span>
+                </div>
 
-          {/* Active Blueprint & Inspection Title */}
-          <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-400 font-sans">
-            {blueprintDoc ? (
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-200 truncate max-w-[280px]">
-                  {blueprintDoc.name}
-                </span>
-                <span className="text-slate-500">•</span>
-                <span className="text-slate-400 font-mono">
-                  Rev {projectProps.partRevision || 'A'}
-                </span>
-                <span className="text-slate-500">•</span>
-                <span className="text-slate-400 font-mono">
-                  {blueprintDoc.numSheets} {blueprintDoc.numSheets === 1 ? 'Sheet' : 'Sheets'}
-                </span>
+                {/* 3. Size (Disabled) */}
+                <div className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-400 dark:text-zinc-500 cursor-default">
+                  <span className="w-4 h-4 shrink-0" />
+                  <span>Size</span>
+                </div>
+
+                {/* 4. Minimize */}
+                <button
+                  type="button"
+                  onClick={handleMinimizeWindow}
+                  className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-900 dark:text-slate-100 hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] transition-colors cursor-pointer"
+                >
+                  <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                      <rect x="3" y="7.5" width="10" height="1.5" />
+                    </svg>
+                  </span>
+                  <span>Minimize</span>
+                </button>
+
+                {/* 5. Maximize */}
+                <button
+                  type="button"
+                  disabled={isWindowMaximized}
+                  onClick={handleMaximizeWindow}
+                  className={`w-full px-3 py-1 flex items-center gap-2.5 text-left transition-colors ${
+                    !isWindowMaximized
+                      ? 'text-slate-900 dark:text-slate-100 hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] cursor-pointer'
+                      : 'text-slate-400 dark:text-zinc-500 cursor-default'
+                  }`}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="2.5" y="2.5" width="11" height="11" />
+                    </svg>
+                  </span>
+                  <span>Maximize</span>
+                </button>
+
+                {/* Separator line */}
+                <div className="my-1 border-t border-slate-200 dark:border-zinc-700" />
+
+                {/* 6. Close */}
+                <button
+                  type="button"
+                  onClick={handleCloseWindow}
+                  className="w-full px-3 py-1 flex items-center justify-between text-left text-slate-900 dark:text-white hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </span>
+                    <span className="font-bold">Close</span>
+                  </div>
+                  <span className="font-bold text-[11px] ml-auto pl-4">Alt+F4</span>
+                </button>
               </div>
-            ) : (
-              <span>SAE AS9102 Rev B/C & ASME Y14.5 Inspection Platform</span>
             )}
+          </div>
+
+          {/* Quick Access Toolbar */}
+          <div className="flex items-center gap-0.5 ml-0.5">
+            {/* New Project */}
+            <button
+              type="button"
+              onClick={onNewProject}
+              className="p-1 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title="New Project (Ctrl+N)"
+            >
+              <FilePlus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            </button>
+
+            {/* Save Project */}
+            <button
+              type="button"
+              onClick={onSaveProject}
+              className="p-1 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title="Save Project (Ctrl+S)"
+            >
+              <Save className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+            </button>
+
+            {/* Undo */}
+            <button
+              type="button"
+              disabled={!canUndo}
+              onClick={onUndo}
+              className={`p-1 rounded transition ${
+                canUndo
+                  ? 'text-blue-600 dark:text-blue-400 hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer'
+                  : 'text-slate-400 dark:text-zinc-600 cursor-default opacity-40'
+              }`}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Redo */}
+            <button
+              type="button"
+              disabled={!canRedo}
+              onClick={onRedo}
+              className={`p-1 rounded transition ${
+                canRedo
+                  ? 'text-blue-600 dark:text-blue-400 hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer'
+                  : 'text-slate-400 dark:text-zinc-600 cursor-default opacity-40'
+              }`}
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
         {/* Right: Security Badge & Window Controls */}
         <div className="flex items-center gap-3">
           {/* ITAR Air-Gapped Status Badge */}
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-sans">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-sans">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="hidden sm:inline">Air-Gapped Local</span>
           </div>
 
-          <span className="h-3 w-px bg-[#2f3747] dark:bg-[#282e39]" />
+          <span className="h-3 w-px bg-slate-300 dark:bg-[#282e39]" />
 
-          {/* Panel Layout Controls */}
+          {/* Panel Layout Controls & Dark Mode Switch */}
           <div className="flex items-center gap-0.5">
             <button
               type="button"
               onClick={onToggleLeftPanel}
-              className={`p-1 rounded transition cursor-pointer ${
-                isLeftPanelOpen
-                  ? 'text-blue-400 bg-[#252c38] dark:bg-zinc-800'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#252c38]'
-              }`}
+              className={`p-1 rounded transition cursor-pointer ${isLeftPanelOpen
+                  ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-zinc-700'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                }`}
               title={isLeftPanelOpen ? 'Collapse Left Side Panel' : 'Expand Left Side Panel'}
             >
               <PanelLeft className="w-3.5 h-3.5" />
@@ -274,41 +540,45 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             <button
               type="button"
               onClick={onToggleBottomPanel}
-              className={`p-1 rounded transition cursor-pointer ${
-                isBottomPanelOpen
-                  ? 'text-blue-400 bg-[#252c38] dark:bg-zinc-800'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#252c38]'
-              }`}
+              className={`p-1 rounded transition cursor-pointer ${isBottomPanelOpen
+                  ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-zinc-700'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                }`}
               title={isBottomPanelOpen ? 'Collapse Bottom Table' : 'Expand Bottom Table'}
             >
               <PanelBottom className="w-3.5 h-3.5" />
             </button>
 
+            {/* Dark Mode Switch in place of third icon */}
             <button
               type="button"
-              onClick={onToggleFullDrawing}
-              className={`p-1 rounded transition cursor-pointer ${
-                !isLeftPanelOpen && !isBottomPanelOpen
-                  ? 'text-emerald-400 bg-[#252c38] dark:bg-zinc-800'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#252c38]'
-              }`}
-              title="Full Drawing View"
+              onClick={onToggleDarkMode}
+              className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title={isDarkMode ? 'Switch to CAD Light Mode' : 'Switch to CAD Dark Charcoal Mode'}
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              {isDarkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* Settings Dialog Toggle */}
+            <button
+              type="button"
+              onClick={() => handleOpenSettingsModal('tolerances')}
+              className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title="Project Settings & Tolerances (Ctrl+,)"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Help / Documentation Website Button */}
+            <button
+              type="button"
+              onClick={handleOpenHelpWebsite}
+              className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title="Help & Documentation [F1]"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <span className="h-3 w-px bg-[#2f3747] dark:bg-[#282e39]" />
-
-          {/* CAD Dark / Light Mode Toggle */}
-          <button
-            type="button"
-            onClick={onToggleDarkMode}
-            className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-[#252c38] dark:hover:bg-zinc-800 transition cursor-pointer"
-            title={isDarkMode ? 'Switch to CAD Light Mode' : 'Switch to CAD Dark Charcoal Mode'}
-          >
-            {isDarkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
-          </button>
         </div>
       </div>
 
@@ -317,10 +587,9 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onOpenFileMenu={() => setShowBackstage(true)}
+        isFileMenuOpen={showBackstage}
         isRibbonCollapsed={isRibbonCollapsed}
         onToggleCollapse={() => setIsRibbonCollapsed((prev) => !prev)}
-        characteristicsCount={effectiveCharCount}
-        hasDrawing={hasDrawing}
       />
 
       {/* 3. CONTEXTUAL COMMAND STRIP (Height: 70px) - Hidden when ribbon is collapsed */}
@@ -331,6 +600,13 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               hasDrawing={hasDrawing}
               onSmartExtract={onSmartExtract}
               isExtracting={isExtracting}
+              extractScope={extractScope}
+              onSetExtractScope={onSetExtractScope}
+              activeSheetIndex={activeSheetIndex}
+              totalSheetsCount={blueprintDoc?.sheets.length || 1}
+              onRunInspection={onRunInspection}
+              isInspecting={isInspecting}
+              hasInspectionResults={hasInspectionResults}
               characteristicsCount={effectiveCharCount}
               characteristics={characteristics}
               activeFilter={tableFilter}
@@ -339,151 +615,68 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               onToggleDrawer={onToggleDrawer}
               balloonAppearance={balloonAppearance}
               onUpdateBalloonAppearance={onUpdateBalloonAppearance}
-            />
-          )}
-
-          {activeTab === 'drawing' && (
-            <DrawingRibbonTab
-              hasDrawing={hasDrawing}
-              document={blueprintDoc}
-              activeSheetIndex={activeSheetIndex}
-              onSelectSheet={onSelectSheet}
-              activeTool={activeTool}
-              onToolChange={onToolChange}
-              onFitPage={onFitPage}
-              onFitWidth={onFitWidth}
-              onZoomIn={onZoomIn}
-              onZoomOut={onZoomOut}
               onRotateClockwise={onRotateClockwise}
               onRotateCounterClockwise={onRotateCounterClockwise}
-              onAddFile={onAddFile}
-              onLoadSample={onLoadSample}
-            />
-          )}
-
-          {activeTab === 'balloons' && (
-            <BalloonsRibbonTab
-              hasDrawing={hasDrawing}
-              onSmartExtract={onSmartExtract}
-              isExtracting={isExtracting}
-              activeTool={activeTool}
-              onToolChange={onToolChange}
-              characteristicsCount={effectiveCharCount}
-              isDrawerOpen={isDrawerOpen}
-              onToggleDrawer={onToggleDrawer}
-              balloonAppearance={balloonAppearance}
-              onUpdateBalloonAppearance={onUpdateBalloonAppearance}
-              balloonsLocked={balloonsLocked}
-              onToggleLockBalloons={onToggleLockBalloons}
               onRenumberAll={onRenumberAll}
               onRepositionBalloons={onRepositionBalloons}
-              selectedCharId={selectedCharId}
-              selectedChar={selectedChar}
-              onDeleteCharacteristic={onDeleteCharacteristic}
-            />
-          )}
-
-          {activeTab === 'inspection' && (
-            <InspectionRibbonTab
-              characteristics={characteristics}
-              isDrawerOpen={isDrawerOpen}
-              onToggleDrawer={onToggleDrawer}
-              onSelectFormTab={onSelectFormTab}
-              onSetTableFilter={onSetTableFilter}
-            />
-          )}
-
-          {activeTab === 'reports' && (
-            <ReportsRibbonTab
-              hasDrawing={hasDrawing}
-              characteristicsCount={effectiveCharCount}
-              onExportExcel={onExportExcel}
-              onExportPdf={onExportPdf}
-              onSaveProject={onSaveProject}
-              onOpenProject={onOpenProject}
-              onToggleDrawer={onToggleDrawer}
-            />
-          )}
-
-          {activeTab === 'view' && (
-            <ViewRibbonTab
-              isLeftPanelOpen={isLeftPanelOpen}
-              isBottomPanelOpen={isBottomPanelOpen}
-              onToggleLeftPanel={onToggleLeftPanel}
-              onToggleBottomPanel={onToggleBottomPanel}
-              onToggleFullDrawing={onToggleFullDrawing}
-              onToggleMaximizeLeft={onToggleMaximizeLeft}
-              onToggleMaximizeBottom={onToggleMaximizeBottom}
-              onResetLayout={onResetLayout}
-              isDarkMode={isDarkMode}
-              onToggleDarkMode={onToggleDarkMode}
-              onFitPage={onFitPage}
-              onFitWidth={onFitWidth}
-              onZoomIn={onZoomIn}
-              onZoomOut={onZoomOut}
-              hasDrawing={hasDrawing}
+              balloonsLocked={balloonsLocked}
+              onToggleLockBalloons={onToggleLockBalloons}
             />
           )}
 
           {activeTab === 'settings' && (
             <SettingsRibbonTab
-              projectProps={projectProps}
+              settings={settings || DEFAULT_PROJECT_SETTINGS}
+              onUpdateSettings={onUpdateSettings || (() => {})}
+              onOpenSettingsModal={handleOpenSettingsModal}
             />
           )}
         </div>
       )}
 
-      {/* 4. MULTI-DOCUMENT PROJECT TABS BAR (Height: 26px) */}
-      <div className="h-6 bg-slate-200/80 dark:bg-[#14181f] px-2 flex items-center gap-1 border-b border-slate-300 dark:border-zinc-800 overflow-x-auto select-none no-scrollbar">
-        {projectFiles.map((file) => {
-          const isActive = file.id === activeFileId;
-          return (
-            <div
-              key={file.id}
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={0}
-              onClick={() => onSelectFile(file.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectFile(file.id);
-                }
-              }}
-              className={`group relative h-5 px-2.5 flex items-center gap-1.5 text-[11px] rounded-t font-mono cursor-pointer transition select-none shrink-0 ${
-                isActive
-                  ? 'bg-white dark:bg-[#1c2128] text-slate-900 dark:text-white font-bold shadow-2xs border-t border-x border-slate-300 dark:border-zinc-700'
-                  : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-300/80 dark:hover:bg-zinc-800 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-blue-600 dark:bg-blue-400' : 'bg-slate-400 dark:bg-zinc-600'}`} />
-              <span className="truncate max-w-[200px]" title={file.name}>{file.name}</span>
-              {onCloseFile && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseFile(file.id);
-                  }}
-                  className="ml-1 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-400 hover:text-red-600 transition shrink-0 cursor-pointer"
-                  title={`Close ${file.name}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={onAddFile}
-          className="h-4 px-1.5 flex items-center gap-1 text-[10px] font-bold rounded bg-slate-300/80 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 ml-1 transition shrink-0 cursor-pointer"
-          title="Add another drawing to this AS9102 inspection report"
-        >
-          <span>+ Add Drawing</span>
-        </button>
-      </div>
+      {/* 4. MULTI-DOCUMENT PROJECT TABS BAR (Height: 24px) - Rendered when files are loaded */}
+      {projectFiles.length > 0 && (
+        <div className="h-6 bg-slate-200/80 dark:bg-[#14181f] px-2 flex items-center gap-1 border-b border-slate-300 dark:border-zinc-800 overflow-x-auto select-none no-scrollbar">
+          {projectFiles.map((file) => {
+            const isActive = file.id === activeFileId;
+            return (
+              <div
+                key={file.id}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={0}
+                onClick={() => onSelectFile(file.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectFile(file.id);
+                  }
+                }}
+                className={`group relative h-5 px-2.5 flex items-center gap-1.5 text-[11px] rounded-t font-mono cursor-pointer transition select-none shrink-0 ${isActive
+                    ? 'bg-white dark:bg-[#1c2128] text-slate-900 dark:text-white font-bold shadow-2xs border-t border-x border-slate-300 dark:border-zinc-700'
+                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-300/80 dark:hover:bg-zinc-800 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-slate-900 dark:bg-zinc-200' : 'bg-slate-400 dark:bg-zinc-600'}`} />
+                <span className="truncate max-w-[200px]" title={file.name}>{file.name}</span>
+                {onCloseFile && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseFile(file.id);
+                    }}
+                    className="ml-1 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-400 hover:text-red-600 transition shrink-0 cursor-pointer"
+                    title={`Close ${file.name}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* 5. BACKSTAGE MODAL (Opens on FILE click or Alt+F) */}
       <FileBackstageModal
@@ -491,6 +684,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         onClose={() => setShowBackstage(false)}
         document={blueprintDoc}
         projectProps={projectProps}
+        onUpdateProjectProps={onUpdateProjectProps}
         characteristicsCount={effectiveCharCount}
         onNewProject={onNewProject}
         onOpenProject={onOpenProject}
@@ -500,6 +694,15 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         onExportExcel={onExportExcel}
         onExportPdf={onExportPdf}
         onCloseFile={onCloseFile}
+      />
+
+      {/* 6. PROJECT SETTINGS & OPTIONS MODAL */}
+      <ProjectSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        settings={settings || DEFAULT_PROJECT_SETTINGS}
+        onUpdateSettings={onUpdateSettings || (() => {})}
+        initialTab={settingsModalInitialTab}
       />
     </header>
   );

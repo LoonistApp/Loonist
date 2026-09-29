@@ -2,24 +2,18 @@ import React from 'react';
 import { 
   ChevronUp, 
   ChevronDown, 
-  ShieldCheck, 
-  Layers,
   FolderOpen
 } from 'lucide-react';
 
 export type RibbonTabId = 
-  | 'home' 
-  | 'drawing' 
-  | 'balloons' 
-  | 'inspection' 
-  | 'reports' 
-  | 'view' 
+  | 'home'
   | 'settings';
 
 interface RibbonTabNavProps {
   activeTab: RibbonTabId;
   onSelectTab: (tab: RibbonTabId) => void;
-  onOpenFileMenu: () => void;
+  onOpenFileMenu?: () => void;
+  isFileMenuOpen?: boolean;
   isRibbonCollapsed: boolean;
   onToggleCollapse: () => void;
   characteristicsCount?: number;
@@ -28,11 +22,6 @@ interface RibbonTabNavProps {
 
 const TABS: Array<{ id: RibbonTabId; label: string }> = [
   { id: 'home', label: 'HOME' },
-  { id: 'drawing', label: 'DRAWING' },
-  { id: 'balloons', label: 'BALLOONS' },
-  { id: 'inspection', label: 'INSPECTION' },
-  { id: 'reports', label: 'REPORTS' },
-  { id: 'view', label: 'VIEW' },
   { id: 'settings', label: 'SETTINGS' },
 ];
 
@@ -40,29 +29,33 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
   activeTab,
   onSelectTab,
   onOpenFileMenu,
+  isFileMenuOpen = false,
   isRibbonCollapsed,
-  onToggleCollapse,
-  characteristicsCount = 0,
-  hasDrawing = false
+  onToggleCollapse
 }) => {
   return (
     <div className="h-7 bg-slate-200/90 dark:bg-[#161b22] px-2 flex items-center justify-between border-b border-slate-300 dark:border-zinc-800 select-none">
-      {/* Left: FILE button + Ribbon Workspace Tabs */}
+      {/* Ribbon Workspace Navigation Tabs */}
       <div className="flex items-center h-full gap-0.5">
-        {/* Engineering Desktop FILE Button (Backstage Access) */}
+        {/* FILE Tab (In front of HOME) */}
         <button
           type="button"
           onClick={onOpenFileMenu}
-          className="h-6 px-3 mr-1 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xs shadow-2xs transition cursor-pointer"
-          title="Project File Operations & Backstage Menu [Alt+F]"
+          className={`relative h-6 px-3 flex items-center gap-1.5 text-[11px] tracking-wide transition cursor-pointer rounded-t-xs ${
+            isFileMenuOpen
+              ? 'bg-white dark:bg-[#1c2128] font-bold border-t-2 border-t-slate-800 dark:border-t-zinc-200 border-x border-x-slate-300 dark:border-x-zinc-700/80 shadow-2xs'
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800/80 border-t-2 border-t-transparent'
+          }`}
+          title="File Operations & Backstage Menu [Alt+F]"
         >
-          <FolderOpen className="w-3.5 h-3.5" />
-          <span>FILE</span>
+          <FolderOpen className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-300 shrink-0" />
+          <span className={isFileMenuOpen ? 'font-bold text-slate-900 dark:text-zinc-100' : 'font-semibold text-slate-700 dark:text-zinc-400'}>
+            FILE
+          </span>
         </button>
 
-        {/* Ribbon Workspace Navigation Tabs */}
         {TABS.map((tab) => {
-          const isActive = activeTab === tab.id && !isRibbonCollapsed;
+          const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
@@ -73,34 +66,22 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
                   onToggleCollapse();
                 }
               }}
-              className={`relative h-6 px-3 flex items-center text-[11px] font-semibold tracking-wide transition cursor-pointer rounded-t-xs ${
+              className={`relative h-6 px-3 flex items-center text-[11px] tracking-wide transition cursor-pointer rounded-t-xs ${
                 isActive
-                  ? 'bg-white dark:bg-[#1c2128] text-blue-600 dark:text-blue-400 font-bold border-t-2 border-t-blue-600 dark:border-t-blue-500 border-x border-x-slate-300 dark:border-x-zinc-700/80 shadow-2xs'
+                  ? 'bg-white dark:bg-[#1c2128] font-bold border-t-2 border-t-slate-800 dark:border-t-zinc-200 border-x border-x-slate-300 dark:border-x-zinc-700/80 shadow-2xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800/80 border-t-2 border-t-transparent'
               }`}
             >
-              <span>{tab.label}</span>
+              <span className={isActive ? 'font-bold text-slate-900 dark:text-zinc-100' : 'font-semibold text-slate-700 dark:text-zinc-400'}>
+                {tab.label}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Right: Quick Indicators & Ribbon Collapse Button */}
-      <div className="flex items-center gap-3 pr-1">
-        {hasDrawing && (
-          <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-500 dark:text-zinc-400 font-mono">
-            <span className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700">
-              <Layers className="w-3 h-3 text-blue-500" />
-              <span>{characteristicsCount} Balloons</span>
-            </span>
-          </div>
-        )}
-
-        <div className="hidden md:flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 font-medium">
-          <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-          <span>AS9102 Rev C</span>
-        </div>
-
+      {/* Right: Ribbon Collapse Button */}
+      <div className="flex items-center gap-1 pr-1">
         {/* Minimize / Expand Ribbon Command Strip Toggle */}
         <button
           type="button"

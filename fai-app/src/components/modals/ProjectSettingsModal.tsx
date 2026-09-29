@@ -1,0 +1,784 @@
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  X,
+  RotateCcw,
+  Check,
+  Ruler,
+  FileCheck,
+  Settings
+} from 'lucide-react';
+import type {
+  ProjectSettings,
+  DelimiterStyle,
+  As9102StandardRevision,
+  SecurityWatermark,
+  TolerancePresetKey,
+  ExportFormatTemplate
+} from '../../types/settings';
+import { DEFAULT_PROJECT_SETTINGS } from '../../types/settings';
+import type { TitleBlockTolerancePreset } from '../../types/characteristics';
+import { DEFAULT_AEROSPACE_TOLERANCES } from '../../types/characteristics';
+import { ApplicationOptionsView } from './options/ApplicationOptionsView';
+
+export type SettingsTab = 'tolerances' | 'compliance' | 'options';
+
+interface ProjectSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  settings: ProjectSettings;
+  onUpdateSettings: (settings: ProjectSettings) => void;
+  initialTab?: SettingsTab;
+}
+
+const LOCAL_STORAGE_KEY = 'loonist_project_settings_default';
+
+// Predefined industry-standard tolerance matrices
+const TOLERANCE_PRESETS: Record<TolerancePresetKey, TitleBlockTolerancePreset> = {
+  'asme-precision': {
+    oneDecimal: 0.030,
+    twoDecimals: 0.010,
+    threeDecimals: 0.005,
+    fourDecimals: 0.0005,
+    angular: 0.5,
+    unit: 'in'
+  },
+  'asme-commercial': {
+    oneDecimal: 0.050,
+    twoDecimals: 0.020,
+    threeDecimals: 0.010,
+    fourDecimals: 0.0020,
+    angular: 1.0,
+    unit: 'in'
+  },
+  'sheet-metal-inch': {
+    oneDecimal: 0.060,
+    twoDecimals: 0.030,
+    threeDecimals: 0.015,
+    fourDecimals: 0.0050,
+    angular: 1.0,
+    unit: 'in'
+  },
+  'iso-medium': {
+    oneDecimal: 0.20,
+    twoDecimals: 0.10,
+    threeDecimals: 0.05,
+    fourDecimals: 0.01,
+    angular: 0.5,
+    unit: 'mm'
+  },
+  'iso-fine': {
+    oneDecimal: 0.10,
+    twoDecimals: 0.05,
+    threeDecimals: 0.01,
+    fourDecimals: 0.002,
+    angular: 0.5,
+    unit: 'mm'
+  },
+  'sheet-metal-metric': {
+    oneDecimal: 0.50,
+    twoDecimals: 0.25,
+    threeDecimals: 0.10,
+    fourDecimals: 0.02,
+    angular: 1.0,
+    unit: 'mm'
+  },
+  'custom': {
+    ...DEFAULT_AEROSPACE_TOLERANCES
+  }
+};
+
+export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
+  isOpen,
+  onClose,
+  settings,
+  onUpdateSettings,
+  initialTab = 'tolerances'
+}) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [draft, setDraft] = useState<ProjectSettings>(() => ({
+    ...DEFAULT_PROJECT_SETTINGS,
+    ...settings
+  }));
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
+
+  // Sync draft whenever modal opens or external settings update
+  useEffect(() => {
+    if (isOpen) {
+      setDraft({
+        ...DEFAULT_PROJECT_SETTINGS,
+        ...settings
+      });
+      setSaveAsDefault(false);
+      if (initialTab) {
+        setActiveTab(initialTab);
+      }
+    }
+  }, [isOpen, settings, initialTab]);
+
+  // Keyboard shortcut: Escape to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  // Handle switching units with smart tolerance conversion
+  const handleUnitChange = (newUnit: 'in' | 'mm') => {
+    if (newUnit === draft.units) return;
+
+    if (newUnit === 'mm') {
+      const preset = TOLERANCE_PRESETS['iso-medium'];
+      setDraft({
+        ...draft,
+        units: 'mm',
+        tolerancePreset: 'iso-medium',
+        tolerances: { ...preset }
+      });
+    } else {
+      const preset = TOLERANCE_PRESETS['asme-precision'];
+      setDraft({
+        ...draft,
+        units: 'in',
+        tolerancePreset: 'asme-precision',
+        tolerances: { ...preset }
+      });
+    }
+  };
+
+  // Handle selecting a tolerance preset
+  const handlePresetSelect = (presetKey: TolerancePresetKey) => {
+    if (presetKey === 'custom') {
+      setDraft({ ...draft, tolerancePreset: 'custom' });
+      return;
+    }
+    const preset = TOLERANCE_PRESETS[presetKey];
+    setDraft({
+      ...draft,
+      tolerancePreset: presetKey,
+      units: preset.unit,
+      tolerances: { ...preset }
+    });
+  };
+
+  // Handle manual input in any tolerance box
+  const handleToleranceInput = (field: keyof TitleBlockTolerancePreset, val: number) => {
+    setDraft({
+      ...draft,
+      tolerancePreset: 'custom',
+      tolerances: {
+        ...draft.tolerances,
+        [field]: val
+      }
+    });
+  };
+
+  const handleSave = () => {
+    if (saveAsDefault) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(draft));
+      } catch (err) {
+        console.warn('Failed to save project settings default to localStorage', err);
+      }
+    }
+    onUpdateSettings(draft);
+    onClose();
+  };
+
+  const handleResetDefaults = () => {
+    setDraft({ ...DEFAULT_PROJECT_SETTINGS });
+  };
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-modal flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto"
+      style={{ zIndex: 99999 }}
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-white dark:bg-[#161618] border border-slate-300 dark:border-zinc-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 rounded-lg ring-1 ring-black/30 transition-all duration-150"
+        style={{
+          width: activeTab === 'options' ? 'min(940px, calc(100vw - 32px))' : 'min(680px, calc(100vw - 32px))',
+          height: activeTab === 'options' ? 'min(660px, calc(100vh - 36px))' : 'auto',
+          maxHeight: 'calc(100vh - 36px)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header Bar */}
+        <div className="h-11 bg-slate-100 dark:bg-[#1c1c1f] border-b border-slate-200 dark:border-zinc-800 px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1 rounded bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
+              <Settings className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 tracking-wide uppercase">
+                {activeTab === 'options' ? 'Application Options' : 'Project Options'}
+              </h2>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white transition cursor-pointer"
+            title="Close [Esc]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 3-Tab Horizontal Switcher */}
+        <div className="h-9 bg-slate-50 dark:bg-[#141416] border-b border-slate-200 dark:border-zinc-800 px-4 flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('tolerances')}
+            className={`flex items-center gap-1.5 h-full px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${activeTab === 'tolerances'
+                ? 'border-slate-800 dark:border-zinc-200 text-slate-900 dark:text-white'
+                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              }`}
+          >
+            <Ruler className="w-3.5 h-3.5" />
+            <span>Blueprint & Tolerances</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('compliance')}
+            className={`flex items-center gap-1.5 h-full px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${activeTab === 'compliance'
+                ? 'border-slate-800 dark:border-zinc-200 text-slate-900 dark:text-white'
+                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              }`}
+          >
+            <FileCheck className="w-3.5 h-3.5" />
+            <span>Numbering & Compliance</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('options')}
+            className={`flex items-center gap-1.5 h-full px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${activeTab === 'options'
+                ? 'border-sky-600 dark:border-sky-400 text-sky-700 dark:text-sky-300'
+                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Options</span>
+          </button>
+        </div>
+
+        {activeTab === 'options' ? (
+          <ApplicationOptionsView
+            onSave={onClose}
+            onClose={onClose}
+            hideFooter={false}
+          />
+        ) : (
+          <>
+            {/* Tab Content Container */}
+            <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5 min-h-[360px]">
+              {activeTab === 'tolerances' && (
+                <>
+                  {/* Section 1: Title Block Tolerances */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                          Title Block Tolerances
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                          General tolerances applied when drawing dimensions lack explicit ± limits.
+                        </p>
+                      </div>
+
+                      {/* Units Toggle */}
+                      <div className="inline-flex rounded border border-slate-300 dark:border-zinc-700 p-0.5 bg-slate-100 dark:bg-zinc-800/80">
+                        <button
+                          type="button"
+                          onClick={() => handleUnitChange('in')}
+                          className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${draft.units === 'in'
+                              ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-2xs'
+                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                          Inches (in)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUnitChange('mm')}
+                          className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${draft.units === 'mm'
+                              ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-2xs'
+                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                          Millimeters (mm)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Preset Selector with 1-Tap Buttons & Dropdown */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-zinc-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300 whitespace-nowrap mr-1">
+                          Industry Presets:
+                        </span>
+                        {draft.units === 'in' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handlePresetSelect('asme-precision')}
+                              className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
+                                draft.tolerancePreset === 'asme-precision'
+                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              Aerospace Precision (ASME)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePresetSelect('asme-commercial')}
+                              className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
+                                draft.tolerancePreset === 'asme-commercial'
+                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              Commercial
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePresetSelect('sheet-metal-inch')}
+                              className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
+                                draft.tolerancePreset === 'sheet-metal-inch'
+                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              Sheet Metal
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handlePresetSelect('iso-medium')}
+                              className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
+                                draft.tolerancePreset === 'iso-medium'
+                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              ISO 2768-m
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePresetSelect('iso-fine')}
+                              className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
+                                draft.tolerancePreset === 'iso-fine'
+                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              ISO 2768-f
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePresetSelect('sheet-metal-metric')}
+                              className={`px-2.5 py-1 rounded text-[10.5px] font-semibold transition cursor-pointer select-none border ${
+                                draft.tolerancePreset === 'sheet-metal-metric'
+                                  ? 'bg-slate-800 dark:bg-zinc-200 text-white dark:text-zinc-900 border-slate-800 dark:border-zinc-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              Sheet Metal
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <select
+                        value={draft.tolerancePreset || 'custom'}
+                        onChange={(e) => handlePresetSelect(e.target.value as TolerancePresetKey)}
+                        className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                      >
+                        {draft.units === 'in' ? (
+                          <>
+                            <option value="asme-precision">ASME Y14.5 Aerospace</option>
+                            <option value="asme-commercial">Commercial Standard</option>
+                            <option value="sheet-metal-inch">Sheet Metal (Inches)</option>
+                            <option value="custom">Custom Specification</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="iso-medium">ISO 2768-m (General)</option>
+                            <option value="iso-fine">ISO 2768-f (Fine Precision)</option>
+                            <option value="sheet-metal-metric">Sheet Metal (mm)</option>
+                            <option value="custom">Custom Specification</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    {/* 5-Column Decimal Tolerance Grid */}
+                    <div className="grid grid-cols-5 gap-2.5">
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          ± .X (1 Place)
+                        </label>
+                        <input
+                          type="number"
+                          step={draft.units === 'mm' ? '0.1' : '0.01'}
+                          value={draft.tolerances.oneDecimal}
+                          onChange={(e) => handleToleranceInput('oneDecimal', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          ± .XX (2 Places)
+                        </label>
+                        <input
+                          type="number"
+                          step={draft.units === 'mm' ? '0.05' : '0.005'}
+                          value={draft.tolerances.twoDecimals}
+                          onChange={(e) => handleToleranceInput('twoDecimals', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          ± .XXX (3 Places)
+                        </label>
+                        <input
+                          type="number"
+                          step={draft.units === 'mm' ? '0.01' : '0.001'}
+                          value={draft.tolerances.threeDecimals}
+                          onChange={(e) => handleToleranceInput('threeDecimals', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          ± .XXXX (4 Places)
+                        </label>
+                        <input
+                          type="number"
+                          step={draft.units === 'mm' ? '0.002' : '0.0001'}
+                          value={draft.tolerances.fourDecimals}
+                          onChange={(e) => handleToleranceInput('fourDecimals', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          ± Angles (°)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={draft.tolerances.angular}
+                          onChange={(e) => handleToleranceInput('angular', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-slate-200 dark:bg-zinc-800" />
+
+                  {/* Section 2: Extraction & Ballooning Behavior */}
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                        Extraction & Ballooning Behavior
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        Rules for auto-detecting dimensions, drawing notes, and quantity patterns.
+                      </p>
+                    </div>
+
+                    {/* Multiplier Behavior Segment */}
+                    <div className="bg-slate-50 dark:bg-zinc-900/50 p-3 rounded-lg border border-slate-200 dark:border-zinc-800 flex flex-col gap-2">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-zinc-200">
+                        Quantity Multipliers (e.g., 4X ⌀.250 Holes):
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDraft({ ...draft, multiplierBehavior: 'single_balloon' })}
+                          className={`flex flex-col p-2 rounded border text-left transition cursor-pointer ${draft.multiplierBehavior === 'single_balloon'
+                              ? 'border-slate-800 dark:border-zinc-200 bg-white dark:bg-zinc-800 shadow-2xs'
+                              : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
+                            }`}
+                        >
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            1 Balloon (Qty = 4)
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                            Single row in Form 3 with quantity count.
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDraft({ ...draft, multiplierBehavior: 'split_sub_balloons' })}
+                          className={`flex flex-col p-2 rounded border text-left transition cursor-pointer ${draft.multiplierBehavior === 'split_sub_balloons'
+                              ? 'border-slate-800 dark:border-zinc-200 bg-white dark:bg-zinc-800 shadow-2xs'
+                              : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
+                            }`}
+                        >
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            Split into Sub-Balloons
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                            Creates 1.1, 1.2, 1.3, 1.4 for individual measurement.
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Practical Checkbox Rules */}
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={draft.autoBalloonNotes}
+                          onChange={(e) => setDraft({ ...draft, autoBalloonNotes: e.target.checked })}
+                          className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Auto-balloon Drawing Notes (as AS9102 Form 3 General Characteristics)</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={draft.autoDetectZones}
+                          onChange={(e) => setDraft({ ...draft, autoDetectZones: e.target.checked })}
+                          className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Auto-detect Sheet Zone Coordinates (e.g. Sheet 1, Zone B-4)</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={draft.skipReferenceDimensions}
+                          onChange={(e) => setDraft({ ...draft, skipReferenceDimensions: e.target.checked })}
+                          className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Exclude Reference Dimensions (dimensions enclosed in parentheses)</span>
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'compliance' && (
+                <>
+                  {/* Section 1: Balloon Numbering Sequence */}
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                        Balloon Numbering Sequence
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        Format and indexing rules for balloon callouts on drawing sheets.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          Starting Number
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={draft.startingNumber}
+                          onChange={(e) => setDraft({ ...draft, startingNumber: Math.max(1, parseInt(e.target.value) || 1) })}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1 text-xs font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          Increment Step
+                        </label>
+                        <div className="flex rounded border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-800">
+                          {[1, 5, 10].map((step) => (
+                            <button
+                              key={step}
+                              type="button"
+                              onClick={() => setDraft({ ...draft, incrementStep: step })}
+                              className={`flex-1 py-0.5 rounded text-xs font-semibold transition cursor-pointer ${draft.incrementStep === step
+                                  ? 'bg-slate-800 text-white dark:bg-zinc-700'
+                                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                              +{step}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          Prefix (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. D- or S1-"
+                          value={draft.balloonPrefix || ''}
+                          onChange={(e) => setDraft({ ...draft, balloonPrefix: e.target.value })}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1 text-xs font-mono text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sub-Delimiter */}
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-zinc-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800">
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
+                        Sub-Characteristic Delimiter:
+                      </span>
+                      <div className="inline-flex rounded border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-800">
+                        {(['.', '-', '/'] as DelimiterStyle[]).map((delim) => (
+                          <button
+                            key={delim}
+                            type="button"
+                            onClick={() => setDraft({ ...draft, subDelimiter: delim })}
+                            className={`px-3 py-0.5 rounded text-xs font-mono font-bold transition cursor-pointer ${draft.subDelimiter === delim
+                                ? 'bg-slate-800 text-white dark:bg-zinc-700'
+                                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                          >
+                            1{delim}1
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-slate-200 dark:bg-zinc-800" />
+
+                  {/* Section 2: AS9102 Compliance & Export */}
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                        AS9102 Quality Report & Export
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        Configure standard compliance headers, export watermarking, and target formats.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          Aerospace Standard Revision
+                        </label>
+                        <select
+                          value={draft.as9102Revision}
+                          onChange={(e) => setDraft({ ...draft, as9102Revision: e.target.value as As9102StandardRevision })}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                        >
+                          <option value="Rev C">SAE AS9102 Rev C (Current 2023)</option>
+                          <option value="Rev B">SAE AS9102 Rev B (Legacy)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                          Drawing Security Watermark
+                        </label>
+                        <select
+                          value={draft.watermark}
+                          onChange={(e) => setDraft({ ...draft, watermark: e.target.value as SecurityWatermark })}
+                          className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                        >
+                          <option value="NONE">None (Clean Drawing)</option>
+                          <option value="ITAR RESTRICTED">ITAR RESTRICTED — Defense Article</option>
+                          <option value="COMPANY CONFIDENTIAL">COMPANY CONFIDENTIAL</option>
+                          <option value="PRELIMINARY FAIR">PRELIMINARY FAIR — In Process</option>
+                          <option value="CUSTOMER APPROVED">CUSTOMER APPROVED — Final Release</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 block mb-1">
+                        Primary Export Format Template
+                      </label>
+                      <select
+                        value={draft.exportFormat || 'AS9102'}
+                        onChange={(e) => setDraft({ ...draft, exportFormat: e.target.value as ExportFormatTemplate })}
+                        className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-slate-800 dark:text-zinc-100 font-medium cursor-pointer"
+                      >
+                        <option value="AS9102">AS9102 Excel Forms 1, 2, 3 (.xlsx)</option>
+                        <option value="NET_INSPECT">Net-Inspect Aerospace Portal Direct CSV (.csv)</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="h-12 bg-slate-100 dark:bg-[#1a1a1c] border-t border-slate-200 dark:border-zinc-800 px-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleResetDefaults}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+                  title="Reset all settings to default aerospace recommendations"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Defaults</span>
+                </button>
+
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 dark:text-zinc-300 select-none">
+                  <input
+                    type="checkbox"
+                    checked={saveAsDefault}
+                    onChange={(e) => setSaveAsDefault(e.target.checked)}
+                    className="rounded border-slate-300 accent-slate-800 dark:accent-zinc-200 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span>Save as default for future projects</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3.5 py-1.5 text-xs font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200/60 dark:hover:bg-zinc-800/80 rounded-md transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="btn-primary-action flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold shadow-xs transition cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save Settings</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  return createPortal(modalContent, document.body);
+};

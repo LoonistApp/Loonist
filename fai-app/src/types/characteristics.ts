@@ -33,6 +33,20 @@ export type InspectionMethod =
   | 'Visual / Visual Inspection'
   | 'Custom';
 
+export const INSPECTION_METHODS: InspectionMethod[] = [
+  'Caliper',
+  'Micrometer',
+  'Height Gage',
+  'CMM',
+  'Optical Comparator',
+  'Thread Gage',
+  'Pin Gage',
+  'Bore Gage',
+  'Surface Plate',
+  'Visual / Visual Inspection',
+  'Custom'
+];
+
 export type VerificationStatus = 
   | 'auto_accepted'   // Confidence >= 0.90
   | 'needs_review'    // Confidence < 0.90 or syntax anomaly
@@ -176,6 +190,8 @@ export interface EngineeringCharacteristic {
 
   // Custom user-dragged balloon coordinates (overrides default auto-placement)
   customBalloonPosition?: { x: number; y: number };
+  customBalloonShape?: BalloonShape;
+  customBalloonColor?: string;
 
   // Clean Canvas Rule: Suppresses floating balloon rendering on CAD canvas for general notes while preserving row in Form 3 table
   skipBalloonRender?: boolean;
@@ -188,7 +204,7 @@ export interface EngineeringCharacteristic {
   deviation?: number | null;
 }
 
-export type BalloonShape = 'circle' | 'triangle' | 'hexagon' | 'square';
+export type BalloonShape = 'balloon' | 'circle' | 'triangle' | 'hexagon' | 'square';
 
 export interface BalloonAppearance {
   shape: BalloonShape;
@@ -211,6 +227,7 @@ export interface ProjectProperties {
   samplingLevel: string;
   samplingType: string;
   aql: string;
+  units?: 'in' | 'mm';
 }
 
 export interface TitleBlockTolerancePreset {

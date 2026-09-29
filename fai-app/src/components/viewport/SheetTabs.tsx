@@ -1,63 +1,199 @@
-import React from 'react';
-import { Layers, CheckCircle2 } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { 
+  Layers, 
+  CheckCircle2, 
+  ChevronLeft, 
+  ChevronRight, 
+  ChevronsLeft, 
+  ChevronsRight
+} from 'lucide-react';
 import type { SheetMetadata } from '../../types/blueprint';
 
 interface SheetTabsProps {
   sheets: SheetMetadata[];
   activeSheetIndex: number;
   onSelectSheet: (index: number) => void;
+  onExtractSheet?: (sheetNumber: number) => void;
+  isExtracting?: boolean;
 }
 
 export const SheetTabs: React.FC<SheetTabsProps> = ({
   sheets,
   activeSheetIndex,
-  onSelectSheet
+  onSelectSheet,
+  onExtractSheet: _onExtractSheet,
+  isExtracting: _isExtracting = false
 }) => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll active card into view whenever activeSheetIndex changes
+  useEffect(() => {
+    if (activeTabRef.current) {
+      activeTabRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center'
+      });
+    }
+  }, [activeSheetIndex]);
+
   if (!sheets || sheets.length <= 1) {
     return null;
   }
 
+  const canGoPrev = activeSheetIndex > 0;
+  const canGoNext = activeSheetIndex < sheets.length - 1;
+
+  const handlePrevSheet = () => {
+    if (canGoPrev) onSelectSheet(activeSheetIndex - 1);
+  };
+
+  const handleNextSheet = () => {
+    if (canGoNext) onSelectSheet(activeSheetIndex + 1);
+  };
+
+  const handleFirstSheet = () => {
+    if (canGoPrev) onSelectSheet(0);
+  };
+
+  const handleLastSheet = () => {
+    if (canGoNext) onSelectSheet(sheets.length - 1);
+  };
+
+  const handleScrollLeft = () => {
+    scrollContainerRef.current?.scrollBy({ left: -240, behavior: 'smooth' });
+  };
+
+  const handleScrollRight = () => {
+    scrollContainerRef.current?.scrollBy({ left: 240, behavior: 'smooth' });
+  };
+
+  // Convert vertical mouse wheel into horizontal scroll along sheet cards
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (scrollContainerRef.current && e.deltaY !== 0) {
+      scrollContainerRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
   return (
-    <nav aria-label="Blueprint Sheet Navigation" className="h-9 bg-white dark:bg-[#161616] border-t border-slate-200 dark:border-[#252525] px-4 flex items-center justify-between select-none z-20">
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-2 flex items-center gap-1.5">
+    <nav
+      aria-label="Blueprint Sheet Navigation"
+      className="h-11 shrink-0 bg-white dark:bg-[#161616] border-t border-slate-200 dark:border-[#252525] px-3 flex items-center gap-2 select-none z-20"
+    >
+      {/* 1. Header & Stepper Navigation Controls */}
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1.5 shrink-0">
           <Layers className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-          <span>Sheets</span>
+          <span className="hidden sm:inline">Sheets</span>
         </span>
 
-        {sheets.map((sheet, index) => {
-          const isActive = index === activeSheetIndex;
-          return (
-            <button
-              key={sheet.pageNumber}
-              type="button"
-              onClick={() => onSelectSheet(index)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition cursor-pointer ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-[#252525] dark:text-white dark:border-[#383838] shadow-xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 dark:bg-[#181818] dark:hover:bg-[#202020] dark:text-slate-300 dark:border-[#282828]'
-              }`}
-            >
-              {isActive && <CheckCircle2 className="w-3 h-3 text-blue-600 dark:text-slate-300" />}
-              <span>{sheet.label}</span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                ({Math.round(sheet.width)}×{Math.round(sheet.height)} pt)
-              </span>
-            </button>
-          );
-        })}
+        {/* First Sheet */}
+        <button
+          type="button"
+          onClick={handleFirstSheet}
+          disabled={!canGoPrev}
+          title="First Sheet (Home)"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+        >
+          <ChevronsLeft className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Previous Sheet */}
+        <button
+          type="button"
+          onClick={handlePrevSheet}
+          disabled={!canGoPrev}
+          title="Previous Sheet (Page Up)"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-600 hover:text-slate-900 dark:text-zinc-300 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        {/* Quick Stepper Counter */}
+        <span className="text-xs font-mono font-medium text-slate-700 dark:text-zinc-300 px-2 py-0.5 rounded bg-slate-100 dark:bg-[#202020] border border-slate-200 dark:border-[#333] shrink-0 whitespace-nowrap">
+          {activeSheetIndex + 1} / {sheets.length}
+        </span>
+
+        {/* Next Sheet */}
+        <button
+          type="button"
+          onClick={handleNextSheet}
+          disabled={!canGoNext}
+          title="Next Sheet (Page Down)"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-600 hover:text-slate-900 dark:text-zinc-300 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+
+        {/* Last Sheet */}
+        <button
+          type="button"
+          onClick={handleLastSheet}
+          disabled={!canGoNext}
+          title="Last Sheet (End)"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+        >
+          <ChevronsRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
-      <div className="hidden lg:flex items-center gap-3 text-[11px] text-slate-500 font-mono">
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span>Active Sheet In-Memory</span>
-        </span>
-        <span>•</span>
-        <span className="text-slate-400">
-          Inactive Pages Offloaded (&lt;1.5GB Target)
-        </span>
+      {/* Vertical separator */}
+      <div className="h-5 w-[1px] bg-slate-200 dark:bg-[#2c2c2c] shrink-0" />
+
+      {/* 2. Scroll Strip Arrows & Sheet Cards */}
+      <div className="relative flex-1 flex items-center min-w-0 h-full">
+        {/* Scroll Left Button */}
+        <button
+          type="button"
+          onClick={handleScrollLeft}
+          title="Scroll tabs left"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 transition shrink-0 mr-1 cursor-pointer"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Scrollable Sheet Cards Container with sleek scrollbar */}
+        <div
+          ref={scrollContainerRef}
+          onWheel={handleWheel}
+          className="h-full flex-1 flex items-center gap-1.5 overflow-x-auto py-1 sheet-tabs-scroll"
+        >
+          {sheets.map((sheet, index) => {
+            const isActive = index === activeSheetIndex;
+            return (
+              <button
+                key={sheet.pageNumber}
+                ref={isActive ? activeTabRef : undefined}
+                type="button"
+                onClick={() => onSelectSheet(index)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer shrink-0 leading-none ${
+                  isActive
+                    ? 'bg-slate-200 text-slate-900 border border-slate-400 dark:bg-[#252525] dark:text-white dark:border-[#383838] shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 dark:bg-[#181818] dark:hover:bg-[#202020] dark:text-slate-300 dark:border-[#282828]'
+                }`}
+              >
+                {isActive && <CheckCircle2 className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300 shrink-0" />}
+                <span className="inline-flex items-center leading-none whitespace-nowrap">{sheet.label}</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-400 font-mono inline-flex items-center leading-none whitespace-nowrap">
+                  ({Math.round(sheet.width)}×{Math.round(sheet.height)} pt)
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Scroll Right Button */}
+        <button
+          type="button"
+          onClick={handleScrollRight}
+          title="Scroll tabs right"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 transition shrink-0 ml-1 cursor-pointer"
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
     </nav>
   );
 };
+

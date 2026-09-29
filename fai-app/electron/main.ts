@@ -32,6 +32,7 @@ let mainWindowRef: BrowserWindow | null = null;
 
 // Prevent Windows disk cache permission conflicts in multi-process dev
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.setName('LOONIST');
 
 function createWindow() {
   const preloadCandidateMjs = path.join(__dirname, 'preload.mjs');
@@ -301,5 +302,72 @@ ipcMain.handle('ipc-load-project-file', async (event) => {
     filePath,
     content
   };
+});
+
+ipcMain.handle('ipc-show-message-box', async (event, payload: { message: string; title?: string }) => {
+  validateSender(event);
+  const win = mainWindowRef || BrowserWindow.getFocusedWindow();
+  if (win) {
+    await dialog.showMessageBox(win, {
+      type: 'none',
+      title: payload.title || 'LOONIST',
+      message: payload.message,
+      buttons: ['OK'],
+      noLink: true,
+    });
+  } else {
+    await dialog.showMessageBox({
+      type: 'none',
+      title: payload.title || 'LOONIST',
+      message: payload.message,
+      buttons: ['OK'],
+      noLink: true,
+    });
+  }
+  return { success: true };
+});
+
+ipcMain.handle('ipc-exit-app', async (event) => {
+  validateSender(event);
+  app.quit();
+  return { success: true };
+});
+
+ipcMain.handle('ipc-window-minimize', async (event) => {
+  validateSender(event);
+  const win = mainWindowRef || BrowserWindow.getFocusedWindow();
+  win?.minimize();
+  return { success: true };
+});
+
+ipcMain.handle('ipc-window-maximize', async (event) => {
+  validateSender(event);
+  const win = mainWindowRef || BrowserWindow.getFocusedWindow();
+  if (win?.isMaximized()) {
+    win.unmaximize();
+  } else {
+    win?.maximize();
+  }
+  return { isMaximized: Boolean(win?.isMaximized()) };
+});
+
+ipcMain.handle('ipc-window-restore', async (event) => {
+  validateSender(event);
+  const win = mainWindowRef || BrowserWindow.getFocusedWindow();
+  win?.unmaximize();
+  return { isMaximized: false };
+});
+
+ipcMain.handle('ipc-window-is-maximized', async (event) => {
+  validateSender(event);
+  const win = mainWindowRef || BrowserWindow.getFocusedWindow();
+  return { isMaximized: Boolean(win?.isMaximized()) };
+});
+
+ipcMain.handle('ipc-window-close', async (event) => {
+  validateSender(event);
+  const win = mainWindowRef || BrowserWindow.getFocusedWindow();
+  win?.close();
+  return { success: true };
 });
 

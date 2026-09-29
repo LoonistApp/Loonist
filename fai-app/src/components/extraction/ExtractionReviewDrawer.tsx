@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { 
   EngineeringCharacteristic, 
   InspectionMethod 
 } from '../../types/characteristics';
 import { MultiplierParser } from '../../services/ai/multiplierParser';
+import { RightVerticalSplitter } from '../layout/Splitter';
 import { 
   X, 
   CheckCircle2, 
   AlertTriangle, 
-  Sparkles, 
+  Search, 
   Split, 
-  Layers
+  Layers,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 interface ExtractionReviewDrawerProps {
@@ -47,6 +50,37 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
 }) => {
   const [filterNeedsReview, setFilterNeedsReview] = useState(false);
   const [sheetFilter, setSheetFilter] = useState<number | 'all'>('all');
+  const [drawerWidth, setDrawerWidth] = useState(480);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const savedNormalWidthRef = useRef(480);
+
+  const handleToggleMaximize = useCallback(() => {
+    if (isMaximized) {
+      const restored = savedNormalWidthRef.current || 480;
+      setDrawerWidth(restored);
+      setIsMaximized(false);
+    } else {
+      savedNormalWidthRef.current = drawerWidth;
+      const maxTarget = Math.round(window.innerWidth * 0.72);
+      setDrawerWidth(maxTarget);
+      setIsMaximized(true);
+    }
+  }, [isMaximized, drawerWidth]);
+
+  const handleWidthChange = useCallback((newWidth: number) => {
+    setDrawerWidth(newWidth);
+    if (isMaximized) setIsMaximized(false);
+  }, [isMaximized]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -86,31 +120,67 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[480px] bg-white border-l border-slate-300 shadow-2xl z-40 flex flex-col select-none text-slate-800">
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: `${drawerWidth}px`,
+        maxWidth: '100vw',
+        zIndex: 60
+      }}
+      className="bg-white border-l border-slate-300 shadow-2xl flex flex-col select-none text-slate-800"
+    >
+      {/* Draggable Resizable Left Border Splitter (matches sidebar & bottom table splitters) */}
+      <RightVerticalSplitter
+        currentWidth={drawerWidth}
+        onWidthChange={handleWidthChange}
+        onToggleMaximize={handleToggleMaximize}
+        minWidth={340}
+        maxWidth={Math.round(window.innerWidth * 0.85)}
+      />
+
       {/* Header Bar */}
-      <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between bg-slate-50">
+      <div 
+        onDoubleClick={handleToggleMaximize}
+        className="h-12 border-b border-slate-200 px-4 flex items-center justify-between bg-slate-50 cursor-pointer"
+        title="Double-click header to maximize / restore"
+      >
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-600" />
-          <h3 className="font-bold text-slate-900 text-sm">AI Characteristics Inspector</h3>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold">
+          <Search className="w-4 h-4 text-slate-700 dark:text-zinc-300" />
+          <h3 className="font-bold text-slate-900 text-sm">Characteristics Inspector</h3>
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-semibold">
             {totalCount} Items
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
-          title="Close Inspector"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Maximize / Restore Button */}
+          <button
+            type="button"
+            onClick={handleToggleMaximize}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer"
+            title={isMaximized ? "Restore Size (Double-click border or header)" : "Maximize Inspector (Double-click border or header)"}
+          >
+            {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer"
+            title="Close Inspector"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Quality Telemetry & Filter Strip */}
       <div className="p-3 border-b border-slate-200 bg-white flex flex-col gap-2">
         <div className="flex items-center justify-between text-xs font-medium">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-emerald-700">
+            <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{verifiedCount} Accepted</span>
             </span>
@@ -143,54 +213,54 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
           <button
             type="button"
             onClick={() => setSheetFilter('all')}
-            className={`px-2 py-0.5 rounded ${sheetFilter === 'all' ? 'bg-blue-600 text-white font-semibold' : 'bg-slate-100 hover:bg-slate-200'}`}
+            className={`px-2 py-0.5 rounded ${sheetFilter === 'all' ? 'bg-slate-800 text-white font-semibold' : 'bg-slate-100 hover:bg-slate-200'}`}
           >
             All Sheets
           </button>
           <button
             type="button"
             onClick={() => setSheetFilter(1)}
-            className={`px-2 py-0.5 rounded ${sheetFilter === 1 ? 'bg-blue-600 text-white font-semibold' : 'bg-slate-100 hover:bg-slate-200'}`}
+            className={`px-2 py-0.5 rounded ${sheetFilter === 1 ? 'bg-slate-800 text-white font-semibold' : 'bg-slate-100 hover:bg-slate-200'}`}
           >
             Sheet 1
           </button>
           <button
             type="button"
             onClick={() => setSheetFilter(2)}
-            className={`px-2 py-0.5 rounded ${sheetFilter === 2 ? 'bg-blue-600 text-white font-semibold' : 'bg-slate-100 hover:bg-slate-200'}`}
+            className={`px-2 py-0.5 rounded ${sheetFilter === 2 ? 'bg-slate-800 text-white font-semibold' : 'bg-slate-100 hover:bg-slate-200'}`}
           >
             Sheet 2
           </button>
         </div>
       </div>
 
-      {/* Magnified 300 DPI Crop Box for Rapid HITL Verification */}
-      <div className="mx-3 mt-2.5 p-2 bg-slate-900 rounded-lg border border-slate-700 shadow-md flex flex-col gap-1.5 shrink-0">
-        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+      {/* Magnified 300 DPI Crop Box for Rapid Verification */}
+      <div className="mx-3 mt-2.5 p-2 bg-white dark:bg-[#111111] rounded-lg border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col gap-1.5 shrink-0">
+        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700 dark:text-slate-300">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="uppercase tracking-wider font-mono">300 DPI Vector Crop (HITL Inspector)</span>
+            <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-zinc-500 animate-pulse" />
+            <span className="uppercase tracking-wider font-mono">300 DPI Vector Crop (Inspector)</span>
           </div>
-          <span className="font-mono text-blue-400 text-[10px]">
+          <span className="font-mono text-slate-700 dark:text-zinc-300 text-[10px]">
             {selectedChar ? `#${selectedChar.subNumber || selectedChar.itemNumber} (${selectedChar.drawingZone})` : 'Select a callout'}
           </span>
         </div>
-        <div className="w-full h-20 bg-slate-950 rounded border border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner p-1">
+        <div className="w-full h-20 bg-slate-50 dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner p-1">
           {cropUrl ? (
             <img
               src={cropUrl}
               alt="Magnified Blueprint Crop"
-              className="max-h-full max-w-full object-contain filter invert brightness-150 contrast-125"
+              className="max-h-full max-w-full object-contain dark:filter dark:invert dark:brightness-150 dark:contrast-125"
             />
           ) : selectedChar ? (
             <div className="flex flex-col items-center justify-center text-center">
-              <span className="font-mono text-xs font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-2 py-0.5 rounded">
+              <span className="font-mono text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-500/40 px-2 py-0.5 rounded">
                 {selectedChar.rawText}
               </span>
               <span className="text-[9px] text-slate-500 mt-0.5">Vector Marquee Region</span>
             </div>
           ) : (
-            <span className="text-slate-500 text-[11px] font-mono">Click any characteristic to view magnified crop</span>
+            <span className="text-slate-400 dark:text-zinc-500 text-[11px] font-mono">Click any characteristic to view magnified crop</span>
           )}
         </div>
       </div>
@@ -215,16 +285,16 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                 onClick={() => onSelectCharacteristic?.(char)}
                 className={`p-3 rounded-lg border bg-white shadow-xs transition cursor-pointer ${
                   isSelected
-                    ? 'border-blue-600 ring-2 ring-blue-500/30 bg-blue-50/30'
+                    ? 'border-slate-800 ring-2 ring-slate-400/30 bg-slate-50'
                     : isFlagged
                     ? 'border-amber-300 bg-amber-50/40 hover:border-amber-400'
-                    : 'border-slate-200 hover:border-blue-400'
+                    : 'border-slate-200 hover:border-slate-400'
                 }`}
               >
                 {/* Top Row: Balloon #, Zone, Confidence */}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold font-mono text-xs flex items-center justify-center shadow-xs">
+                    <span className="min-w-6 h-6 px-1.5 rounded bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border border-slate-300 dark:border-zinc-700 font-bold font-mono text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       {char.subNumber || char.itemNumber}
                     </span>
                     <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
@@ -246,12 +316,12 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                       </span>
                     )}
                     {char.gdtFrame?.compositeLowerTier && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700">
                         COMPOSITE FCF
                       </span>
                     )}
                     {char.holeCallout && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700">
                         {char.holeCallout.holeType.toUpperCase()}
                       </span>
                     )}
@@ -280,7 +350,7 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                           : 'text-amber-800 bg-amber-100 border border-amber-300 font-bold'
                       }`}
                     >
-                      {Math.round(char.confidenceScore * 100)}% Conf
+                      {Math.round(char.confidenceScore * 100)}% Match
                     </span>
                   </div>
                 </div>
@@ -323,7 +393,7 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
 
                 {/* Extended Hole Callout Specs if present */}
                 {char.holeCallout && (
-                  <div className="text-[10px] font-mono bg-cyan-50/60 border border-cyan-100 px-2 py-1 rounded mb-2 text-cyan-900 flex items-center justify-between">
+                  <div className="text-[10px] font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded mb-2 text-slate-800 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 flex items-center justify-between">
                     <span>
                       <strong>Hole Spec:</strong> {char.holeCallout.holeType.toUpperCase()}
                       {char.holeCallout.counterboreDia ? ` | C'Bore: Ø${char.holeCallout.counterboreDia}` : ''}
@@ -336,7 +406,7 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
 
                 {/* Composite GD&T Lower Tier (FRTZF) if present */}
                 {char.gdtFrame?.compositeLowerTier && (
-                  <div className="text-[10px] font-mono bg-indigo-50/60 border border-indigo-100 px-2 py-1 rounded mb-2 text-indigo-900">
+                  <div className="text-[10px] font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded mb-2 text-slate-800 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200">
                     <strong>Lower Tier (FRTZF):</strong> {char.gdtFrame.compositeLowerTier.symbol || char.gdtFrame.symbol} {char.gdtFrame.compositeLowerTier.toleranceValue}
                     {char.gdtFrame.compositeLowerTier.primaryDatum ? ` | ${char.gdtFrame.compositeLowerTier.primaryDatum.datum}` : ''}
                     {char.gdtFrame.compositeLowerTier.secondaryDatum ? ` | ${char.gdtFrame.compositeLowerTier.secondaryDatum.datum}` : ''}
@@ -347,7 +417,7 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                 <div className="text-[10px] text-slate-500 mb-2 flex items-center justify-between">
                   <span>Source: <strong className="text-slate-700">{char.toleranceSource}</strong></span>
                   {char.isToleranceInherited && (
-                    <span className="text-blue-600 font-medium">Auto-Inherited</span>
+                    <span className="text-slate-600 dark:text-zinc-400 font-medium">Auto-Inherited</span>
                   )}
                 </div>
 
@@ -372,7 +442,7 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                       <button
                         type="button"
                         onClick={() => handleExpandMultiplier(char)}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition font-medium"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700 transition font-medium"
                         title="Split into individual 1.1 - 1.4 sub-characteristics for AS9102 Form 3"
                       >
                         <Split className="w-3 h-3" />
@@ -389,8 +459,8 @@ export const ExtractionReviewDrawer: React.FC<ExtractionReviewDrawerProps> = ({
                         Verify
                       </button>
                     ) : (
-                      <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium px-1.5 py-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium px-1.5 py-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                         <span>Accepted</span>
                       </span>
                     )}

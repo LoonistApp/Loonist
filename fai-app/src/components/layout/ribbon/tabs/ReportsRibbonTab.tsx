@@ -4,7 +4,7 @@ import {
   FileDown, 
   Save, 
   FolderOpen, 
-  SlidersHorizontal, 
+  Search, 
   ShieldCheck 
 } from 'lucide-react';
 import { RibbonGroup } from '../RibbonGroup';
@@ -60,8 +60,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
       <RibbonGroup title="PROJECT ARCHIVE">
         <RibbonButton
           variant="large"
-          accent="blue"
-          icon={<Save className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
+          icon={<Save className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
           label="Save Package"
           subLabel=".loonist"
           disabled={!hasDrawing && characteristicsCount === 0}
@@ -72,7 +71,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
         <div className="flex flex-col justify-center">
           <RibbonButton
             variant="small"
-            icon={<FolderOpen className="w-3.5 h-3.5 text-amber-500" />}
+            icon={<FolderOpen className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
             label="Open Package"
             hotkey="Ctrl+O"
             title="Load existing LOONIST project package"
@@ -81,10 +80,10 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
           {onToggleDrawer && (
             <RibbonButton
               variant="small"
-              icon={<SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />}
-              label="Preview Drawer"
+              icon={<Search className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+              label="Inspections"
               disabled={characteristicsCount === 0}
-              title="Preview characteristics in review drawer before exporting"
+              title="View inspection results before exporting"
               onClick={onToggleDrawer}
             />
           )}

@@ -96,6 +96,60 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 5 / Parser',
     script: 'scripts/test_prose_sentence_exclusion.ts',
     description: 'Verifies strict exclusion of conversational sentences, tutorial paragraphs, and book disclaimers from ballooning'
+  },
+  {
+    name: 'SAE AS9102 Form 1 Part Accountability Validation',
+    sprint: 'Sprint 6 / Compliance',
+    script: 'scripts/test_form1_validation.ts',
+    description: 'Verifies complete validation of required AS9102 Form 1 part metadata, CAGE code, and sampling plan criteria'
+  },
+  {
+    name: 'Production Settings Subsystem (5-Zone Industrial Architecture)',
+    sprint: 'Sprint 7 / Settings',
+    script: 'scripts/test_settings_subsystem.ts',
+    description: 'Verifies 5 settings zones: Tolerancing matrix, units toggle, skip rules, OCR threshold, numbering policy, AS9102 revision, watermarks, and package persistence'
+  },
+  {
+    name: 'Production Help & Engineering Knowledge Base (5-Zone Center)',
+    sprint: 'Sprint 7 / Help',
+    script: 'scripts/test_help_subsystem.ts',
+    description: 'Verifies Quick Start workflow, 14 ASME Y14.5 GD&T symbols, AS9102 Form 1/2/3 guides, hotkeys, and sanitized diagnostics'
+  },
+  {
+    name: 'ASME Y14.5 § 1.8.16 Chamfer & AS9102 Form 3 Tolerance Standards',
+    sprint: 'Sprint 7 / ASME-AS9102',
+    script: 'scripts/test_chamfer_asme_as9102.ts',
+    description: 'Verifies chamfer depth vs angle parsing, multiplier decoupling, and Form 3 Column 9 positive magnitude'
+  },
+  {
+    name: 'Double-Click-To-Pan Omnidirectional Drawing Viewer',
+    sprint: 'Sprint 7 / CAD Viewport',
+    script: 'scripts/test_double_click_to_pan.ts',
+    description: 'Verifies double-click pan mode activation, immediate double-click drag, and omnidirectional free dragging'
+  },
+  {
+    name: 'Characteristics Table Multi-Sheet Scope Isolation & Telemetry',
+    sprint: 'Sprint 7 / UI Scope',
+    script: 'scripts/test_table_sheet_scope.ts',
+    description: 'Verifies smart current sheet filtering, global all-sheets toggle, dual sheet vs lot telemetry, and 100% AS9102 export integrity'
+  },
+  {
+    name: 'Industrial Inspection Standards & Compound Callout Deconstruction',
+    sprint: 'Sprint 7 / Senior QC',
+    script: 'scripts/test_industrial_inspection_standards.ts',
+    description: 'Verifies drawing unit note priority, metric ISO 2768-m general tolerances, angular unit isolation, and AS9102 Form 3 sub-characteristics'
+  },
+  {
+    name: 'Inspection Workspace Sheet Scope & Viewport Synchronization',
+    sprint: 'Sprint 7 / Inspection UI',
+    script: 'scripts/test_inspection_sheet_scroller.ts',
+    description: 'Verifies dedicated sheet scroller, dynamic sheet switching sync, crop preview header, on-canvas balloon delete, and smooth card auto-scroll without drawing pan/zoom distortion'
+  },
+  {
+    name: 'Manual Marquee Box Capture Validation & Non-Inspectable Area Rejection',
+    sprint: 'Sprint 7 / Marquee Capture',
+    script: 'scripts/test_manual_marquee_rejection.ts',
+    description: 'Verifies that general drawing boilerplate, non-inspectable prose, and notes without dimensions are rejected from manual ballooning per ASME Y14.5 / AS9102'
   }
 ];
 

@@ -1,17 +1,15 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { EngineeringCharacteristic, InspectionMethod } from '../../types/characteristics';
 import { MeasurementEngine } from '../../services/compliance/measurementEngine';
+import { useApplicationOptions } from '../../stores/useApplicationOptionsStore';
 import { 
   ChevronUp, 
   Filter, 
   Layers, 
-  FileSpreadsheet, 
   Trash2, 
-  ListOrdered, 
   Maximize2, 
   Minimize2, 
   X,
-  Move,
   AlertCircle
 } from 'lucide-react';
 
@@ -45,6 +43,8 @@ interface TableManagerProps {
   onToggleMaximize?: () => void;
   filterType?: 'all' | 'critical' | 'review';
   onFilterChange?: (filter: 'all' | 'critical' | 'review') => void;
+  activeSheetNumber?: number;
+  totalSheets?: number;
 }
 
 export const TableManager: React.FC<TableManagerProps> = ({
@@ -52,10 +52,10 @@ export const TableManager: React.FC<TableManagerProps> = ({
   selectedCharId,
   onSelectCharacteristic,
   onUpdateCharacteristic,
-  onExportExcel,
+  onExportExcel: _onExportExcel,
   onDeleteCharacteristic,
-  onRenumberAll,
-  onRepositionBalloons,
+  onRenumberAll: _onRenumberAll,
+  onRepositionBalloons: _onRepositionBalloons,
   isOpen = true,
   onToggleOpen,
   panelHeight = 220,
@@ -63,7 +63,9 @@ export const TableManager: React.FC<TableManagerProps> = ({
   isMaximized = false,
   onToggleMaximize,
   filterType: externalFilterType,
-  onFilterChange
+  onFilterChange,
+  activeSheetNumber: _activeSheetNumber = 1,
+  totalSheets: _totalSheets = 1
 }) => {
   const [activeTab, setActiveTab] = useState<'characteristics' | 'bom' | 'specifications'>('characteristics');
   const [internalFilterType, setInternalFilterType] = useState<'all' | 'critical' | 'review'>('all');
@@ -77,8 +79,16 @@ export const TableManager: React.FC<TableManagerProps> = ({
     field: 'rawText' | 'cleanNominal' | 'plusTol' | 'minusTol' | 'measuredValue';
   } | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
-
   const stats = useMemo(() => MeasurementEngine.calculateLotStatistics(characteristics), [characteristics]);
+
+  const [appOptions] = useApplicationOptions();
+  const columnConfigs = appOptions?.workspace?.tableColumns;
+
+  const isColVisible = useCallback((colId: string) => {
+    if (!columnConfigs || columnConfigs.length === 0) return true;
+    const col = columnConfigs.find(c => c.id === colId);
+    return col ? col.visible !== false : true;
+  }, [columnConfigs]);
 
   const handleCellSave = useCallback((char: EngineeringCharacteristic) => {
     if (!editingCell || editingCell.charId !== char.id) return;
@@ -191,8 +201,8 @@ export const TableManager: React.FC<TableManagerProps> = ({
       style={{ height: isCollapsed ? '28px' : `${panelHeight}px` }}
     >
       {/* Table Manager Header Bar with Tabs & Filter Controls */}
-      <div className="h-7 bg-slate-200 dark:bg-[#1c1c1c] px-3 flex items-center justify-between border-b border-slate-300 dark:border-[#2d2d2d] shrink-0">
-        <div className="flex items-center gap-1">
+      <div className="h-7 bg-slate-200 dark:bg-[#1c1c1c] px-3 flex items-center justify-between border-b border-slate-300 dark:border-[#2d2d2d] shrink-0 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
           <button
             type="button"
             onClick={() => {
@@ -310,38 +320,6 @@ export const TableManager: React.FC<TableManagerProps> = ({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onRenumberAll}
-            disabled={characteristics.length === 0}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] transition disabled:opacity-40 cursor-pointer"
-            title="Renumber all characteristics sequentially (AS9102 Rev B/C)"
-          >
-            <ListOrdered className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-            <span>Renumber All</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onRepositionBalloons}
-            disabled={characteristics.length === 0}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] transition disabled:opacity-40 cursor-pointer"
-            title="Auto-reposition all balloons to avoid collisions (Spatial R-Tree AABB)"
-          >
-            <Move className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-            <span>Reposition Balloons</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onExportExcel}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] transition cursor-pointer"
-            title="Export Characteristics to AS9102 Excel"
-          >
-            <FileSpreadsheet className="w-3 h-3" />
-            <span>Export Table</span>
-          </button>
-
           {/* Antigravity IDE Window Controls (Maximize & Close) */}
           <div className="flex items-center gap-0.5 pl-1.5 border-l border-slate-300 dark:border-slate-700 ml-1">
             <button
@@ -386,22 +364,22 @@ export const TableManager: React.FC<TableManagerProps> = ({
                   >
                     #Cha
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-28 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Type</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-32 text-[10px] font-bold text-slate-600 uppercase tracking-wider">SubType</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 min-w-[180px] text-[10px] font-bold text-slate-600 uppercase tracking-wider">Value / Requirement</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-16 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">Nominal</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-10 text-center text-[10px] font-bold text-slate-600 uppercase tracking-wider">Unit</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-14 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">+Tol</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-14 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">-Tol</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-16 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">Upper Limit</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-16 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">Lower Limit</th>
-                  <th className="sticky top-0 z-20 bg-blue-50/70 py-1.5 px-2 border-r border-b border-slate-300 w-18 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">Measured</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-16 text-right text-[10px] font-bold text-slate-600 uppercase tracking-wider">Deviation</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-20 text-center text-[10px] font-bold text-slate-600 uppercase tracking-wider">Status</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-24 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Sheet / View</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-28 text-[10px] font-bold text-slate-600 uppercase tracking-wider">Method</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-r border-b border-slate-300 w-20 text-center text-[10px] font-bold text-slate-600 uppercase tracking-wider">Class</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-b border-slate-300 w-12 text-center text-[10px] font-bold text-slate-600 uppercase tracking-wider">Action</th>
+                  {isColVisible('type') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-28 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Type</th>}
+                  {isColVisible('type') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-32 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">SubType</th>}
+                  {isColVisible('rawText') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] min-w-[180px] text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Value / Requirement</th>}
+                  {isColVisible('cleanNominal') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-16 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nominal</th>}
+                  {isColVisible('cleanNominal') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-10 text-center text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Unit</th>}
+                  {isColVisible('plusTol') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-14 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">+Tol</th>}
+                  {isColVisible('minusTol') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-14 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">-Tol</th>}
+                  {isColVisible('upperLimit') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-16 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Upper Limit</th>}
+                  {isColVisible('lowerLimit') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-16 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Lower Limit</th>}
+                  {isColVisible('measuredValue') && <th className="sticky top-0 z-20 bg-blue-50/70 dark:bg-blue-950/40 py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-18 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Measured</th>}
+                  {isColVisible('deviation') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-16 text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Deviation</th>}
+                  {isColVisible('status') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-20 text-center text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Status</th>}
+                  {isColVisible('source') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-24 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Sheet / View</th>}
+                  {isColVisible('method') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-28 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Method</th>}
+                  {isColVisible('classification') && <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-r border-b border-slate-300 dark:border-[#2d2d2d] w-20 text-center text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Class</th>}
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-[#202020] py-1.5 px-2 border-b border-slate-300 dark:border-[#2d2d2d] w-12 text-center text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-[#252525] font-mono text-[11px]">
@@ -443,298 +421,328 @@ export const TableManager: React.FC<TableManagerProps> = ({
                         {char.subNumber || char.itemNumber}
                       </td>
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate">
-                        {char.displayType}
-                      </td>
+                      {isColVisible('type') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate">
+                          {char.displayType}
+                        </td>
+                      )}
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate">
-                        {char.subType}
-                      </td>
+                      {isColVisible('type') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate">
+                          {char.subType}
+                        </td>
+                      )}
 
-                      <td 
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setEditingCell({ charId: char.id, field: 'rawText' });
-                          setEditingValue(char.rawText);
-                        }}
-                        className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-mono truncate font-medium cursor-text"
-                        title="Double-click to edit requirement"
-                      >
-                        {editingCell?.charId === char.id && editingCell.field === 'rawText' ? (
-                          <input
-                            type="text"
-                            value={editingValue}
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => handleCellSave(char)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleCellSave(char);
-                              else if (e.key === 'Escape') setEditingCell(null);
-                            }}
-                            className="w-full bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden"
-                          />
-                        ) : (
-                          <span className="hover:underline">
-                            {char.rawText}
-                          </span>
-                        )}
-                      </td>
+                      {isColVisible('rawText') && (
+                        <td 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCell({ charId: char.id, field: 'rawText' });
+                            setEditingValue(char.rawText);
+                          }}
+                          className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-mono truncate font-medium cursor-text"
+                          title="Double-click to edit requirement"
+                        >
+                          {editingCell?.charId === char.id && editingCell.field === 'rawText' ? (
+                            <input
+                              type="text"
+                              value={editingValue}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(char)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(char);
+                                else if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              className="w-full bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden"
+                            />
+                          ) : (
+                            <span className="hover:underline">
+                              {char.rawText}
+                            </span>
+                          )}
+                        </td>
+                      )}
 
-                      <td 
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setEditingCell({ charId: char.id, field: 'cleanNominal' });
-                          setEditingValue(char.cleanNominal !== null ? String(char.cleanNominal) : '');
-                        }}
-                        className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold cursor-text"
-                        title="Double-click to edit nominal value"
-                      >
-                        {editingCell?.charId === char.id && editingCell.field === 'cleanNominal' ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={editingValue}
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => handleCellSave(char)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleCellSave(char);
-                              else if (e.key === 'Escape') setEditingCell(null);
-                            }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
-                          />
-                        ) : (
-                          <span className="hover:underline">
-                            {char.cleanNominal !== null ? char.cleanNominal : '--'}
-                          </span>
-                        )}
-                      </td>
+                      {isColVisible('cleanNominal') && (
+                        <td 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCell({ charId: char.id, field: 'cleanNominal' });
+                            setEditingValue(char.cleanNominal !== null ? String(char.cleanNominal) : '');
+                          }}
+                          className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold cursor-text"
+                          title="Double-click to edit nominal value"
+                        >
+                          {editingCell?.charId === char.id && editingCell.field === 'cleanNominal' ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editingValue}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(char)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(char);
+                                else if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            />
+                          ) : (
+                            <span className="hover:underline">
+                              {char.cleanNominal !== null ? char.cleanNominal : '--'}
+                            </span>
+                          )}
+                        </td>
+                      )}
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-center">
-                        {char.units}
-                      </td>
+                      {isColVisible('cleanNominal') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-center">
+                          {char.units}
+                        </td>
+                      )}
 
-                      <td 
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          if (!char.forReference) {
-                            setEditingCell({ charId: char.id, field: 'plusTol' });
-                            setEditingValue(char.plusTol !== null ? String(char.plusTol) : '0');
-                          }
-                        }}
-                        className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right ${char.forReference ? '' : 'cursor-text'}`}
-                        title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit +Tol'}
-                      >
-                        {editingCell?.charId === char.id && editingCell.field === 'plusTol' ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={editingValue}
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => handleCellSave(char)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleCellSave(char);
-                              else if (e.key === 'Escape') setEditingCell(null);
-                            }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
-                          />
-                        ) : (
-                          <span className={char.forReference ? '' : 'hover:underline'}>
-                            {char.forReference || char.plusTol === null
-                              ? '--'
-                              : char.plusTol > 0
-                              ? `+${char.plusTol.toFixed(4).replace(/\.?0+$/, '') || '0'}`
-                              : char.plusTol.toFixed(4).replace(/\.?0+$/, '') || '0'}
-                          </span>
-                        )}
-                      </td>
+                      {isColVisible('plusTol') && (
+                        <td 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            if (!char.forReference) {
+                              setEditingCell({ charId: char.id, field: 'plusTol' });
+                              setEditingValue(char.plusTol !== null ? String(char.plusTol) : '0');
+                            }
+                          }}
+                          className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right ${char.forReference ? '' : 'cursor-text'}`}
+                          title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit +Tol'}
+                        >
+                          {editingCell?.charId === char.id && editingCell.field === 'plusTol' ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editingValue}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(char)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(char);
+                                else if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            />
+                          ) : (
+                            <span className={char.forReference ? '' : 'hover:underline'}>
+                              {char.forReference || char.plusTol === null
+                                ? '--'
+                                : char.plusTol > 0
+                                ? `+${char.plusTol.toFixed(4).replace(/\.?0+$/, '') || '0'}`
+                                : char.plusTol.toFixed(4).replace(/\.?0+$/, '') || '0'}
+                            </span>
+                          )}
+                        </td>
+                      )}
 
-                      <td 
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          if (!char.forReference) {
-                            setEditingCell({ charId: char.id, field: 'minusTol' });
-                            setEditingValue(char.minusTol !== null ? String(char.minusTol) : '0');
-                          }
-                        }}
-                        className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right ${char.forReference ? '' : 'cursor-text'}`}
-                        title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit -Tol'}
-                      >
-                        {editingCell?.charId === char.id && editingCell.field === 'minusTol' ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={editingValue}
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => handleCellSave(char)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleCellSave(char);
-                              else if (e.key === 'Escape') setEditingCell(null);
-                            }}
-                            className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
-                          />
-                        ) : (
-                          <span className={char.forReference ? '' : 'hover:underline'}>
-                            {char.forReference || char.minusTol === null
-                              ? '--'
-                              : char.minusTol === 0
-                              ? '0'
-                              : char.minusTol.toFixed(4).replace(/\.?0+$/, '')}
-                          </span>
-                        )}
-                      </td>
+                      {isColVisible('minusTol') && (
+                        <td 
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            if (!char.forReference) {
+                              setEditingCell({ charId: char.id, field: 'minusTol' });
+                              setEditingValue(char.minusTol !== null ? String(char.minusTol) : '0');
+                            }
+                          }}
+                          className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right ${char.forReference ? '' : 'cursor-text'}`}
+                          title={char.forReference ? 'Reference dimension (no tolerance)' : 'Double-click to edit -Tol'}
+                        >
+                          {editingCell?.charId === char.id && editingCell.field === 'minusTol' ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editingValue}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(char)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(char);
+                                else if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              className="w-16 bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1 py-0.5 text-[11px] font-mono outline-hidden text-right"
+                            />
+                          ) : (
+                            <span className={char.forReference ? '' : 'hover:underline'}>
+                              {char.forReference || char.minusTol === null
+                                ? '--'
+                                : char.minusTol === 0
+                                ? '0'
+                                : char.minusTol.toFixed(4).replace(/\.?0+$/, '')}
+                            </span>
+                          )}
+                        </td>
+                      )}
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold">
-                        {char.forReference || char.upperLimit === null ? '--' : char.upperLimit.toFixed(4)}
-                      </td>
+                      {isColVisible('upperLimit') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold">
+                          {char.forReference || char.upperLimit === null ? '--' : char.upperLimit.toFixed(4)}
+                        </td>
+                      )}
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold">
-                        {char.forReference || char.lowerLimit === null ? '--' : char.lowerLimit.toFixed(4)}
-                      </td>
+                      {isColVisible('lowerLimit') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold">
+                          {char.forReference || char.lowerLimit === null ? '--' : char.lowerLimit.toFixed(4)}
+                        </td>
+                      )}
 
                       {/* Measured Actual Column - Instant Click or Double-Click to Edit */}
-                      <td 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectCharacteristic(char);
-                          setEditingCell({ charId: char.id, field: 'measuredValue' });
-                          setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
-                        }}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          onSelectCharacteristic(char);
-                          setEditingCell({ charId: char.id, field: 'measuredValue' });
-                          setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
-                        }}
-                        className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold cursor-pointer transition-colors ${
-                          editingCell?.charId === char.id && editingCell.field === 'measuredValue'
-                            ? 'bg-blue-500/20 ring-1 ring-blue-500'
-                            : 'hover:bg-blue-500/15'
-                        }`}
-                        title="Click to enter physical measurement"
-                      >
-                        {editingCell?.charId === char.id && editingCell.field === 'measuredValue' ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={editingValue}
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => handleCellSave(char)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleCellSave(char);
-                              else if (e.key === 'Escape') setEditingCell(null);
-                            }}
-                            placeholder="0.0000"
-                            className="w-20 bg-white dark:bg-[#121212] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono font-bold text-right outline-hidden shadow-xs"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-end gap-1 group/measured">
-                            <span className="font-mono">
-                              {char.measuredValue !== null && char.measuredValue !== undefined ? char.measuredValue.toFixed(4) : '--'}
-                            </span>
-                            <span className="opacity-40 group-hover/measured:opacity-100 text-[10px] text-blue-500 dark:text-blue-400 font-sans transition-opacity">
-                              ✎
-                            </span>
-                          </div>
-                        )}
-                      </td>
+                      {isColVisible('measuredValue') && (
+                        <td 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectCharacteristic(char);
+                            setEditingCell({ charId: char.id, field: 'measuredValue' });
+                            setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
+                          }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            onSelectCharacteristic(char);
+                            setEditingCell({ charId: char.id, field: 'measuredValue' });
+                            setEditingValue(char.measuredValue !== null && char.measuredValue !== undefined ? String(char.measuredValue) : '');
+                          }}
+                          className={`py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-bold cursor-pointer transition-colors ${
+                            editingCell?.charId === char.id && editingCell.field === 'measuredValue'
+                              ? 'bg-blue-500/20 ring-1 ring-blue-500'
+                              : 'hover:bg-blue-500/15'
+                          }`}
+                          title="Click to enter physical measurement"
+                        >
+                          {editingCell?.charId === char.id && editingCell.field === 'measuredValue' ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editingValue}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleCellSave(char)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCellSave(char);
+                                else if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              placeholder="0.0000"
+                              className="w-20 bg-white dark:bg-[#121212] text-slate-900 dark:text-[#f0f0f0] border-2 border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono font-bold text-right outline-hidden shadow-xs"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-end gap-1 group/measured">
+                              <span className="font-mono">
+                                {char.measuredValue !== null && char.measuredValue !== undefined ? char.measuredValue.toFixed(4) : '--'}
+                              </span>
+                              <span className="opacity-40 group-hover/measured:opacity-100 text-[10px] text-blue-500 dark:text-blue-400 font-sans transition-opacity">
+                                ✎
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                      )}
 
                       {/* Deviation Column */}
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-mono text-[10px]">
-                        {char.deviation !== null && char.deviation !== undefined ? (
-                          <span className={char.deviation > 0 ? 'text-amber-700 dark:text-amber-400 font-semibold' : char.deviation < 0 ? 'text-blue-700 dark:text-blue-400 font-semibold' : 'text-slate-600 dark:text-slate-400'}>
-                            {char.deviation > 0 ? `+${char.deviation.toFixed(4)}` : char.deviation.toFixed(4)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-600">--</span>
-                        )}
-                      </td>
+                      {isColVisible('deviation') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-right font-mono text-[10px]">
+                          {char.deviation !== null && char.deviation !== undefined ? (
+                            <span className={char.deviation > 0 ? 'text-amber-700 dark:text-amber-400 font-semibold' : char.deviation < 0 ? 'text-blue-700 dark:text-blue-400 font-semibold' : 'text-slate-600 dark:text-slate-400'}>
+                              {char.deviation > 0 ? `+${char.deviation.toFixed(4)}` : char.deviation.toFixed(4)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-600">--</span>
+                          )}
+                        </td>
+                      )}
 
                       {/* Status Column */}
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-center">
-                        {char.conformanceStatus === 'PASS' ? (
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800">
-                            PASS
-                          </span>
-                        ) : char.conformanceStatus === 'MARGINAL' ? (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold text-[9px] border border-amber-300 dark:border-amber-800" title="Measurement within 10% of tolerance boundary">
-                            MARGINAL
-                          </span>
-                        ) : char.conformanceStatus === 'FAIL' ? (
-                          <span className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 font-bold text-[9px] border border-red-300 dark:border-red-800 animate-pulse" title="Out of tolerance specification">
-                            FAIL
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#202020] text-slate-400 dark:text-slate-500 font-medium text-[9px]">
-                            PENDING
-                          </span>
-                        )}
-                      </td>
+                      {isColVisible('status') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] text-center">
+                          {char.conformanceStatus === 'PASS' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800">
+                              PASS
+                            </span>
+                          ) : char.conformanceStatus === 'MARGINAL' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold text-[9px] border border-amber-300 dark:border-amber-800" title="Measurement within 10% of tolerance boundary">
+                              MARGINAL
+                            </span>
+                          ) : char.conformanceStatus === 'FAIL' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 font-bold text-[9px] border border-red-300 dark:border-red-800 animate-pulse" title="Out of tolerance specification">
+                              FAIL
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#202020] text-slate-400 dark:text-slate-500 font-medium text-[9px]">
+                              PENDING
+                            </span>
+                          )}
+                        </td>
+                      )}
 
-                      <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate text-[10px]">
-                        {char.sourceCaptureOrSheet || `Sheet ${char.sheetNumber}`}
-                      </td>
+                      {isColVisible('source') && (
+                        <td className="py-1 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate text-[10px]">
+                          {char.sourceCaptureOrSheet || `Sheet ${char.sheetNumber}`}
+                        </td>
+                      )}
 
-                      <td className="py-0.5 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate text-[10px]">
-                        <select
-                          value={char.inspectionMethod}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            onUpdateCharacteristic?.({
-                              ...char,
-                              inspectionMethod: e.target.value as InspectionMethod
-                            });
-                          }}
-                          className={`bg-transparent border-0 text-[10px] font-sans cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded px-1 py-0.5 outline-hidden ${
-                            isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          {INSPECTION_METHODS.map((m) => (
-                            <option key={m} value={m} className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">
-                              {m}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
+                      {isColVisible('method') && (
+                        <td className="py-0.5 px-2 border-r border-slate-200/50 dark:border-[#262626] font-sans truncate text-[10px]">
+                          <select
+                            value={char.inspectionMethod}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              onUpdateCharacteristic?.({
+                                ...char,
+                                inspectionMethod: e.target.value as InspectionMethod
+                              });
+                            }}
+                            className={`bg-transparent border-0 text-[10px] font-sans cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded px-1 py-0.5 outline-hidden ${
+                              isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {INSPECTION_METHODS.map((m) => (
+                              <option key={m} value={m} className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">
+                                {m}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
 
-                      <td className="py-0.5 px-2 border-r border-slate-200/50 dark:border-[#262626] text-center">
-                        <select
-                          value={char.classification}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            onUpdateCharacteristic?.({
-                              ...char,
-                              classification: e.target.value as 'Critical' | 'Major' | 'Minor'
-                            });
-                          }}
-                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-sans border-0 cursor-pointer outline-hidden ${
-                            char.classification === 'Critical'
-                              ? isSelected ? 'bg-red-900 text-white' : 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
-                              : char.classification === 'Major'
-                              ? isSelected ? 'bg-amber-900 text-white' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                              : isSelected ? 'bg-[#282d35] text-white' : 'bg-slate-100 dark:bg-[#222222] text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          <option value="Minor" className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">Minor</option>
-                          <option value="Major" className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">Major</option>
-                          <option value="Critical" className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">Critical</option>
-                        </select>
-                      </td>
+                      {isColVisible('classification') && (
+                        <td className="py-0.5 px-2 border-r border-slate-200/50 dark:border-[#262626] text-center">
+                          <select
+                            value={char.classification}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              onUpdateCharacteristic?.({
+                                ...char,
+                                classification: e.target.value as 'Critical' | 'Major' | 'Minor'
+                              });
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-sans border-0 cursor-pointer outline-hidden ${
+                              char.classification === 'Critical'
+                                ? isSelected ? 'bg-red-900 text-white' : 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
+                                : char.classification === 'Major'
+                                ? isSelected ? 'bg-amber-900 text-white' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                : isSelected ? 'bg-[#282d35] text-white' : 'bg-slate-100 dark:bg-[#222222] text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <option value="Minor" className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">Minor</option>
+                            <option value="Major" className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">Major</option>
+                            <option value="Critical" className="text-slate-900 bg-white dark:bg-[#1a1a1a] dark:text-slate-100">Critical</option>
+                          </select>
+                        </td>
+                      )}
 
                       <td className="py-1 px-2 text-center">
                         <button

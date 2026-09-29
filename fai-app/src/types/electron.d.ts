@@ -23,6 +23,13 @@ export interface IElectronAPI {
   loadBlueprintPath: (filePath: string) => Promise<BlueprintFileResult>;
   saveProjectFile: (fileName?: string, content?: string) => Promise<{ cancelled: boolean; filePath?: string; error?: string }>;
   loadProjectFile: () => Promise<ProjectFileResult>;
+  showMessageBox?: (message: string, title?: string) => Promise<{ success: boolean }>;
+  exitApp?: () => Promise<{ success: boolean }>;
+  minimizeWindow?: () => Promise<{ success: boolean }>;
+  maximizeWindow?: () => Promise<{ isMaximized: boolean }>;
+  restoreWindow?: () => Promise<{ isMaximized: boolean }>;
+  isWindowMaximized?: () => Promise<{ isMaximized: boolean }>;
+  closeWindow?: () => Promise<{ success: boolean }>;
 }
 
 declare global {

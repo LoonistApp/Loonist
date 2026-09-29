@@ -15,14 +15,22 @@ export class ToleranceEngine {
    * Automatically detects whether a blueprint is configured in Inches or Millimeters
    * by analyzing general drawing notes, title block tags, and standard headers.
    */
-  public static detectDrawingUnits(drawingText: string): 'in' | 'mm' {
-    const textUpper = drawingText.toUpperCase();
+  public static detectDrawingUnits(drawingText: string): 'in' | 'mm' | null {
+    const textUpper = drawingText.replace(/\s+/g, ' ').toUpperCase();
     
-    // Explicit metric indicators
+    // Explicit metric indicators (notes, standard headers, drawing tags)
     if (
       textUpper.includes('DIMENSIONS ARE IN MILLIMETERS') ||
+      textUpper.includes('DIMENSIONS IN MILLIMETERS') ||
+      textUpper.includes('DIMENSIONS ARE MILLIMETERS') ||
+      textUpper.includes('ALL DIMENSIONS ARE IN MILLIMETERS') ||
+      textUpper.includes('ALL DIMENSIONS IN MILLIMETERS') ||
+      textUpper.includes('ALL DIMENSIONS ARE MILLIMETERS') ||
       textUpper.includes('DIMENSIONS IN MM') ||
       textUpper.includes('UNLESS OTHERWISE SPECIFIED: MM') ||
+      textUpper.includes('UNITS: MM') ||
+      textUpper.includes('MILLIMETERS') ||
+      textUpper.includes('MILLIMETER') ||
       textUpper.includes('ISO 2768') ||
       textUpper.includes('METRIC')
     ) {
@@ -33,15 +41,17 @@ export class ToleranceEngine {
     if (
       textUpper.includes('DIMENSIONS ARE IN INCHES') ||
       textUpper.includes('DIMENSIONS IN INCHES') ||
-      textUpper.includes('ASME Y14.5M') ||
-      textUpper.includes('ASME Y14.5-2018') ||
+      textUpper.includes('ALL DIMENSIONS ARE IN INCHES') ||
+      textUpper.includes('ALL DIMENSIONS IN INCHES') ||
+      textUpper.includes('UNLESS OTHERWISE SPECIFIED: IN') ||
+      textUpper.includes('UNITS: IN') ||
+      textUpper.includes('INCHES') ||
       textUpper.includes('INCH')
     ) {
       return 'in';
     }
 
-    // Default to aerospace standard (inches) if ambiguous
-    return 'in';
+    return null;
   }
 
   /**
@@ -152,12 +162,38 @@ export class ToleranceEngine {
           };
         }
         // Precision 0 (integer)
+        if (preset.unit === 'mm') {
+          const nomNum = parseFloat(nominalStr);
+          if (!isNaN(nomNum) && nomNum > 0) {
+            return this.resolveMetricIso2768Tolerance(nomNum);
+          }
+        }
         return {
           upperTol: preset.oneDecimal,
           lowerTol: preset.oneDecimal,
           source: `Title Block (.X ±${preset.oneDecimal} ${unitLabel})`
         };
     }
+  }
+
+  /**
+   * Resolves standard ISO 2768-m general metric tolerances by nominal dimension size.
+   */
+  public static resolveMetricIso2768Tolerance(nominal: number): { upperTol: number; lowerTol: number; source: string } {
+    const absNom = Math.abs(nominal);
+    let tol = 0.2;
+    if (absNom <= 3) tol = 0.1;
+    else if (absNom <= 6) tol = 0.1;
+    else if (absNom <= 30) tol = 0.2;
+    else if (absNom <= 120) tol = 0.3;
+    else if (absNom <= 400) tol = 0.5;
+    else tol = 0.8;
+
+    return {
+      upperTol: tol,
+      lowerTol: tol,
+      source: `ISO 2768-m (±${tol} mm)`
+    };
   }
 
   /**

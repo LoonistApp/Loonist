@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { 
   FileCheck, 
-  SlidersHorizontal, 
+  Search, 
   ShieldCheck, 
   Layers, 
   CheckCircle2, 
@@ -35,6 +35,7 @@ export const InspectionRibbonTab: React.FC<InspectionRibbonTabProps> = ({
   }, [characteristics]);
 
   const auditStatus = useMemo(() => {
+    void characteristics;
     return AuditLedgerService.verifyIntegrity();
   }, [characteristics]);
 
@@ -44,8 +45,7 @@ export const InspectionRibbonTab: React.FC<InspectionRibbonTabProps> = ({
       <RibbonGroup title="AS9102 FORMS">
         <RibbonButton
           variant="large"
-          accent="blue"
-          icon={<FileCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
+          icon={<FileCheck className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
           label="Form 1"
           subLabel="Part Header"
           title="Switch to AS9102 Form 1 (Part Number Accountability)"
@@ -62,7 +62,7 @@ export const InspectionRibbonTab: React.FC<InspectionRibbonTabProps> = ({
           />
           <RibbonButton
             variant="small"
-            icon={<FileCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
+            icon={<FileCheck className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
             label="Form 3: Characteristics"
             title="Switch to AS9102 Form 3 (Characteristic Accountability & Verification)"
             onClick={() => onSelectFormTab?.('form3')}
@@ -75,14 +75,11 @@ export const InspectionRibbonTab: React.FC<InspectionRibbonTabProps> = ({
         {onToggleDrawer && (
           <RibbonButton
             variant="large"
-            accent="blue"
-            icon={<SlidersHorizontal className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
-            label="HITL Inspector"
-            subLabel="300 DPI Crop"
-            badge={characteristics.length > 0 ? characteristics.length : undefined}
+            icon={<Search className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
+            label="Inspections"
             active={isDrawerOpen}
             disabled={characteristics.length === 0}
-            title="Open Human-in-the-Loop Characteristics Review Drawer"
+            title="Open Inspections Results Workspace"
             onClick={onToggleDrawer}
           />
         )}
@@ -113,7 +110,7 @@ export const InspectionRibbonTab: React.FC<InspectionRibbonTabProps> = ({
                 ? 'text-red-600 dark:text-red-400'
                 : stats.conformanceRatePercent === 100 && stats.measuredCount > 0
                 ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-700 dark:text-zinc-200'
             }`}>
               {stats.conformanceRatePercent}%
             </span>

@@ -39,6 +39,31 @@ export class As9102ExcelExporter {
   }
 
   /**
+   * Generates a clean tabular CSV containing AS9102 Form 3 characteristic verification data.
+   */
+  public static exportToCsv(
+    characteristics: EngineeringCharacteristic[],
+    projectProps: ProjectProperties,
+    fileName: string = `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
+  ): void {
+    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps);
+    const form3Sheet = wb.Sheets['Form 3 - Characteristics'] || wb.Sheets[wb.SheetNames[2]] || wb.Sheets[wb.SheetNames[0]];
+    const csvContent = XLSX.utils.sheet_to_csv(form3Sheet);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const targetFileName = fileName.endsWith('.csv') ? fileName : `${fileName.replace(/\.xlsx?$/i, '')}.csv`;
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = targetFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /**
    * Constructs the full XLSX Workbook containing AS9102 Form 1, Form 2, and Form 3.
    */
   public static buildWorkbook(

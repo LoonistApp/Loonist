@@ -1,9 +1,10 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import type { EngineeringCharacteristic, BalloonAppearance } from '../../types/characteristics';
 
 export interface MarkedPdfExportOptions {
   highlightNonConformance?: boolean; // Color out-of-spec balloons in red
   showLeaderLines?: boolean;
+  watermark?: string; // Optional security watermark e.g. "ITAR RESTRICTED"
 }
 
 export class MarkedPdfExporter {
@@ -21,23 +22,28 @@ export class MarkedPdfExporter {
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const numPages = pdfDoc.getPageCount();
 
-    const badgeRadius = 12; // 24px diameter badge
-    const badgeFontSize = 8;
+    const fit = appearance?.fit ?? 2;
+    const badgeRadius = fit === 1 ? 10 : fit === 3 ? 15 : 12;
+    const badgeFontSize = fit === 1 ? 7 : fit === 3 ? 10 : 8.5;
 
     // Color definitions
     const whiteColor = rgb(1, 1, 1);
-    const primaryBlue = rgb(0.10, 0.40, 0.85); // LOONIST aerospace blue
     const failRed = rgb(0.85, 0.15, 0.15);      // Reject red
     const marginalAmber = rgb(0.90, 0.55, 0.05); // Marginal amber
     const passGreen = rgb(0.10, 0.65, 0.30);    // Pass green
     const borderDark = rgb(0.15, 0.20, 0.30);
+    const primaryBlue = appearance?.color === 'red' ? failRed :
+      appearance?.color === 'green' ? passGreen :
+      appearance?.color === 'amber' ? marginalAmber :
+      appearance?.color === 'black' ? borderDark :
+      rgb(0.10, 0.40, 0.85); // LOONIST aerospace blue
 
     for (const char of characteristics) {
       const pageIndex = char.sheetNumber - 1;
       if (pageIndex < 0 || pageIndex >= numPages) continue;
 
-      // Clean Canvas Rule: Skip burning balloons on general notes block unless explicitly enabled
-      if (char.skipBalloonRender && !appearance?.balloonGeneralNotes) {
+      // Clean Canvas Rule: Skip burning balloons for secondary sub-characteristics and general notes
+      if (char.skipBalloonRender && (char.parentCharacteristicId || !appearance?.balloonGeneralNotes)) {
         continue;
       }
 
@@ -122,6 +128,26 @@ export class MarkedPdfExporter {
         font: font,
         color: char.conformanceStatus === 'FAIL' ? failRed : borderDark
       });
+    }
+
+    // 2. Draw Diagonal Security Watermark across all pages if configured
+    if (options.watermark && options.watermark !== 'NONE') {
+      const wmText = options.watermark;
+      for (let p = 0; p < numPages; p++) {
+        const page = pdfDoc.getPage(p);
+        const { width: pw, height: ph } = page.getSize();
+        const wmSize = Math.max(18, Math.min(pw, ph) * 0.05);
+        const textWidth = font.widthOfTextAtSize(wmText, wmSize);
+        page.drawText(wmText, {
+          x: Math.max(20, (pw - textWidth) / 2),
+          y: ph / 2,
+          size: wmSize,
+          font: font,
+          color: rgb(0.85, 0.20, 0.20),
+          opacity: 0.18,
+          rotate: degrees(35)
+        });
+      }
     }
 
     return await pdfDoc.save();

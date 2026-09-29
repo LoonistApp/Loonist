@@ -9,11 +9,33 @@ import type {
   DimensionEnclosure, 
   CharacteristicType,
   HoleFeatureCallout,
-  TitleBlockTolerancePreset
+  TitleBlockTolerancePreset,
+  InspectionMethod
 } from '../../types/characteristics';
 import { DEFAULT_AEROSPACE_TOLERANCES } from '../../types/characteristics';
 import { ToleranceEngine } from './toleranceEngine';
 import { FractionParser } from './fractionParser';
+
+export interface DeconstructedSubFeature {
+  subNumberSuffix: string;
+  displayRequirement: string;
+  nominal: number | null;
+  upperTol: number;
+  lowerTol: number;
+  minLimit: number | null;
+  maxLimit: number | null;
+  plusTol: number;
+  minusTol: number;
+  upperLimit?: number | null;
+  lowerLimit?: number | null;
+  units: 'in' | 'mm' | 'deg';
+  type: CharacteristicType;
+  subType: string;
+  classification: 'Critical' | 'Major' | 'Minor';
+  inspectionMethod: InspectionMethod;
+  quantity?: number;
+  isSecondarySub?: boolean;
+}
 
 export interface ParsedDimensionResult {
   rawText: string;
@@ -33,6 +55,7 @@ export interface ParsedDimensionResult {
   fractionStr?: string;
   isUnilateral?: boolean;
   isMaxOrMin?: 'MAX' | 'MIN';
+  subFeatures?: DeconstructedSubFeature[];
 }
 
 export class GdtParser {
@@ -70,7 +93,14 @@ export class GdtParser {
       };
     }
 
-    // 2. Check for Quantity Multipliers (e.g. "4X", "6 PLACES", "8X")
+    // 2. Check for Chamfer Callouts per ASME Y14.5 § 1.8.16 (e.g. "3 X 45° CHAMFER", "45° X 3", "2X 3 X 45°")
+    // Chamfers MUST be evaluated prior to greedy multiplier extraction so "3 X 45°" is not misidentified as 3X multiplier.
+    const chamferEarlyResult = this.parseChamferCallout(text, preset);
+    if (chamferEarlyResult) {
+      return chamferEarlyResult;
+    }
+
+    // 3. Check for Quantity Multipliers (e.g. "4X", "6 PLACES", "8X")
     let multiplier = 1;
     let cleanText = text;
 
@@ -94,6 +124,28 @@ export class GdtParser {
 
     // 3. Extract Hole Machining Sub-Features (Depth, Counterbore, Countersink)
     const holeCallout = this.parseHoleCallout(cleanText);
+
+    // 3b. Check for Multi-Feature Compound Callouts (Counterbore, Countersink, Drill Depth, Thread + Spotface)
+    const compoundSubs = GdtParser.deconstructCompoundCallout(cleanText, preset);
+    if (compoundSubs && compoundSubs.length > 1) {
+      const primary = compoundSubs[0];
+      return {
+        rawText: text,
+        nominal: primary.nominal,
+        upperTol: primary.upperTol,
+        lowerTol: primary.lowerTol,
+        minLimit: primary.minLimit,
+        maxLimit: primary.maxLimit,
+        type: primary.type,
+        enclosure: 'standard',
+        isToleranceInherited: true,
+        toleranceSource: `Compound Callout (${primary.subType})`,
+        units: primary.units,
+        multiplier: primary.quantity || multiplier,
+        holeCallout,
+        subFeatures: compoundSubs
+      };
+    }
 
     // 4. Check for GD&T Feature Control Frame (single tier or composite dual tier)
     if (this.isGdtFrame(cleanText)) {
@@ -196,25 +248,12 @@ export class GdtParser {
       };
     }
 
-    // 9. Check for Chamfer Callouts (e.g. ".060 X 45°", "45° X .060", "0.5 X 45c CHAMFER", "ALL CHAMFERS = 0.5 X 45°")
-    const chamferMatch = textToParse.match(/(?:ALL\s+CHAMFERS\s*=\s*)?([0-9]*\.?[0-9]+)\s*(?:mm\s*)?[xX]\s*(?:45|30|60)(?:°|c|\b)(?:\s*CHAMFER)?|(?:45|30|60)(?:°|c|\b)\s*[xX]\s*([0-9]*\.?[0-9]+)(?:\s*(?:mm)?\s*CHAMFER)?/i);
-    if (chamferMatch) {
-      const nomStr = chamferMatch[1] || chamferMatch[2];
-      const nom = parseFloat(nomStr);
-      const tolVal = preset.unit === 'mm' ? 0.2 : 0.010;
+    // 9. Fallback Check for Chamfer Callouts (e.g. ".060 X 45°", "45° X .060", "0.5 X 45c CHAMFER", "ALL CHAMFERS = 0.5 X 45°")
+    const chamferFallbackResult = this.parseChamferCallout(textToParse, preset);
+    if (chamferFallbackResult) {
       return {
-        rawText: text,
-        nominal: nom,
-        upperTol: tolVal,
-        lowerTol: tolVal,
-        minLimit: parseFloat((nom - tolVal).toFixed(4)),
-        maxLimit: parseFloat((nom + tolVal).toFixed(4)),
-        type: 'chamfer',
-        enclosure: 'standard',
-        isToleranceInherited: true,
-        toleranceSource: `Chamfer Standard (±${tolVal} ${preset.unit})`,
-        units: preset.unit,
-        multiplier,
+        ...chamferFallbackResult,
+        multiplier: multiplier > 1 ? multiplier : chamferFallbackResult.multiplier,
         fractionStr,
         holeCallout
       };
@@ -374,7 +413,7 @@ export class GdtParser {
     const strippedResidual = textToParse
       .replace(/(?:\d+\.?\d*|\.\d+)/g, '')
       .replace(/\b(?:TYP|TYPICAL|MAX|MIN|REF|REFERENCE|THRU|THROUGH|DP|DEPTH|BORE|CBORE|COUNTERBORE|CSINK|COUNTERSINK|CHAMFER|CHAM|PLCS|PLACES|DIA|DIAMETER|RAD|RADIUS|DEG|IN|MM|UNF|UNC|UNEF|NPT|METRIC|THREAD|THD|GA|GAGE|GAUGE|SQ|SQUARE|BASIC|TRUE|POS|SURF|PCD|BCD|STOCK|WALL|FLAT|OD|ID|PITCH|LEAD|SLOT|KEYWAY|DRILL|TAP|REAM)\b/gi, '')
-      .replace(/[\(\)\[\]\{\}\/\\:;,\-_+=*#°Ø±↧⌴⌵"'`~!?<>@$%^&]/g, '')
+      .replace(/[()[\]{}/\\:;,\-_+=*#°Ø±↧⌴⌵"'`~!?<>@$%^&]/g, '')
       .trim();
 
     // If there are lingering alphabetic words (length >= 3), this is descriptive sentence text, not a dimension
@@ -415,7 +454,7 @@ export class GdtParser {
       };
     }
 
-    const isAngular = cleanText.includes('°') || cleanText.toLowerCase().includes('deg') || /(?:^|\s|\d)(?:\d+(?:\.\d+)?)c(?:\s|$)/i.test(cleanText);
+    const isAngular = numMatch ? GdtParser.isPrimaryNumberAngular(cleanText, numMatch[0]) : false;
     const tol = numMatch 
       ? ToleranceEngine.resolveTitleBlockTolerance(numMatch[0], isAngular, preset)
       : { upperTol: preset.threeDecimals, lowerTol: preset.threeDecimals, source: 'Default Standard' };
@@ -429,7 +468,7 @@ export class GdtParser {
       lowerTol: tol.lowerTol,
       minLimit: limits.minLimit,
       maxLimit: limits.maxLimit,
-      type: this.inferType(cleanText),
+      type: isAngular ? 'angle' : this.inferType(cleanText),
       enclosure: 'standard',
       isToleranceInherited: true,
       toleranceSource: tol.source,
@@ -506,6 +545,377 @@ export class GdtParser {
       countersinkAngle: csinkAngle,
       rawCallout: text
     };
+  }
+
+  /**
+   * Strictly determines whether the primary nominal being measured is an angular value.
+   * Prevents compound hole callouts containing a trailing countersink angle (e.g. "Ø12 ... 90°")
+   * from corrupting the primary drill diameter into degrees.
+   */
+  public static isPrimaryNumberAngular(text: string, numStr: string): boolean {
+    const trimmed = text.trim();
+    // If text starts with or clearly indicates diameter, radius, or thread, it is NEVER an angle
+    if (
+      /^(?:Ø|ø|P\s*\d|DIA|DIAMETER|R|RAD|RADIUS|M\d|1\/\d)\b/i.test(trimmed) || 
+      trimmed.startsWith('Ø') || 
+      trimmed.startsWith('ø') ||
+      (trimmed.startsWith('P') && /^[P\s]*\d/.test(trimmed))
+    ) {
+      return false;
+    }
+    // Check if the primary number is immediately accompanied by degree symbol or deg
+    const escaped = numStr.replace('.', '\\.');
+    const directAnglePattern = new RegExp(`(?:^|\\s)${escaped}\\s*(?:°|c|deg\\b|degrees\\b)`, 'i');
+    if (directAnglePattern.test(trimmed)) {
+      return true;
+    }
+    // Check if entire text is a simple angle (e.g. "120°", "2.5°", "45 deg", "120c")
+    if (/^[0-9.]+\s*(?:°|c|\bdeg\b)/i.test(trimmed)) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Deconstructs multi-feature compound callouts (counterbores, countersinks, drill depths,
+   * threads + spotfaces) into individual inspectable sub-characteristics per AS9102 Form 3.
+   */
+  public static deconstructCompoundCallout(
+    rawText: string,
+    preset: TitleBlockTolerancePreset
+  ): DeconstructedSubFeature[] | null {
+    const text = rawText.trim();
+
+    const hasAngle = /(?:°|c|\bdeg\b)/i.test(text) && /[xX×]\s*[0-9]+(?:°|c|deg)/i.test(text);
+    const hasCsink = /[⌵Y⩡]/.test(text) || /\b(?:C'?SINK|COUNTERSINK)\b/i.test(text) || hasAngle || text.includes('90°') || text.includes('90c');
+    const hasCbore = (/[⌴]/.test(text) || /\b(?:C'?BORE|COUNTERBORE)\b/i.test(text) || /(?:^|\s)X\s*(?:Ø|P|[0-9])/i.test(text)) && !hasAngle;
+    const hasDepth = /[↧Z]/.test(text) || /\b(?:DEPTH|DP)\b/i.test(text);
+
+    let multiplier = 1;
+    const plcsMatch = text.match(/(\d+)\s*(?:PLCS|PLACES)\b/i) || text.match(/^(\d+)\s*[xX]\s+/);
+    if (plcsMatch) {
+      multiplier = parseInt(plcsMatch[1], 10);
+    }
+
+    // CASE 1: Compound Drill + Depth + Countersink (e.g. "Ø12 ↧ 55.73 / ⩡ Ø25 X 90°" or "Ø12 ↧ 55.73 / ⌵ Ø25 X 90c")
+    if (hasCsink && hasDepth && !text.includes('UNC') && !text.includes('UNF')) {
+      const subFeatures: DeconstructedSubFeature[] = [];
+
+      // 1. Drill Diameter
+      const drillMatch = text.match(/^(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
+      if (drillMatch) {
+        const nom = parseFloat(drillMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(drillMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '1',
+          displayRequirement: `Ø${drillMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'diameter',
+          subType: 'Diameter (Drill)',
+          classification: 'Critical',
+          inspectionMethod: 'Bore Gage',
+          quantity: multiplier,
+          isSecondarySub: false
+        });
+      }
+
+      // 2. Drill Depth
+      const depthMatch = text.match(/(?:↧|Z|DEPTH|DP)\s*([0-9]*\.?[0-9]+)/i);
+      if (depthMatch) {
+        const nom = parseFloat(depthMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(depthMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '2',
+          displayRequirement: `↧ ${depthMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'linear',
+          subType: 'Linear Dimension (Hole Depth)',
+          classification: 'Major',
+          inspectionMethod: 'Caliper',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      // 3. Countersink Diameter
+      const csinkDiaMatch = text.match(/(?:⌵|Y|⩡|CSINK|COUNTERSINK|\/)?\s*(?:Ø|P)?\s*([0-9]*\.?[0-9]+)\s*[xX]\s*[0-9]+(?:°|c|deg)/i) ||
+                            text.match(/(?:⌵|Y|⩡)\s*(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
+      if (csinkDiaMatch) {
+        const nom = parseFloat(csinkDiaMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(csinkDiaMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '3',
+          displayRequirement: `⩡ Ø${csinkDiaMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'diameter',
+          subType: 'Diameter (Countersink)',
+          classification: 'Major',
+          inspectionMethod: 'Optical Comparator',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      // 4. Countersink Angle
+      const csinkAngleMatch = text.match(/[xX]\s*([0-9]+(?:\.[0-9]+)?)\s*(?:°|c|deg|\b)/i);
+      if (csinkAngleMatch) {
+        const angNumStr = csinkAngleMatch[1].replace(/[^0-9.]/g, '');
+        const nom = parseFloat(angNumStr);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(angNumStr, true, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '4',
+          displayRequirement: `${nom}°`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: 'deg',
+          type: 'angle',
+          subType: 'Angular Dimension (C-Sink Angle)',
+          classification: 'Major',
+          inspectionMethod: 'Optical Comparator',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      if (subFeatures.length > 1) {
+        return subFeatures;
+      }
+    }
+
+    // CASE 2: Compound Counterbore Hole (e.g. "Ø50 THRU / ⌴ Ø70 ↧ 12" or "Ø50 THRU ⌴ Ø70 ↧ 12")
+    if (hasCbore && hasDepth && !hasCsink && !text.includes('UNC') && !text.includes('UNF')) {
+      const subFeatures: DeconstructedSubFeature[] = [];
+
+      // 1. Hole Diameter
+      const mainDiaMatch = text.match(/^(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
+      if (mainDiaMatch) {
+        const nom = parseFloat(mainDiaMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(mainDiaMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '1',
+          displayRequirement: `Ø${mainDiaMatch[1]}${text.toUpperCase().includes('THRU') ? ' THRU' : ''}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'diameter',
+          subType: 'Diameter (Thru Hole)',
+          classification: 'Critical',
+          inspectionMethod: 'Bore Gage',
+          quantity: multiplier,
+          isSecondarySub: false
+        });
+      }
+
+      // 2. Counterbore Diameter
+      const cboreMatch = text.match(/(?:⌴|CBORE|COUNTERBORE|\bX\b)\s*(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
+      if (cboreMatch) {
+        const nom = parseFloat(cboreMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(cboreMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '2',
+          displayRequirement: `⌴ Ø${cboreMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'diameter',
+          subType: 'Diameter (Counterbore)',
+          classification: 'Major',
+          inspectionMethod: 'Caliper',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      // 3. Counterbore Depth
+      const depthMatch = text.match(/(?:↧|Z|DEPTH|DP)\s*([0-9]*\.?[0-9]+)/i);
+      if (depthMatch) {
+        const nom = parseFloat(depthMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(depthMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '3',
+          displayRequirement: `↧ ${depthMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'linear',
+          subType: 'Linear Dimension (C-Bore Depth)',
+          classification: 'Major',
+          inspectionMethod: 'Caliper',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      if (subFeatures.length > 1) {
+        return subFeatures;
+      }
+    }
+
+    // CASE 3: Thread with Counterbore/Spotface & Multi-Place (e.g. "1/2-13 UNC - 2B / ⌴ Ø22 ↧ 5 / 3 PLCS")
+    if (text.includes('UNC') || text.includes('UNF') || text.includes('UNEF') || /M\d+\s*x\s*[0-9.]+/i.test(text)) {
+      const subFeatures: DeconstructedSubFeature[] = [];
+
+      // 1. Thread Callout
+      const threadMatch = text.match(/(?:[0-9/.]+(?:-[0-9]+)?\s*(?:UNC|UNF|UNEF)(?:\s*-\s*[1-3][AB])?|M\d+(?:\s*[xX]\s*[0-9.]+)?(?:\s*-\s*\d[HhGg])?)/i);
+      if (threadMatch) {
+        const thdStr = threadMatch[0];
+        let nom = 0.5;
+        if (thdStr.startsWith('1/2')) nom = 0.5;
+        else if (thdStr.startsWith('1/4')) nom = 0.25;
+        else if (thdStr.startsWith('3/8')) nom = 0.375;
+        else if (thdStr.startsWith('5/8')) nom = 0.625;
+        else if (thdStr.startsWith('3/4')) nom = 0.75;
+        else {
+          const mMatch = thdStr.match(/M(\d+)/i);
+          if (mMatch) nom = parseFloat(mMatch[1]);
+        }
+
+        subFeatures.push({
+          subNumberSuffix: '1',
+          displayRequirement: `${thdStr}${multiplier > 1 ? ` (${multiplier} PLCS)` : ''}`,
+          nominal: nom,
+          upperTol: 0.005,
+          lowerTol: 0.005,
+          plusTol: 0.005,
+          minusTol: -0.005,
+          minLimit: nom - 0.005,
+          maxLimit: nom + 0.005,
+          upperLimit: nom + 0.005,
+          lowerLimit: nom - 0.005,
+          units: thdStr.toUpperCase().includes('M') ? 'mm' : 'in',
+          type: 'thread',
+          subType: 'Thread / Fastener',
+          classification: 'Critical',
+          inspectionMethod: 'Thread Gage',
+          quantity: multiplier,
+          isSecondarySub: false
+        });
+      }
+
+      // 2. Spotface / Counterbore Diameter
+      const cboreMatch = text.match(/(?:⌴|X|CBORE|COUNTERBORE)\s*(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
+      if (cboreMatch) {
+        const nom = parseFloat(cboreMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(cboreMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '2',
+          displayRequirement: `⌴ Ø${cboreMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'diameter',
+          subType: 'Diameter (Spotface/C-Bore)',
+          classification: 'Major',
+          inspectionMethod: 'Caliper',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      // 3. Counterbore / Spotface Depth
+      const depthMatch = text.match(/(?:↧|Z|DEPTH|DP)\s*([0-9]*\.?[0-9]+)/i);
+      if (depthMatch) {
+        const nom = parseFloat(depthMatch[1]);
+        const tol = ToleranceEngine.resolveTitleBlockTolerance(depthMatch[1], false, preset);
+        const limits = ToleranceEngine.calculateLimits(nom, tol.upperTol, tol.lowerTol);
+        subFeatures.push({
+          subNumberSuffix: '3',
+          displayRequirement: `↧ ${depthMatch[1]}`,
+          nominal: nom,
+          upperTol: tol.upperTol,
+          lowerTol: tol.lowerTol,
+          plusTol: tol.upperTol,
+          minusTol: -tol.lowerTol,
+          minLimit: limits.minLimit,
+          maxLimit: limits.maxLimit,
+          upperLimit: limits.maxLimit,
+          lowerLimit: limits.minLimit,
+          units: preset.unit,
+          type: 'linear',
+          subType: 'Linear Dimension (Depth)',
+          classification: 'Major',
+          inspectionMethod: 'Caliper',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+
+      if (subFeatures.length > 1) {
+        return subFeatures;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -639,6 +1049,211 @@ export class GdtParser {
   }
 
   /**
+   * Chamfer Callouts per ASME Y14.5 § 1.8.16.
+   * Handles:
+   *  - "3 X 45° CHAMFER", "3 X 45°", "3 X 45 CHAMFER", "3 x 45c"
+   *  - "45° X 3", "45° X 3 CHAMFER"
+   *  - "3 X 3 CHAMFER"
+   *  - Multipliers: "4X 3 X 45° CHAMFER", "2X .060 X 45°", "3 X 45° (4 PLACES)"
+   *  - Global notes: "ALL CHAMFERS = 0.5 X 45°"
+   *  - Explicit tolerance: "3 ± 0.2 X 45°"
+   */
+  public static parseChamferCallout(
+    text: string,
+    preset: TitleBlockTolerancePreset
+  ): ParsedDimensionResult | null {
+    let clean = text
+      .replace(/\s*\[\s*DIM\s*\d+\s*\]/gi, '')
+      .replace(/\s*\[\s*FCF\s*\d+\s*\]/gi, '')
+      .trim();
+
+    // 1. Check for trailing places multiplier: e.g. "(4 PLACES)" or "4 PLACES"
+    let multiplier = 1;
+    const placesMatch = clean.match(/^(.*?)\s*\(?(\d+)\s*PLACES\)?$/i);
+    if (placesMatch) {
+      multiplier = parseInt(placesMatch[2], 10);
+      clean = placesMatch[1].trim();
+    }
+
+    // 2. Check for leading multiplier prefix ONLY if followed by a full chamfer dimension:
+    // e.g. "4X 3 X 45° CHAMFER" or "2X .060 X 45°" (must have at least two numbers and an 'X' in the remainder)
+    const leadingMulMatch = clean.match(/^(\d+)\s*[xX]\s+([0-9]*\.?[0-9]+\s*[xX×].*)$/);
+    if (leadingMulMatch) {
+      const candidateRemainder = leadingMulMatch[2].trim();
+      if (this.isChamferExpression(candidateRemainder)) {
+        multiplier = parseInt(leadingMulMatch[1], 10);
+        clean = candidateRemainder;
+      }
+    }
+
+    // 3. Now check if clean is a chamfer expression
+    if (!this.isChamferExpression(clean)) {
+      return null;
+    }
+
+    // Strip leading "ALL CHAMFERS =" or "CHAMFER"
+    let chamferBody = clean
+      .replace(/^(?:ALL\s+)?CHAMFERS?\s*(?:=|\s)\s*/i, '')
+      .replace(/^CHAMFER\s+/i, '')
+      .trim();
+
+    // Check for explicit tolerance on the depth, e.g. "3 ± 0.1 X 45°" or "0.5 +/- 0.05 X 45°"
+    let explicitUpperTol: number | null = null;
+    let explicitLowerTol: number | null = null;
+    let explicitTolSource: string | null = null;
+
+    const explicitTolMatch = chamferBody.match(/([0-9]*\.?[0-9]+)\s*(?:±|\+\/-)\s*([0-9]*\.?[0-9]+)/i);
+    if (explicitTolMatch) {
+      explicitUpperTol = parseFloat(explicitTolMatch[2]);
+      explicitLowerTol = parseFloat(explicitTolMatch[2]);
+      explicitTolSource = `Explicit (±${explicitTolMatch[2]})`;
+      chamferBody = chamferBody.replace(/(?:±|\+\/-)\s*[0-9]*\.?[0-9]+/, '').trim();
+    }
+
+    // Pattern A: Depth X Angle (e.g. "3 X 45°", "3 X 45° CHAMFER", "3 X 45 CHAMFER", "3 X 45c", ".060 X 45°")
+    const patternA = chamferBody.match(/^([0-9]*\.?[0-9]+)\s*(?:mm\s*)?[xX]\s*([0-9]+(?:\.[0-9]+)?)(?:°|c|deg|\b)(?:\s*(?:CHAMFER|CHAM))?$/i);
+
+    // Pattern B: Angle X Depth (e.g. "45° X 3", "45° X 3 CHAMFER", "45c X .060")
+    const patternB = chamferBody.match(/^([0-9]+(?:\.[0-9]+)?)(?:°|c|deg)\s*[xX]\s*([0-9]*\.?[0-9]+)(?:\s*(?:mm)?\s*(?:CHAMFER|CHAM))?$/i);
+
+    // Pattern C: Two linear depths with CHAMFER keyword (e.g. "3 X 3 CHAMFER")
+    const patternC = chamferBody.match(/^([0-9]*\.?[0-9]+)\s*(?:mm\s*)?[xX]\s*([0-9]*\.?[0-9]+)(?:\s*(?:mm)?\s*(?:CHAMFER|CHAM))$/i);
+
+    let nomStr = '';
+    if (patternA) {
+      nomStr = patternA[1];
+    } else if (patternB) {
+      nomStr = patternB[2];
+    } else if (patternC) {
+      nomStr = patternC[1];
+    } else {
+      return null;
+    }
+
+    const nom = parseFloat(nomStr);
+    if (isNaN(nom)) return null;
+
+    let upperTol: number;
+    let lowerTol: number;
+    let toleranceSource: string;
+    let isToleranceInherited: boolean;
+
+    if (explicitUpperTol !== null && explicitLowerTol !== null && explicitTolSource) {
+      upperTol = explicitUpperTol;
+      lowerTol = explicitLowerTol;
+      toleranceSource = explicitTolSource;
+      isToleranceInherited = false;
+    } else {
+      const tol = ToleranceEngine.resolveTitleBlockTolerance(nomStr, false, preset);
+      upperTol = tol.upperTol;
+      lowerTol = tol.lowerTol;
+      toleranceSource = tol.source;
+      isToleranceInherited = true;
+    }
+
+    const limits = ToleranceEngine.calculateLimits(nom, upperTol, lowerTol);
+
+    const angStr = patternA ? patternA[2] : (patternB ? patternB[1] : null);
+    const subFeatures: DeconstructedSubFeature[] = [
+      {
+        subNumberSuffix: '1',
+        displayRequirement: `${nomStr} Chamfer Leg`,
+        nominal: nom,
+        upperTol,
+        lowerTol,
+        plusTol: upperTol,
+        minusTol: -lowerTol,
+        minLimit: limits.minLimit,
+        maxLimit: limits.maxLimit,
+        upperLimit: limits.maxLimit,
+        lowerLimit: limits.minLimit,
+        units: preset.unit,
+        type: 'chamfer',
+        subType: 'Chamfer',
+        classification: 'Major',
+        inspectionMethod: 'Optical Comparator',
+        quantity: multiplier,
+        isSecondarySub: false
+      }
+    ];
+
+    if (angStr) {
+      const angNom = parseFloat(angStr.replace(/[^0-9.]/g, ''));
+      if (!isNaN(angNom)) {
+        subFeatures.push({
+          subNumberSuffix: '2',
+          displayRequirement: `${angNom}° Chamfer Angle`,
+          nominal: angNom,
+          upperTol: preset.angular,
+          lowerTol: preset.angular,
+          plusTol: preset.angular,
+          minusTol: -preset.angular,
+          minLimit: angNom - preset.angular,
+          maxLimit: angNom + preset.angular,
+          upperLimit: angNom + preset.angular,
+          lowerLimit: angNom - preset.angular,
+          units: 'deg',
+          type: 'angle',
+          subType: 'Angular Dimension (Chamfer Angle)',
+          classification: 'Minor',
+          inspectionMethod: 'Optical Comparator',
+          quantity: multiplier,
+          isSecondarySub: true
+        });
+      }
+    }
+
+    return {
+      rawText: text,
+      nominal: nom,
+      upperTol,
+      lowerTol,
+      minLimit: limits.minLimit,
+      maxLimit: limits.maxLimit,
+      type: 'chamfer',
+      enclosure: 'standard',
+      isToleranceInherited,
+      toleranceSource,
+      units: preset.unit,
+      multiplier,
+      subFeatures: subFeatures.length > 1 ? subFeatures : undefined
+    };
+  }
+
+  /**
+   * Helper to check if a string represents a chamfer expression
+   */
+  private static isChamferExpression(str: string): boolean {
+    const s = str.trim();
+    if (!s) return false;
+
+    // Must have 'x' or 'X' or '×'
+    if (!/[xX×]/.test(s)) return false;
+
+    // Has explicit CHAMFER / CHAM keyword
+    if (/\b(?:CHAMFER|CHAM)\b/i.test(s)) return true;
+
+    // Has degree symbol with x, e.g. "3 X 45°", "45° X 3", "3 X 45c", "3 X 45 deg"
+    if (/(?:°|c|\bdeg\b)/i.test(s)) {
+      if (/[0-9.]+\s*[xX×]\s*[0-9.]+(?:°|c|deg)/i.test(s) || /[0-9.]+(?:°|c|deg)\s*[xX×]\s*[0-9.]+/i.test(s)) {
+        return true;
+      }
+    }
+
+    // Has common chamfer angle without degree (e.g. "3 X 45", "2 x 45", "0.5 x 45", "3 x 30", "2 x 60")
+    if (/^[0-9]*\.?[0-9]+\s*[xX×]\s*(?:45|30|60)\b/i.test(s)) {
+      return true;
+    }
+
+    // Has common chamfer angle without degree if prefixed by ALL CHAMFERS or CHAMFER
+    if (/\b(?:ALL\s+CHAMFERS?|CHAMFER)\b/i.test(s) && /[0-9.]+\s*[xX×]\s*(?:45|30|60)\b/i.test(s)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Identifies administrative boilerplate, drafting standard citations, ITAR/export control notices,
    * quality management procedural statements, and legal disclaimers.
    * Under SAE AS9102 Section 3.8, these are NOT design characteristics and must NEVER be ballooned.
@@ -684,12 +1299,18 @@ export class GdtParser {
     }
 
     // 1. Extreme prose / tutorial / book disclaimer indicators - ALWAYS prose even if numbered
-    const STRONG_PROSE_REGEX = /\b(?:autodesk|solidworks|catia|creo|inventor|kkmsoft|tutorial|workbook|handbook|course|lesson|disclaimer|copyright|rights\s+reserved|all\s+rights|apologies\s+in\s+advance|practice\s+with|designer'?s?\s+choice|luck\s+in\s+your|miscellaneous\s+parts|detailed\s+drawings|simple\s+sketches|answers?\s+here)\b/i;
+    const STRONG_PROSE_REGEX = /\b(?:autodesk|solidworks|catia|creo|inventor|kkmsoft|tutorial|workbook|handbook|course|lesson|disclaimer|copyright|rights\s+reserved|all\s+rights|apologies\s+in\s+advance|practice\s+with|designer'?s?\s+choice|luck\s+in\s+your|good\s+luck|miscellaneous\s+parts|detailed\s+drawings|simple\s+sketches|answers?\s+here|challengi\w*|practic\w*|miscellan\w*|missing\s+dimension|exercise\s+best|practice\s+files?|rougher\s+geometr\w*|chained\s+combination|intended\s+for|metric\s+modeling|clearance\s+hole)\b/i;
     if (STRONG_PROSE_REGEX.test(clean)) {
       return true;
     }
 
-    // 2. Preserve genuine drawing notes starting with note index e.g. "1. MATERIAL: 6061-T6"
+    // 2. Conversational / grammatical prose indicators: Two or more common grammatical words in a snippet indicates prose
+    const conversationalMatches = clean.match(/\b(?:the|this|that|these|those|some|any|we|you|your|our|they|their|are|is|was|were|have|has|had|can|could|will|would|should|may|might|in|to|for|of|with|by|from|at|on|and|or|but|if|then|else|when|where|why|how|than|more|less|into|about|after|before)\b/gi) || [];
+    if (conversationalMatches.length >= 2) {
+      return true;
+    }
+
+    // 3. Preserve genuine drawing notes starting with note index e.g. "1. MATERIAL: 6061-T6"
     if (/^\d+\.\s+[A-Z0-9]/.test(clean) && clean.length < 200) {
       // Re-verify it is not administrative boilerplate
       if (GdtParser.isAdministrativeBoilerplate(clean)) {
@@ -705,25 +1326,28 @@ export class GdtParser {
       }
     }
 
-    // Never exclude standard GD&T frames or symbol-led callouts
+    // Standard GD&T frames or symbol-led callouts are preserved ONLY if they don't contain conversational prose
     if (clean.includes('|') || clean.includes('⌖') || clean.includes('⏥') || clean.includes('Ø') || clean.includes('±')) {
+      if (conversationalMatches.length > 0 || /\b(?:parts?|drawings?|practice|challenging|others?|luck|package|matter|answers?)\b/i.test(clean)) {
+        return true;
+      }
       return false;
     }
 
-    // 3. Natural language prose words common in book/tutorial/instructional paragraphs
-    const PROSE_WORDS_REGEX = /\b(?:this|that|these|those|contains?|containing|detailed|drawings?|miscellaneous|parts?|practice|inventor|package|matter|some|challenging|others?|none|meant|difficult|however|intended|specific|modeling|tools?|hints?|provided|cases?|event|find|missing|please|accept|apologies|advance|don't|stop|instead|consider|opportunity|exercise|exercises|designer'?s?|choice|provide|liking|right|wrong|answers?|work|through|keep|mind|best|creating|simple|sketches|build|constructed|features?|which|more|complex|luck|pursuits?|software|copyright|rights?\s+reserved|autodesk|kkmsoft|all\s+rights|disclaimer|tutorial|guide|course|lesson|sample|workbook|handbook|instructions?|overview|introduction|preface|chapter|page|website|email|author|publish|published|edition)\b/i;
+    // 4. Natural language prose words common in book/tutorial/instructional paragraphs
+    const PROSE_WORDS_REGEX = /\b(?:this|that|these|those|contains?|containing|detailed|drawings?|miscellaneous|parts?|practice|practicing|inventor|package|matter|some|challengi\w*|others?|none|meant|difficult|however|intended|specific|modeling|tools?|hints?|provided|cases?|event|find|missing|please|accept|apologies|advance|don't|stop|instead|consider|opportunity|exercise|exercises|designer'?s?|choice|provide|liking|right|wrong|answers?|work|through|keep|mind|best|creating|simple|sketches|build|constructed|features?|which|more|complex|luck|pursuits?|software|copyright|rights?\s+reserved|autodesk|kkmsoft|all\s+rights|disclaimer|tutorial|guide|course|lesson|sample|workbook|handbook|instructions?|overview|introduction|preface|chapter|page|website|email|author|publish|published|edition)\b/i;
 
     if (PROSE_WORDS_REGEX.test(clean)) {
       return true;
     }
 
-    // 4. High word count with grammatical punctuation or conversational conjunctions
+    // 5. High word count with grammatical punctuation or conversational conjunctions
     const words = clean.split(/\s+/);
-    if (words.length >= 5) {
+    if (words.length >= 4) {
       if (
         /[,;]\s+[a-z]/i.test(clean) || 
         /\.\s+[A-Z]/.test(clean) || 
-        /\b(?:and|or|in|to|for|of|with|by|from|at|on|the|a|an|is|are|be|have|has|had|you|your|we|our|they|their|can|could|will|would|should|may|might)\b/i.test(clean)
+        conversationalMatches.length >= 1
       ) {
         return true;
       }

@@ -1,12 +1,12 @@
 import React from 'react';
-import { 
-  FolderOpen, 
-  Sparkles, 
-  ShieldCheck, 
-  FileText, 
+import {
+  FolderOpen,
+  Sparkles,
+  ShieldCheck,
+  FileText,
   Layers,
   Loader2,
-  SlidersHorizontal
+  Search
 } from 'lucide-react';
 import type { BlueprintDocument } from '../../types/blueprint';
 
@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="h-12 border-b border-slate-200 bg-white px-4 flex items-center justify-between select-none z-30 shadow-xs">
       {/* Brand & Platform Identification */}
       <div className="flex items-center gap-3">
-        <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center text-white shadow-xs">
+        <div className="w-7 h-7 rounded bg-slate-900 flex items-center justify-center text-white shadow-xs">
           <Layers className="w-4 h-4" />
         </div>
         <div>
@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="hidden md:flex items-center gap-2">
         {document ? (
           <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs">
-            <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+            <FileText className="w-4 h-4 text-slate-700 shrink-0" />
             <div className="flex flex-col">
               <span className="font-medium text-slate-800 truncate max-w-[260px]">
                 {document.name}
@@ -121,11 +121,10 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onAutoBalloon}
           disabled={!document || isExtracting}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded text-xs font-semibold shadow-xs transition ${
-            isExtracting
-              ? 'bg-blue-100 text-blue-800 border border-blue-300 cursor-wait'
-              : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700'
-          } disabled:opacity-50`}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded text-xs font-semibold shadow-xs transition ${isExtracting
+              ? 'bg-slate-200 text-slate-800 border border-slate-400 cursor-wait'
+              : 'bg-slate-800 hover:bg-slate-900 text-white border border-slate-900'
+            } disabled:opacity-50`}
           title="Run Local AI Extraction: ASME Y14.5 GD&T, Title Block Tolerances, Drawing Zones"
         >
           {isExtracting ? (
@@ -146,13 +145,12 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onToggleDrawer}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition ${
-              isDrawerOpen
-                ? 'bg-blue-50 text-blue-700 border-blue-300'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 shadow-xs'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border transition ${isDrawerOpen
+                ? 'bg-slate-200 dark:bg-zinc-700 text-slate-900 dark:text-zinc-100 border-slate-400 dark:border-zinc-600'
+                : 'bg-white dark:bg-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700 shadow-xs'
+              }`}
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+            <Search className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
             <span>Characteristics ({extractionCount})</span>
           </button>
         )}

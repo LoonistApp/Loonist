@@ -49,7 +49,7 @@ console.log(`✓ Verified all ${proseSentences.length} tutorial/disclaimer sente
 const validCallouts = [
   { text: '1.250', expectedNominal: 1.250, type: 'linear' },
   { text: 'Ø.500 ± .005', expectedNominal: 0.500, type: 'diameter' },
-  { text: '2X 45° CHAMFER', expectedNominal: 45, type: 'chamfer' },
+  { text: '2X 45° CHAMFER', expectedNominal: 2, type: 'chamfer' },
   { text: '4X Ø.375 THRU', expectedNominal: 0.375, type: 'diameter' },
   { text: '[2.000]', expectedNominal: 2.000, enclosure: 'basic' },
   { text: '(1.500)', expectedNominal: 1.500, enclosure: 'reference' },

@@ -1,5 +1,6 @@
 import type { EngineeringCharacteristic, ProjectProperties } from '../../types/characteristics';
 import type { BlueprintDocument } from '../../types/blueprint';
+import type { ProjectSettings } from '../../types/settings';
 
 export interface LoonistProjectPackage {
   format: 'LOONIST_PROJECT_V1';
@@ -9,6 +10,7 @@ export interface LoonistProjectPackage {
   projectProps: ProjectProperties;
   blueprintDoc: BlueprintDocument | null;
   characteristics: EngineeringCharacteristic[];
+  settings?: ProjectSettings;
   pdfBase64?: string;
   pdfFileName?: string;
   activeSheetIndex: number;
@@ -54,7 +56,8 @@ export class ProjectArchiveService {
     pdfFileName?: string,
     activeSheetIndex: number = 0,
     scale: number = 1.0,
-    rotation: number = 0
+    rotation: number = 0,
+    settings?: ProjectSettings
   ): LoonistProjectPackage {
     return {
       format: 'LOONIST_PROJECT_V1',
@@ -64,6 +67,7 @@ export class ProjectArchiveService {
       projectProps,
       blueprintDoc,
       characteristics,
+      settings,
       pdfBase64: pdfBuffer ? ProjectArchiveService.arrayBufferToBase64(pdfBuffer) : undefined,
       pdfFileName: pdfFileName || blueprintDoc?.name || 'blueprint.pdf',
       activeSheetIndex,

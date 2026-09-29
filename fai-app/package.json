@@ -1,5 +1,6 @@
 {
-  "name": "fai-app",
+  "name": "loonist",
+  "productName": "LOONIST",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,6 +13,7 @@
     "test": "tsx scripts/run_all_feature_tests.ts"
   },
   "dependencies": {
+    "@noble/curves": "^2.4.0",
     "better-sqlite3": "^13.0.3",
     "lucide-react": "^1.45.0",
     "pdf-lib": "^1.17.1",

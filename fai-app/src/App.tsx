@@ -16,14 +16,18 @@ import { MeasurementEngine } from './services/compliance/measurementEngine';
 import { RenumberingService } from './services/ballooning/renumberingService';
 import { ProjectArchiveService, type LoonistProjectPackage } from './services/project/projectArchiveService';
 import { SpatialPlacementService } from './services/ballooning/spatialPlacementService';
-import type { 
-  EngineeringCharacteristic, 
-  ProjectProperties, 
-  BalloonAppearance 
+import { 
+  type EngineeringCharacteristic, 
+  type ProjectProperties, 
+  type BalloonAppearance,
+  DEFAULT_AEROSPACE_TOLERANCES 
 } from './types/characteristics';
+import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings } from './types/settings';
+import { DEFAULT_METRIC_ISO_TOLERANCES, ToleranceEngine } from './services/ai/toleranceEngine';
 import type { BlueprintDocument, ViewportTool } from './types/blueprint';
-import { ExtractionReviewDrawer } from './components/extraction/ExtractionReviewDrawer';
-import { FileUp, FileText, Zap } from 'lucide-react';
+import { ExportModal } from './components/layout/ExportModal';
+import { showLoonistDialog } from './utils/dialog';
+import { useApplicationOptions } from './stores/useApplicationOptionsStore';
 
 interface DocumentCacheItem {
   id: string;
@@ -43,6 +47,7 @@ interface DocumentCacheItem {
 }
 
 export function App() {
+  const [appOptions] = useApplicationOptions();
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [blueprintDoc, setBlueprintDoc] = useState<BlueprintDocument | null>(null);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
@@ -59,10 +64,16 @@ export function App() {
 
   // Inspection & Characteristic State
   const [characteristics, setCharacteristics] = useState<EngineeringCharacteristic[]>([]);
+  const [undoStack, setUndoStack] = useState<EngineeringCharacteristic[][]>([]);
+  const [redoStack, setRedoStack] = useState<EngineeringCharacteristic[][]>([]);
   const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [hasInspectionResults, setHasInspectionResults] = useState(false);
   const [hudCropDataUrl, setHudCropDataUrl] = useState<string | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isInspectOpen, setIsInspectOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [selectedExportTemplate, setSelectedExportTemplate] = useState('AS9102C.xlt');
   const [tableFilter, setTableFilter] = useState<'all' | 'critical' | 'review'>('all');
 
   // Aerospace CAD Dark Mode Theme State
@@ -94,25 +105,69 @@ export function App() {
     shape: 'circle',
     fit: 2,
     fontSize: 10,
-    color: 'blue',
+    color: 'black',
     showLeaderLine: true
   });
   const [balloonsLocked, setBalloonsLocked] = useState(false);
 
   // AS9102 Project Properties
   const [projectProps, setProjectProps] = useState<ProjectProperties>({
-    partName: 'TURBINE MOUNT BRACKET - HIGH PRESSURE COMPRESSOR',
-    partNumber: 'AS9102-TMB-001',
-    partRevision: 'C',
-    drawingName: 'Turbine Mount Bracket',
-    drawingNumber: 'AS9102-TMB-001',
-    drawingRevision: 'C',
-    cageCode: '1A2B3',
-    lotSize: 200,
+    partName: '',
+    partNumber: '',
+    partRevision: '',
+    drawingName: '',
+    drawingNumber: '',
+    drawingRevision: '',
+    cageCode: '',
+    lotSize: 1,
     samplingLevel: 'II',
     samplingType: 'NORMAL',
     aql: '1.0'
   });
+
+  // Project Settings Subsystem (2-Zone Industrial Defaults & Persistence)
+  const [projectSettings, setProjectSettings] = useState<ProjectSettings>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('loonist_project_settings_default');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return { ...DEFAULT_PROJECT_SETTINGS, ...parsed };
+        }
+      } catch (e) {
+        // ignore fallback
+      }
+    }
+    return DEFAULT_PROJECT_SETTINGS;
+  });
+
+  // Handle Project Settings Update with Retroactive Tolerance Recalculation
+  const handleUpdateSettings = useCallback((newSettings: ProjectSettings) => {
+    setProjectSettings(newSettings);
+
+    // Retroactively recompute title block tolerances for all characteristics inheriting general tolerances
+    setCharacteristics((prevChars) => {
+      if (prevChars.length === 0) return prevChars;
+      return prevChars.map((ch) => {
+        if (ch.isToleranceInherited || ch.toleranceSource?.includes('Title Block')) {
+          const nominal = ch.cleanNominal !== null ? ch.cleanNominal.toString() : (ch.rawText || '');
+          const isAngular = ch.type === 'angle' || (typeof ch.rawText === 'string' && ch.rawText.includes('°'));
+          const resolved = ToleranceEngine.resolveTitleBlockTolerance(nominal, isAngular, newSettings.tolerances);
+          const minLim = ch.cleanNominal !== null ? ch.cleanNominal - resolved.lowerTol : null;
+          const maxLim = ch.cleanNominal !== null ? ch.cleanNominal + resolved.upperTol : null;
+          return {
+            ...ch,
+            upperTol: resolved.upperTol,
+            lowerTol: resolved.lowerTol,
+            minLimit: minLim,
+            maxLimit: maxLim,
+            toleranceSource: resolved.source
+          };
+        }
+        return ch;
+      });
+    });
+  }, []);
 
   // Selected characteristic object
   const selectedChar = useMemo(() => {
@@ -234,33 +289,54 @@ export function App() {
   // Close a document tab
   const handleCloseFile = useCallback((fileIdToClose: string) => {
     docCacheRef.current.delete(fileIdToClose);
+    if (blueprintDoc) {
+      docCacheRef.current.delete(blueprintDoc.name);
+      if (blueprintDoc.id) docCacheRef.current.delete(blueprintDoc.id);
+    }
 
     setProjectFiles((prev) => {
       const remaining = prev.filter((f) => f.id !== fileIdToClose && f.name !== fileIdToClose);
 
-      // If closed file was currently active, switch to another file or reset
-      if (activeFileId === fileIdToClose || (blueprintDoc && blueprintDoc.name === fileIdToClose)) {
-        if (remaining.length > 0) {
-          const nextFile = remaining[remaining.length - 1];
-          const target = docCacheRef.current.get(nextFile.id) || docCacheRef.current.get(nextFile.name);
-          if (target) {
-            setPdfDoc(target.pdfDoc);
-            setBlueprintDoc(target.blueprintDoc);
-            setCharacteristics(target.characteristics);
-            setProjectProps(target.projectProps);
-            setSelectedCharId(target.selectedCharId);
-            const safeSheetIndex = Math.min(target.activeSheetIndex, Math.max(0, target.blueprintDoc.numSheets - 1));
-            setActiveSheetIndex(safeSheetIndex);
-            setScale(target.scale || 1.0);
-            setRotation(target.rotation || 0);
-            setActiveFileId(nextFile.id);
-          }
-        } else {
-          setPdfDoc(null);
-          setBlueprintDoc(null);
-          setCharacteristics([]);
-          setSelectedCharId(null);
-          setActiveFileId('');
+      // If no drawings remain in project, reset all drawing and project properties to blank defaults
+      if (remaining.length === 0) {
+        setPdfDoc(null);
+        setBlueprintDoc(null);
+        setCharacteristics([]);
+        setSelectedCharId(null);
+        setActiveFileId('');
+        setActiveSheetIndex(0);
+        setHudCropDataUrl(null);
+        setHasInspectionResults(false);
+        setIsInspecting(false);
+        docCacheRef.current.clear();
+        setProjectProps({
+          partName: '',
+          partNumber: '',
+          partRevision: '',
+          drawingName: '',
+          drawingNumber: '',
+          drawingRevision: '',
+          cageCode: '',
+          lotSize: 1,
+          samplingLevel: 'II',
+          samplingType: 'NORMAL',
+          aql: '1.0'
+        });
+      } else if (activeFileId === fileIdToClose || (blueprintDoc && (blueprintDoc.name === fileIdToClose || blueprintDoc.id === fileIdToClose))) {
+        // If closed file was currently active, switch to next available drawing
+        const nextFile = remaining[remaining.length - 1];
+        const target = docCacheRef.current.get(nextFile.id) || docCacheRef.current.get(nextFile.name);
+        if (target) {
+          setPdfDoc(target.pdfDoc);
+          setBlueprintDoc(target.blueprintDoc);
+          setCharacteristics(target.characteristics);
+          setProjectProps(target.projectProps);
+          setSelectedCharId(target.selectedCharId);
+          const safeSheetIndex = Math.min(target.activeSheetIndex, Math.max(0, target.blueprintDoc.numSheets - 1));
+          setActiveSheetIndex(safeSheetIndex);
+          setScale(target.scale || 1.0);
+          setRotation(target.rotation || 0);
+          setActiveFileId(nextFile.id);
         }
       }
 
@@ -274,31 +350,40 @@ export function App() {
     fileName: string,
     fileSize: number,
     fileHash: string,
-    filePath?: string
+    filePath?: string,
+    isNewProject: boolean = false
   ) => {
     try {
       setIsLoading(true);
 
       const fileId = fileName;
 
-      // If already cached, switch to it
-      if (docCacheRef.current.has(fileId)) {
-        await handleSelectFile(fileId);
-        setIsLoading(false);
-        return;
-      }
+      // If starting a new project, reset the document cache and undo/redo stacks
+      if (isNewProject) {
+        docCacheRef.current.clear();
+        setUndoStack([]);
+        setRedoStack([]);
+        setProjectSettings(DEFAULT_PROJECT_SETTINGS);
+      } else {
+        // If already cached, switch to it
+        if (docCacheRef.current.has(fileId)) {
+          await handleSelectFile(fileId);
+          setIsLoading(false);
+          return;
+        }
 
-      // 1. Save currently active document state before loading new one
-      if (activeFileId && docCacheRef.current.has(activeFileId)) {
-        const current = docCacheRef.current.get(activeFileId)!;
-        current.characteristics = characteristics;
-        current.projectProps = projectProps;
-        current.selectedCharId = selectedCharId;
-        current.activeSheetIndex = activeSheetIndex;
-        current.scale = scale;
-        current.rotation = rotation;
-        if (blueprintDoc) current.blueprintDoc = blueprintDoc;
-        if (pdfDoc) current.pdfDoc = pdfDoc;
+        // 1. Save currently active document state before loading new one
+        if (activeFileId && docCacheRef.current.has(activeFileId)) {
+          const current = docCacheRef.current.get(activeFileId)!;
+          current.characteristics = characteristics;
+          current.projectProps = projectProps;
+          current.selectedCharId = selectedCharId;
+          current.activeSheetIndex = activeSheetIndex;
+          current.scale = scale;
+          current.rotation = rotation;
+          if (blueprintDoc) current.blueprintDoc = blueprintDoc;
+          if (pdfDoc) current.pdfDoc = pdfDoc;
+        }
       }
 
       // 2. Ingest new PDF document
@@ -362,20 +447,25 @@ export function App() {
       };
       docCacheRef.current.set(fileId, newCacheItem);
 
-      // 4. Update project files list (deduplicating by filename or ID)
-      setProjectFiles((prev) => {
-        const existingIdx = prev.findIndex((f) => f.name === fileName || f.id === fileId);
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = { id: fileId, name: fileName, type: 'pdf', filePath };
-          return updated;
-        }
-        return [...prev, { id: fileId, name: fileName, type: 'pdf', filePath }];
-      });
+      // 4. Update project files list
+      if (isNewProject) {
+        setProjectFiles([{ id: fileId, name: fileName, type: 'pdf', filePath }]);
+      } else {
+        setProjectFiles((prev) => {
+          const existingIdx = prev.findIndex((f) => f.name === fileName || f.id === fileId);
+          if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated[existingIdx] = { id: fileId, name: fileName, type: 'pdf', filePath };
+            return updated;
+          }
+          return [...prev, { id: fileId, name: fileName, type: 'pdf', filePath }];
+        });
+      }
 
       // 5. Activate in view
       setPdfDoc(loadedDoc);
       setBlueprintDoc(newBlueprintDoc);
+      setCharacteristics([]);
       setProjectProps(newProps);
       setSelectedCharId(null);
       setActiveSheetIndex(0);
@@ -386,11 +476,18 @@ export function App() {
       // Auto-extract characteristics for the sample blueprint so balloons and table are immediately populated
       if (fileName.includes('Sample') || fileName.includes('AS9102')) {
         try {
-          const result = await AiExtractionService.extractCharacteristics(loadedDoc);
+          const result = await AiExtractionService.extractCharacteristics(loadedDoc, undefined, projectSettings);
           setCharacteristics(result.characteristics);
           setProjectProps(result.projectProps);
+          if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
+            setProjectSettings(prev => ({
+              ...prev,
+              units: result.projectProps.units!,
+              tolerances: result.projectProps.units === 'mm' ? DEFAULT_METRIC_ISO_TOLERANCES : DEFAULT_AEROSPACE_TOLERANCES
+            }));
+          }
           if (result.characteristics.length > 0) {
-            setSelectedCharId(result.characteristics[0].id);
+            setSelectedCharId(null);
           }
         } catch (extractErr) {
           console.warn('Auto-extraction on sample load skipped:', extractErr);
@@ -401,18 +498,20 @@ export function App() {
       }
     } catch (err) {
       console.error('Failed to load blueprint document:', err);
-      alert('Error loading PDF blueprint. Please check file format.');
+      await showLoonistDialog('Error loading PDF blueprint. Please check file format.');
     } finally {
       setIsLoading(false);
     }
-  }, [activeFileId, characteristics, projectProps, selectedCharId, activeSheetIndex, scale, rotation, blueprintDoc, pdfDoc, handleSelectFile]);
+  }, [activeFileId, characteristics, projectProps, selectedCharId, activeSheetIndex, scale, rotation, blueprintDoc, pdfDoc, handleSelectFile, projectSettings]);
 
   useEffect(() => {
     loadPdfBufferRef.current = loadPdfBuffer;
   }, [loadPdfBuffer]);
 
   // Handler for opening blueprint from native OS file picker
-  const handleOpenBlueprint = useCallback(async () => {
+  const handleOpenBlueprint = useCallback(async (options?: { isNewProject?: boolean }) => {
+    const isNew = options?.isNewProject ?? false;
+
     if (window.api?.openBlueprintDialog) {
       const result = await window.api.openBlueprintDialog();
       if (!result.cancelled && result.buffer && result.fileName && result.fileHash) {
@@ -421,7 +520,8 @@ export function App() {
           result.fileName,
           result.fileSize || result.buffer.byteLength,
           result.fileHash,
-          result.filePath
+          result.filePath,
+          isNew
         );
       }
     } else {
@@ -432,7 +532,7 @@ export function App() {
         const file = e.target.files?.[0];
         if (file) {
           const buffer = await file.arrayBuffer();
-          await loadPdfBuffer(buffer, file.name, file.size, 'local-browser-hash');
+          await loadPdfBuffer(buffer, file.name, file.size, 'local-browser-hash', undefined, isNew);
         }
       };
       input.click();
@@ -442,6 +542,15 @@ export function App() {
   useEffect(() => {
     handleOpenBlueprintRef.current = handleOpenBlueprint;
   }, [handleOpenBlueprint]);
+
+  // Handler for New Project - launches file picker without wiping or closing the existing drawing!
+  // The existing drawing remains open and active until/unless a new drawing file is imported.
+  const handleNewProject = useCallback(() => {
+    if (characteristics.length > 0 && !window.confirm('Start a new inspection project? Unsaved changes will be cleared upon importing a new drawing.')) {
+      return;
+    }
+    void handleOpenBlueprint({ isNewProject: true });
+  }, [characteristics.length, handleOpenBlueprint]);
 
   // Handler for loading built-in test blueprint
   const handleLoadSample = useCallback(async () => {
@@ -482,17 +591,6 @@ export function App() {
     }
   }, [loadPdfBuffer, handleSelectFile]);
 
-  // Auto-load sample blueprint on first launch only
-  const hasInitializedRef = useRef(false);
-  useEffect(() => {
-    if (hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
-
-    // Only load sample if no blueprint is currently loaded
-    if (!pdfDoc && !blueprintDoc) {
-      void handleLoadSample();
-    }
-  }, [handleLoadSample, pdfDoc, blueprintDoc]);
 
   // Global CAD Hotkeys
   useEffect(() => {
@@ -540,42 +638,129 @@ export function App() {
     setScale(Math.max(0.25, Math.min(32.0, fitScale)));
   };
 
+  const [extractScope, setExtractScope] = useState<'active' | 'all'>('active');
+
   // Smart Extract Handler (Auto-Ballooning)
-  const handleSmartExtract = useCallback(async () => {
+  const handleSmartExtract = useCallback(async (scopeOverride?: 'active' | 'all') => {
     if (!pdfDoc) return;
+    const scope = scopeOverride || extractScope;
     try {
       setIsExtracting(true);
-      const result = await AiExtractionService.extractCharacteristics(pdfDoc);
+      const targetSheet = scope === 'active' ? (activeSheetIndex + 1) : undefined;
+      const result = await AiExtractionService.extractCharacteristics(
+        pdfDoc,
+        undefined,
+        projectSettings,
+        targetSheet,
+        characteristics
+      );
       setCharacteristics(result.characteristics);
-      setProjectProps(result.projectProps);
-      if (result.characteristics.length > 0) {
-        setSelectedCharId(result.characteristics[0].id);
+      setProjectProps(prev => ({ ...prev, ...result.projectProps }));
+      if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
+        setProjectSettings(prev => ({
+          ...prev,
+          units: result.projectProps.units!,
+          tolerances: result.projectProps.units === 'mm' ? DEFAULT_METRIC_ISO_TOLERANCES : DEFAULT_AEROSPACE_TOLERANCES
+        }));
+      }
+
+      // Do NOT auto-select characteristic; keep side panel on Project overview
+      setSelectedCharId(null);
+
+      // If active sheet was extracted and 0 characteristics found on it:
+      if (targetSheet) {
+        const sheetChars = result.characteristics.filter(c => c.sheetNumber === targetSheet);
+        if (sheetChars.length === 0) {
+          await showLoonistDialog(
+            `Sheet ${targetSheet} was recognized as an introductory/cover page or contains no dimensional callouts.`
+          );
+        }
       }
     } catch (err) {
       console.error('Failed to run Smart Extract:', err);
-      alert('Failed to extract characteristics. Please verify PDF stream.');
+      await showLoonistDialog('Failed to extract characteristics. Please verify PDF stream.');
     } finally {
       setIsExtracting(false);
     }
-  }, [pdfDoc]);
+  }, [pdfDoc, projectSettings, activeSheetIndex, characteristics, extractScope]);
 
-  // Export to AS9102 Excel Handler
-  const handleExportExcel = useCallback(() => {
-    if (characteristics.length === 0) {
-      alert('Please run Smart Extract or add characteristics before exporting.');
+  // Top Action: Run Inspection Analysis (Generates/Refreshes Results, does NOT open panel directly)
+  const handleRunInspection = useCallback(async () => {
+    if (!blueprintDoc && !pdfDoc) {
+      await showLoonistDialog('Please load an engineering drawing first.');
       return;
     }
-    As9102ExcelExporter.exportToExcel(
-      characteristics,
-      projectProps,
-      `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`
-    );
+
+    // Must balloon/extract characteristics first
+    if (characteristics.length === 0) {
+      await showLoonistDialog(
+        'No inspection characteristics found.\nRun Smart Extract or manually add balloons before starting the inspection.'
+      );
+      return;
+    }
+
+    try {
+      setIsInspecting(true);
+
+      // Re-evaluate every characteristic's measurement conformance against engineering tolerances
+      const analyzed = characteristics.map((char) => {
+        const evalRes = MeasurementEngine.evaluateMeasurement(char, char.measuredValue ?? null);
+        return {
+          ...char,
+          conformanceStatus: evalRes.status,
+          deviation: evalRes.deviation,
+          verificationStatus: char.verificationStatus || 'verified'
+        };
+      });
+
+      // CAD action processing delay for visual responsiveness
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      setCharacteristics(analyzed);
+      setHasInspectionResults(true);
+
+      // Record audit ledger entry
+      AuditLedgerService.recordEntry({
+        characteristicId: 'BATCH_INSPECT',
+        itemNumber: 0,
+        subNumber: '0',
+        action: 'INSPECTION_RUN',
+        inspectorInitials: 'QA_LEAD',
+        details: `Inspection analysis executed on ${analyzed.length} characteristics.`
+      });
+    } catch (err) {
+      console.error('Failed to run inspection:', err);
+      await showLoonistDialog('Failed to run inspection analysis.');
+    } finally {
+      setIsInspecting(false);
+    }
+  }, [blueprintDoc, pdfDoc, characteristics]);
+
+  // Export to AS9102 Excel / CSV Handler
+  const handleExportExcel = useCallback((format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (characteristics.length === 0) {
+      showLoonistDialog('Please run Smart Extract or add characteristics before exporting.');
+      return;
+    }
+    if (format === 'csv') {
+      As9102ExcelExporter.exportToCsv(
+        characteristics,
+        projectProps,
+        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
+      );
+    } else {
+      As9102ExcelExporter.exportToExcel(
+        characteristics,
+        projectProps,
+        `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`
+      );
+    }
   }, [characteristics, projectProps]);
 
   // Vector Marked Blueprint PDF Exporter (pdf-lib)
   const handleExportMarkedPdf = useCallback(async () => {
     if (!blueprintDoc || characteristics.length === 0) {
-      alert('Please load a blueprint and characteristics before exporting marked PDF.');
+      await showLoonistDialog('Please load a blueprint and characteristics before exporting marked PDF.');
       return;
     }
     try {
@@ -598,14 +783,19 @@ export function App() {
       const markedBytes = await MarkedPdfExporter.generateMarkedPdf(
         originalBytes,
         characteristics,
-        balloonAppearance
+        balloonAppearance,
+        {
+          highlightNonConformance: true,
+          showLeaderLines: true,
+          watermark: projectSettings.watermark
+        }
       );
 
       const defaultName = `${projectProps.partNumber || 'Blueprint'}_BALLOONED_MARKED.pdf`;
       MarkedPdfExporter.downloadMarkedPdf(markedBytes, defaultName);
     } catch (err) {
       console.error('Failed to generate marked PDF:', err);
-      alert('Failed to export marked PDF.');
+      await showLoonistDialog('Failed to export marked PDF.');
     } finally {
       setIsLoading(false);
     }
@@ -651,16 +841,22 @@ export function App() {
   // Delete characteristic with automatic AS9102 cascade renumbering
   const handleDeleteCharacteristic = useCallback((charId: string) => {
     setCharacteristics((prev) => {
+      setUndoStack((u) => [...u.slice(-30), prev]);
+      setRedoStack([]);
       const renumbered = RenumberingService.deleteAndRenumber(prev, charId);
       setSelectedCharId((currentSelected) => {
         if (currentSelected === charId) {
-          return renumbered.length > 0 ? renumbered[0].id : null;
+          const nextOnSheet = renumbered.find((c) => c.sheetNumber === activeSheetIndex + 1);
+          if (!nextOnSheet) {
+            setHudCropDataUrl(null);
+          }
+          return nextOnSheet ? nextOnSheet.id : null;
         }
         return currentSelected;
       });
       return renumbered;
     });
-  }, []);
+  }, [activeSheetIndex]);
 
   // Manual OCR / Marquee Box Capture
   const handleBoxCapture = useCallback(async (
@@ -672,6 +868,8 @@ export function App() {
       const maxItemNumber = characteristics.reduce((max, c) => Math.max(max, c.itemNumber), 0);
       const nextItemNumber = maxItemNumber + 1;
       const newChar = await AiExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber, cropCanvas);
+      setUndoStack((u) => [...u.slice(-30), characteristics]);
+      setRedoStack([]);
       setCharacteristics((prev) => [...prev, newChar]);
       setSelectedCharId(newChar.id);
       if (cropCanvas) {
@@ -679,15 +877,22 @@ export function App() {
           setHudCropDataUrl(cropCanvas.toDataURL());
         } catch {}
       }
+    } catch (err: any) {
+      console.warn('Marquee box capture rejected:', err);
+      if (err?.message) {
+        await showLoonistDialog(err.message, 'Non-Inspectable Area');
+      }
       setActiveTool('select');
-    } catch (err) {
-      console.error('Failed to capture marquee box:', err);
     }
   }, [characteristics, pdfDoc]);
 
   // Renumber all characteristics sequentially
   const handleRenumberAll = useCallback(() => {
-    setCharacteristics((prev) => RenumberingService.cascadeRenumber(prev));
+    setCharacteristics((prev) => {
+      setUndoStack((u) => [...u.slice(-30), prev]);
+      setRedoStack([]);
+      return RenumberingService.cascadeRenumber(prev);
+    });
   }, []);
 
   // Sprint 4: Auto-reposition balloons across all sheets avoiding callout & boundary collisions
@@ -698,6 +903,8 @@ export function App() {
       width: s.width,
       height: s.height
     }));
+    setUndoStack((u) => [...u.slice(-30), characteristics]);
+    setRedoStack([]);
     const repositioned = SpatialPlacementService.recalculateAllSheets(characteristics, sheetsMeta, true);
     setCharacteristics(repositioned);
   }, [characteristics, blueprintDoc]);
@@ -717,7 +924,8 @@ export function App() {
         fileName,
         activeSheetIndex,
         scale,
-        rotation
+        rotation,
+        projectSettings
       );
 
       const serialized = ProjectArchiveService.serialize(pkg);
@@ -733,9 +941,9 @@ export function App() {
       }
     } catch (err) {
       console.error('Failed to save LOONIST project:', err);
-      alert('Failed to save project package.');
+      await showLoonistDialog('Failed to save project package.');
     }
-  }, [activeFileId, blueprintDoc, projectProps, characteristics, activeSheetIndex, scale, rotation]);
+  }, [activeFileId, blueprintDoc, projectProps, characteristics, activeSheetIndex, scale, rotation, projectSettings]);
 
   // Sprint 4: Open LOONIST Self-Contained Project Package (*.loonist)
   const handleOpenProject = useCallback(async () => {
@@ -769,6 +977,9 @@ export function App() {
       // Restore inspection state from the archive
       setCharacteristics(pkg.characteristics || []);
       setProjectProps(pkg.projectProps);
+      if (pkg.settings) {
+        setProjectSettings(pkg.settings);
+      }
       if (typeof pkg.activeSheetIndex === 'number') setActiveSheetIndex(pkg.activeSheetIndex);
       if (typeof pkg.scale === 'number') setScale(pkg.scale);
       if (typeof pkg.rotation === 'number') setRotation(pkg.rotation);
@@ -777,13 +988,36 @@ export function App() {
       }
     } catch (err) {
       console.error('Failed to open LOONIST project:', err);
-      alert('Failed to open project package. Please verify file format.');
+      await showLoonistDialog('Failed to open project package. Please verify file format.');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Sprint 4: Global Hotkeys (Ctrl+S / Cmd+S to Save, Ctrl+O / Cmd+O to Open)
+  // Undo & Redo System
+  const handleUndo = useCallback(() => {
+    setUndoStack((prevUndo) => {
+      if (prevUndo.length === 0) return prevUndo;
+      const previous = prevUndo[prevUndo.length - 1];
+      const newUndo = prevUndo.slice(0, -1);
+      setRedoStack((prevRedo) => [...prevRedo, characteristics]);
+      setCharacteristics(previous);
+      return newUndo;
+    });
+  }, [characteristics]);
+
+  const handleRedo = useCallback(() => {
+    setRedoStack((prevRedo) => {
+      if (prevRedo.length === 0) return prevRedo;
+      const next = prevRedo[prevRedo.length - 1];
+      const newRedo = prevRedo.slice(0, -1);
+      setUndoStack((prevUndo) => [...prevUndo, characteristics]);
+      setCharacteristics(next);
+      return newRedo;
+    });
+  }, [characteristics]);
+
+  // Sprint 4: Global Hotkeys (Ctrl+S to Save, Ctrl+O to Open, Ctrl+W to Close, Ctrl+Z / Ctrl+Y for Undo/Redo, Alt+F4 to Close Window)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
@@ -794,13 +1028,45 @@ export function App() {
         void handleSaveProject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
         e.preventDefault();
-        void handleOpenProject();
+        void handleOpenBlueprint();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleNewProject();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        if (activeFileId) {
+          handleCloseFile(activeFileId);
+        } else if (blueprintDoc) {
+          handleCloseFile(blueprintDoc.id || blueprintDoc.name);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.altKey && e.key === 'F4') {
+        e.preventDefault();
+        if (window.api?.closeWindow) {
+          void window.api.closeWindow();
+        } else {
+          window.close();
+        }
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea' && selectedCharId) {
+          e.preventDefault();
+          handleDeleteCharacteristic(selectedCharId);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSaveProject, handleOpenProject]);
+  }, [handleSaveProject, handleOpenProject, activeFileId, blueprintDoc, handleCloseFile, selectedCharId, handleDeleteCharacteristic, handleUndo, handleRedo, handleNewProject, handleOpenBlueprint]);
 
   // Persistent Layout Dimensions (VS Code / Cursor Style)
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(() => {
@@ -891,6 +1157,22 @@ export function App() {
     setIsLeftPanelOpen((prev) => !prev);
   }, []);
 
+  const handleToggleInspector = useCallback(() => {
+    if (isLeftPanelOpen && isInspectOpen) {
+      setIsInspectOpen(false);
+    } else {
+      setIsLeftPanelOpen(true);
+      setIsInspectOpen(true);
+      if (leftPanelWidth < 380) {
+        setLeftPanelWidth(420);
+      }
+    }
+  }, [isLeftPanelOpen, isInspectOpen, leftPanelWidth]);
+
+  const handleCloseInspector = useCallback(() => {
+    setIsInspectOpen(false);
+  }, []);
+
   const handleToggleBottomPanel = useCallback(() => {
     setIsBottomPanelOpen((prev) => !prev);
   }, []);
@@ -913,30 +1195,19 @@ export function App() {
     setIsBottomPanelOpen(true);
   }, [handleLeftWidthChange, handleBottomHeightChange]);
 
-  const handleNewProject = useCallback(() => {
-    if (characteristics.length > 0 && !window.confirm('Start a new inspection project? Unsaved changes will be cleared.')) {
-      return;
-    }
-    setPdfDoc(null);
-    setBlueprintDoc(null);
-    setCharacteristics([]);
-    setSelectedCharId(null);
-    setProjectFiles([]);
-    setActiveFileId('');
-    docCacheRef.current.clear();
-  }, [characteristics.length]);
-
   const currentSheet = blueprintDoc?.sheets[activeSheetIndex] || null;
 
   return (
     <div className={`flex flex-col w-screen h-screen ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} overflow-hidden font-sans select-none relative transition-colors duration-200`}>
       {isLoading && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600 animate-pulse z-50" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-slate-900 dark:bg-zinc-200 animate-pulse z-50" />
       )}
       {/* 1. TOP RIBBON BAR (Desktop Engineering Ribbon System) */}
       <RibbonBar
         onSmartExtract={handleSmartExtract}
         isExtracting={isExtracting}
+        extractScope={extractScope}
+        onSetExtractScope={setExtractScope}
         onAddFile={handleOpenBlueprint}
         onSaveProject={handleSaveProject}
         onOpenProject={handleOpenProject}
@@ -979,12 +1250,22 @@ export function App() {
         activeSheetIndex={activeSheetIndex}
         onSelectSheet={setActiveSheetIndex}
         projectProps={projectProps}
+        onUpdateProjectProps={setProjectProps}
         tableFilter={tableFilter}
         onSetTableFilter={setTableFilter}
-        isDrawerOpen={isDrawerOpen}
-        onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
+        settings={projectSettings}
+        onUpdateSettings={handleUpdateSettings}
+        onRunInspection={handleRunInspection}
+        isInspecting={isInspecting}
+        hasInspectionResults={hasInspectionResults}
+        isDrawerOpen={isLeftPanelOpen && isInspectOpen}
+        onToggleDrawer={handleToggleInspector}
         isDarkMode={isDarkMode}
         onToggleDarkMode={handleToggleDarkMode}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
       />
 
       {/* 2. MIDDLE SPLIT: LEFT PROPERTIES DOCK + VERTICAL SPLITTER + CENTER VIEWPORT */}
@@ -995,18 +1276,33 @@ export function App() {
             characteristics={characteristics}
             selectedChar={selectedChar}
             onSelectCharacteristic={handleSelectCharacteristic}
+            onClearSelectedCharacteristic={() => setSelectedCharId(null)}
             onUpdateCharacteristic={handleUpdateCharacteristic}
+            onUpdateCharacteristics={setCharacteristics}
             onDeleteCharacteristic={handleDeleteCharacteristic}
             onRenumberAll={handleRenumberAll}
             projectProps={projectProps}
             onUpdateProjectProps={setProjectProps}
             onExportExcel={handleExportExcel}
             onExportPdf={handleExportMarkedPdf}
+            hasDrawing={Boolean(blueprintDoc)}
             hudCropDataUrl={hudCropDataUrl}
+            activeSheetNumber={activeSheetIndex + 1}
             isOpen={isLeftPanelOpen}
             onToggleOpen={setIsLeftPanelOpen}
             width={leftPanelWidth}
             onWidthChange={handleLeftWidthChange}
+            isInspectOpen={isInspectOpen}
+            onToggleInspect={handleToggleInspector}
+            onCloseInspect={handleCloseInspector}
+            hasInspectionResults={hasInspectionResults}
+            onRunInspection={handleRunInspection}
+            isInspecting={isInspecting}
+            isExportOpen={isExportModalOpen}
+            onOpenExportModal={() => {
+              handleCloseInspector();
+              setIsExportModalOpen(true);
+            }}
           />
         )}
 
@@ -1022,7 +1318,17 @@ export function App() {
         )}
 
         {/* CENTER CAD VIEWPORT (CANVAS + MULTI-SHEET TABS) */}
-        <div className="relative flex-1 h-full overflow-hidden flex flex-col bg-slate-200/60 min-w-0">
+        <div 
+          className="relative flex-1 h-full overflow-hidden flex flex-col min-w-0 transition-all duration-200"
+          style={{
+            backgroundColor:
+              appOptions.workspace.canvasBackground === 'white'
+                ? '#f8fafc'
+                : appOptions.workspace.canvasBackground === 'blueprint'
+                ? '#0b132b'
+                : '#141416'
+          }}
+        >
           <main className="relative flex-1 w-full overflow-hidden flex items-center justify-center min-h-0">
             {blueprintDoc && currentSheet ? (
               <>
@@ -1032,15 +1338,23 @@ export function App() {
                   scale={scale}
                   rotation={rotation}
                   activeTool={activeTool}
+                  onToolChange={setActiveTool}
                   characteristics={characteristics}
                   selectedCharId={selectedCharId}
                   balloonAppearance={balloonAppearance}
                   onSelectCharacteristic={handleSelectCharacteristic}
                   onUpdateCharacteristic={handleUpdateCharacteristic}
+                  onUpdateCharacteristics={setCharacteristics}
+                  onDeleteCharacteristic={handleDeleteCharacteristic}
+                  onOpenInspector={() => {
+                    setIsLeftPanelOpen(true);
+                    setIsInspectOpen(true);
+                  }}
                   onBoxCapture={handleBoxCapture}
                   onScaleChange={setScale}
                   onFpsUpdate={setFps}
                   onCropGenerated={setHudCropDataUrl}
+                  watermark={projectSettings.watermark}
                 />
 
                 {/* Floating CAD HUD Toolbar */}
@@ -1059,36 +1373,45 @@ export function App() {
                 />
               </>
             ) : (
-              /* Empty State Dropzone */
-              <div className="flex flex-col items-center justify-center p-8 text-center max-w-lg bg-white border border-slate-200 rounded-lg shadow-sm">
-                <div className="w-12 h-12 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center mb-4 text-blue-600">
-                  <FileUp className="w-6 h-6" />
-                </div>
-                <h2 className="text-base font-bold text-slate-900 mb-1">
-                  No Engineering Blueprint Loaded
-                </h2>
-                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                  Open an aerospace drawing PDF (AS9102 / ASME Y14.5) to view and inspect dimensions.
-                </p>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleOpenBlueprint}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded border border-blue-700 shadow-xs transition"
+              /* Minimal, Centered Empty-Canvas State */
+              <>
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-40"
+                  style={{
+                    backgroundImage:
+                      appOptions.workspace.canvasBackground === 'white'
+                        ? 'linear-gradient(to right, #cbd5e1 1px, transparent 1px), linear-gradient(to bottom, #cbd5e1 1px, transparent 1px)'
+                        : appOptions.workspace.canvasBackground === 'blueprint'
+                        ? 'linear-gradient(to right, rgba(56, 189, 248, 0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(56, 189, 248, 0.18) 1px, transparent 1px)'
+                        : 'linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px)',
+                    backgroundSize: '32px 32px'
+                  }}
+                />
+                <div className="relative z-10 flex flex-col items-center justify-center text-center select-none pointer-events-none px-6">
+                  <h2 
+                    className="text-sm font-semibold tracking-wide mb-1"
+                    style={{
+                      color:
+                        appOptions.workspace.canvasBackground === 'white'
+                          ? '#0f172a'
+                          : '#ffffff'
+                    }}
                   >
-                    <FileText className="w-4 h-4" />
-                    <span>Select Blueprint (.pdf)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLoadSample}
-                    className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs rounded border border-slate-300 shadow-xs transition"
+                    No Drawing Loaded
+                  </h2>
+                  <p 
+                    className="text-xs font-normal"
+                    style={{
+                      color:
+                        appOptions.workspace.canvasBackground === 'white'
+                          ? '#64748b'
+                          : '#ffffff'
+                    }}
                   >
-                    <Zap className="w-4 h-4 text-slate-500" />
-                    <span>Load Sample Drawing</span>
-                  </button>
+                    Open project to begin.
+                  </p>
                 </div>
-              </div>
+              </>
             )}
           </main>
 
@@ -1097,7 +1420,19 @@ export function App() {
             <SheetTabs
               sheets={blueprintDoc.sheets}
               activeSheetIndex={activeSheetIndex}
-              onSelectSheet={setActiveSheetIndex}
+              onSelectSheet={(idx) => {
+                setActiveSheetIndex(idx);
+                setSelectedCharId((prevId) => {
+                  const char = characteristics.find((c) => c.id === prevId);
+                  if (char && char.sheetNumber !== idx + 1) {
+                    setHudCropDataUrl(null);
+                    return null;
+                  }
+                  return prevId;
+                });
+              }}
+              onExtractSheet={() => handleSmartExtract('active')}
+              isExtracting={isExtracting}
             />
           )}
         </div>
@@ -1133,18 +1468,21 @@ export function App() {
           onToggleMaximize={handleToggleMaximizeBottom}
           filterType={tableFilter}
           onFilterChange={setTableFilter}
+          activeSheetNumber={activeSheetIndex + 1}
+          totalSheets={blueprintDoc?.numSheets || 1}
         />
       )}
 
-      {/* 6. HITL AI CHARACTERISTICS REVIEW DRAWER (Magnified 300 DPI Crop Box) */}
-      <ExtractionReviewDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        characteristics={characteristics}
-        onUpdateCharacteristics={setCharacteristics}
-        onSelectCharacteristic={handleSelectCharacteristic}
-        selectedCharId={selectedCharId}
-        cropUrl={hudCropDataUrl}
+      {/* 6. TOP-LEVEL AS9102 & BLUEPRINT EXPORT DELIVERABLES MODAL */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportMarkedPdf}
+        characteristicsCount={characteristics.length}
+        hasDrawing={Boolean(blueprintDoc)}
+        selectedTemplate={selectedExportTemplate}
+        onSelectTemplate={setSelectedExportTemplate}
       />
     </div>
   );

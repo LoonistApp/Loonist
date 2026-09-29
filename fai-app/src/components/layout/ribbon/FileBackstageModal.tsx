@@ -1,20 +1,16 @@
-import React, { useEffect } from 'react';
-import { 
-  FolderOpen, 
-  Save, 
-  FilePlus2, 
-  FileText, 
-  FileSpreadsheet, 
-  FileDown, 
-  ShieldCheck, 
-  X, 
-  FileCode, 
-  Info, 
-  ArrowLeft,
-  Layers
+import React, { useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  Save,
+  FilePlus2,
+  FileText,
+  LogOut,
+  ArrowLeft
 } from 'lucide-react';
 import type { BlueprintDocument } from '../../../types/blueprint';
 import type { ProjectProperties } from '../../../types/characteristics';
+
+import { validateForm1Record } from '../../../services/validation/form1ValidationService';
 
 interface FileBackstageModalProps {
   isOpen: boolean;
@@ -22,6 +18,7 @@ interface FileBackstageModalProps {
   document: BlueprintDocument | null;
   projectProps: ProjectProperties;
   characteristicsCount: number;
+  onUpdateProjectProps?: (props: ProjectProperties) => void;
   onNewProject?: () => void;
   onOpenProject?: () => void;
   onSaveProject?: () => void;
@@ -38,26 +35,61 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
   document,
   projectProps,
   characteristicsCount,
+  onUpdateProjectProps,
   onNewProject,
-  onOpenProject,
-  onSaveProject,
   onAddFile,
-  onLoadSample,
-  onExportExcel,
-  onExportPdf,
   onCloseFile
 }) => {
-  // ESC key to close
+  // Local draft state for enterprise desktop save/cancel workflow
+  const [syncedProps, setSyncedProps] = useState<ProjectProperties>(projectProps);
+  const [draftProps, setDraftProps] = useState<ProjectProperties>(projectProps);
+
+  // Sync draft whenever projectProps changes from parent
+  if (projectProps !== syncedProps) {
+    setSyncedProps(projectProps);
+    setDraftProps(projectProps);
+  }
+
+  // Full-form record validation: runs whenever any field changes
+  const validation = useMemo(() => validateForm1Record(draftProps), [draftProps]);
+  const { isValid: isRecordValid, invalidFields } = validation;
+
+  const handleUpdateField = <K extends keyof ProjectProperties>(field: K, value: ProjectProperties[K] | string) => {
+    setDraftProps(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Save changes and close modal: re-runs full validation and never persists incomplete records
+  const handleSaveAndClose = () => {
+    const finalValidation = validateForm1Record(draftProps);
+    if (!finalValidation.isValid || !finalValidation.validatedRecord) {
+      return; // Never allow a blank required field or incomplete/deleted record to be persisted!
+    }
+    if (onUpdateProjectProps) {
+      onUpdateProjectProps(finalValidation.validatedRecord);
+    }
+    onClose();
+  };
+
+  // ESC key to close, Ctrl+W to exit active drawing
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        if (onCloseFile && document) {
+          onCloseFile(document.id || document.name);
+        }
+        onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onCloseFile, document]);
 
   if (!isOpen) return null;
 
@@ -69,304 +101,428 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs select-none">
-      <div className="relative w-[860px] max-w-[95vw] max-h-[90vh] bg-white dark:bg-[#1c2128] border border-slate-300 dark:border-zinc-700 rounded-md shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
-        {/* Backstage Header */}
-        <div className="h-12 bg-[#161616] text-white px-5 flex items-center justify-between border-b border-[#2d2d2d]">
-          <div className="flex items-center gap-3">
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none p-4 animate-in fade-in duration-150">
+      <div
+        className="relative bg-white dark:bg-[#12161f] border border-slate-300 dark:border-zinc-700 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 rounded-none ring-1 ring-black/20"
+        style={{ width: '840px', maxWidth: '95vw', maxHeight: '90vh' }}
+      >
+
+        {/* 1. TOP HEADER BAR: Back at left, DRAWING SPECIFICATION centered, Save & Close at right (no cross icon) */}
+        <div className="h-9 bg-slate-100 dark:bg-[#151923] text-slate-800 dark:text-slate-200 px-3 flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 shrink-0 select-none">
+          {/* Left: Back Button (Fixed width container for mathematical center balance) */}
+          <div className="w-[140px] flex items-center justify-start">
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded hover:bg-[#282828] text-slate-400 hover:text-white transition cursor-pointer"
-              title="Return to Inspection Canvas [ESC]"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-none border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#1c2230] hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-700 hover:text-slate-900 dark:text-zinc-300 dark:hover:text-white transition cursor-pointer text-xs font-medium"
+              title="Back [ESC]"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
             </button>
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-xs font-mono font-bold">L</span>
-              <span className="font-bold tracking-tight text-sm">LOONIST</span>
-              <span className="text-slate-500 font-normal text-xs">| File & Project Operations</span>
+          </div>
+
+          {/* Center: DRAWING SPECIFICATION mathematically centered, no collision */}
+          <div className="flex-1 text-center px-2">
+            <h1 className="text-xs font-bold text-slate-900 dark:text-slate-100 tracking-wider uppercase truncate">
+              DRAWING SPECIFICATION
+            </h1>
+          </div>
+
+          {/* Right: Save & Close Button (Disabled when specification record is invalid) */}
+          <div className="w-[140px] flex items-center justify-end">
+            <button
+              type="button"
+              disabled={!isRecordValid}
+              onClick={handleSaveAndClose}
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-none text-xs font-semibold tracking-wide transition ${
+                isRecordValid
+                  ? 'bg-slate-800 hover:bg-slate-900 border border-slate-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:border-zinc-600 text-white cursor-pointer shadow-2xs'
+                  : 'bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 cursor-not-allowed opacity-60 shadow-none'
+              }`}
+              title={isRecordValid ? "Save Changes & Close" : "Required fields are missing"}
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Save & Close</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. MAIN TWO-COLUMN BODY */}
+        <div className="flex overflow-hidden">
+
+          {/* Left Navigation Rail (Sharp & Clean - 140px) */}
+          <div
+            className="bg-slate-50 dark:bg-[#0e1218] border-r border-slate-200 dark:border-zinc-800 flex flex-col justify-between shrink-0 select-none rounded-none"
+            style={{ width: '140px', padding: '12px 8px' }}
+          >
+            <div className="flex flex-col gap-3">
+              {/* Workspace Actions */}
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider px-1.5 block mb-1">
+                  Workspace
+                </span>
+                <div className="flex flex-col gap-0.5">
+                  {(onNewProject || onAddFile) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onNewProject) {
+                          onNewProject();
+                        } else if (onAddFile) {
+                          onAddFile();
+                        }
+                        onClose();
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-none text-left text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-zinc-800/80 transition cursor-pointer border border-transparent hover:border-slate-300 dark:hover:border-zinc-700"
+                    >
+                      <FilePlus2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                      <span className="truncate">New Project</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Rail Actions: Exit Drawing */}
+            <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 flex flex-col gap-1">
+
+              <button
+                type="button"
+                disabled={!document}
+                onClick={() => {
+                  if (onCloseFile && document) {
+                    onCloseFile(document.id || document.name);
+                  }
+                  onClose();
+                }}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-none text-left text-xs font-medium transition border border-transparent ${
+                  document
+                    ? 'text-slate-700 dark:text-slate-300 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-400 cursor-pointer hover:border-red-200 dark:hover:border-red-900/50'
+                    : 'text-slate-400 dark:text-zinc-600 cursor-not-allowed opacity-50'
+                }`}
+                title={document ? 'Exit Active Drawing (Ctrl+W)' : 'No drawing is currently open'}
+              >
+                <LogOut className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                <span className="truncate">Exit Drawing</span>
+              </button>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded hover:bg-[#282828] text-slate-400 hover:text-white transition cursor-pointer"
+          {/* Right Main Content Area (Restrained Professional Aerospace Grid, Zero Horizontal Scroll) */}
+          <div 
+            className="flex-1 bg-white dark:bg-[#12161f] overflow-y-auto overflow-x-hidden flex flex-col gap-3 min-w-0"
+            style={{ padding: '18px 24px' }}
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Backstage Body: Two-Column CAD Architecture */}
-        <div className="flex-1 flex overflow-hidden min-h-[460px]">
-          {/* Left Column: Actions & Commands */}
-          <div className="w-[280px] bg-slate-50 dark:bg-[#161b22] border-r border-slate-200 dark:border-zinc-800 p-3 flex flex-col gap-1 overflow-y-auto">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider px-2 py-1">
-              Project Actions
-            </span>
+            {/* SECTION 1: PART & INSPECTION IDENTIFICATION */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 tracking-wider uppercase whitespace-nowrap">
+                  PART & INSPECTION IDENTIFICATION
+                </span>
+                {!isRecordValid && (
+                  <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 tracking-tight whitespace-nowrap">
+                    • Required fields are missing
+                  </span>
+                )}
+                <div className="flex-1 h-px bg-slate-200 dark:bg-zinc-800" />
+              </div>
 
-            {onNewProject && (
-              <button
-                type="button"
-                onClick={() => {
-                  onNewProject();
-                  onClose();
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition text-slate-700 dark:text-slate-200 cursor-pointer"
-              >
-                <FilePlus2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <div>
-                  <div className="font-semibold leading-tight">New Project</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Initialize empty AS9102 inspection</div>
-                </div>
-              </button>
-            )}
-
-            {onOpenProject && (
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenProject();
-                  onClose();
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition text-slate-700 dark:text-slate-200 cursor-pointer"
-              >
-                <FolderOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <div>
-                  <div className="font-semibold leading-tight">Open Project (.loonist)</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Load package with embedded drawings [Ctrl+O]</div>
-                </div>
-              </button>
-            )}
-
-            {onSaveProject && (
-              <button
-                type="button"
-                onClick={() => {
-                  onSaveProject();
-                  onClose();
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition text-slate-700 dark:text-slate-200 cursor-pointer"
-              >
-                <Save className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <div>
-                  <div className="font-semibold leading-tight">Save Project (.loonist)</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Archive self-contained inspection bundle [Ctrl+S]</div>
-                </div>
-              </button>
-            )}
-
-            <div className="h-px bg-slate-200 dark:bg-zinc-800 my-1" />
-
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider px-2 py-1">
-              Drawing & Blueprints
-            </span>
-
-            {onAddFile && (
-              <button
-                type="button"
-                onClick={() => {
-                  onAddFile();
-                  onClose();
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition text-slate-700 dark:text-slate-200 cursor-pointer"
-              >
-                <FileCode className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <div>
-                  <div className="font-semibold leading-tight">Import Blueprint (.pdf)</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Ingest ASME Y14.5 engineering drawing</div>
-                </div>
-              </button>
-            )}
-
-            {onLoadSample && (
-              <button
-                type="button"
-                onClick={() => {
-                  onLoadSample();
-                  onClose();
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition text-slate-700 dark:text-slate-200 cursor-pointer"
-              >
-                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <div>
-                  <div className="font-semibold leading-tight">Load Sample Blueprint</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Turbine Mount Bracket (AS9102 Rev C)</div>
-                </div>
-              </button>
-            )}
-
-            {document && onCloseFile && (
-              <button
-                type="button"
-                onClick={() => {
-                  onCloseFile(document.id || document.name);
-                  onClose();
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-                <div>
-                  <div className="font-semibold leading-tight">Close Active Drawing</div>
-                  <div className="text-[10px] opacity-75">Unload {document.name}</div>
-                </div>
-              </button>
-            )}
-
-            <div className="h-px bg-slate-200 dark:bg-zinc-800 my-1" />
-
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider px-2 py-1">
-              Export Deliverables
-            </span>
-
-            {onExportExcel && (
-              <button
-                type="button"
-                onClick={() => {
-                  onExportExcel();
-                  onClose();
-                }}
-                disabled={characteristicsCount === 0}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-200 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <div>
-                  <div className="font-semibold leading-tight">Export AS9102 Excel</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Forms 1, 2, and 3 Certified Multi-Sheet</div>
-                </div>
-              </button>
-            )}
-
-            {onExportPdf && (
-              <button
-                type="button"
-                onClick={() => {
-                  onExportPdf();
-                  onClose();
-                }}
-                disabled={characteristicsCount === 0 || !document}
-                className="flex items-center gap-3 px-3 py-2 rounded text-left text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-200 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                <FileDown className="w-4 h-4 text-red-600 dark:text-red-400" />
-                <div>
-                  <div className="font-semibold leading-tight">Export Marked PDF</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-400">Marked drawing with vector balloons</div>
-                </div>
-              </button>
-            )}
-          </div>
-
-          {/* Right Column: Project Information & Security Audit */}
-          <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-4">
-            {/* Active Drawing Card */}
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 mb-2 flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 text-blue-500" />
-                <span>Active Drawing Properties</span>
-              </h3>
-
-              {document ? (
-                <div className="bg-slate-50 dark:bg-[#161b22] border border-slate-200 dark:border-zinc-800 rounded p-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[400px]">
-                      {document.name}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono font-semibold">
-                      {document.numSheets} {document.numSheets === 1 ? 'Sheet' : 'Sheets'}
-                    </span>
+              {/* Precise Field Grid (Fields 1-9 only, No nested box container bloat) */}
+              <div className="flex flex-col gap-2.5 min-w-0">
+                
+                {/* Row 1: 5 Identification Columns (Part No, Part Rev, CAGE, Drawing No, Drawing Rev) */}
+                <div 
+                  className="min-w-0" 
+                  style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 0.95fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 0.95fr)', 
+                    gap: '0.45rem' 
+                  }}
+                >
+                  <div className="min-w-0">
+                    <label htmlFor="field-part-number" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      1. Part Number
+                    </label>
+                    <input
+                      id="field-part-number"
+                      type="text"
+                      value={draftProps.partNumber || ''}
+                      onChange={(e) => handleUpdateField('partNumber', e.target.value)}
+                      placeholder="—"
+                      className={`w-full min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                        invalidFields.partNumber
+                          ? 'border-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                      } rounded-none px-2 text-xs font-mono font-medium text-slate-900 dark:text-white outline-none transition`}
+                    />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-xs pt-1 border-t border-slate-200 dark:border-zinc-800">
-                    <div>
-                      <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">File Size:</span>
-                      <span className="font-mono text-slate-700 dark:text-slate-200">{formatBytes(document.fileSize)}</span>
+                  <div className="min-w-0">
+                    <label htmlFor="field-part-rev" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      2. Part Rev
+                    </label>
+                    <input
+                      id="field-part-rev"
+                      type="text"
+                      value={draftProps.partRevision || ''}
+                      onChange={(e) => handleUpdateField('partRevision', e.target.value)}
+                      placeholder="—"
+                      className={`w-full min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                        invalidFields.partRevision
+                          ? 'border-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                      } rounded-none px-2 text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 outline-none transition`}
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label htmlFor="field-cage-code" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      3. CAGE Code
+                    </label>
+                    <input
+                      id="field-cage-code"
+                      type="text"
+                      value={draftProps.cageCode || ''}
+                      onChange={(e) => handleUpdateField('cageCode', e.target.value)}
+                      placeholder="—"
+                      className={`w-full min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                        invalidFields.cageCode
+                          ? 'border-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                      } rounded-none px-2 text-xs font-mono font-medium text-slate-800 dark:text-slate-200 outline-none transition`}
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label htmlFor="field-drawing-number" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      4. Drawing Number
+                    </label>
+                    <input
+                      id="field-drawing-number"
+                      type="text"
+                      value={draftProps.drawingNumber || ''}
+                      onChange={(e) => handleUpdateField('drawingNumber', e.target.value)}
+                      placeholder="—"
+                      className={`w-full min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                        invalidFields.drawingNumber
+                          ? 'border-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                      } rounded-none px-2 text-xs font-mono font-medium text-slate-800 dark:text-slate-200 outline-none transition`}
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label htmlFor="field-drawing-rev" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      5. Drawing Rev
+                    </label>
+                    <input
+                      id="field-drawing-rev"
+                      type="text"
+                      value={draftProps.drawingRevision || ''}
+                      onChange={(e) => handleUpdateField('drawingRevision', e.target.value)}
+                      placeholder="—"
+                      className={`w-full min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                        invalidFields.drawingRevision
+                          ? 'border-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                      } rounded-none px-2 text-xs font-mono font-bold text-slate-800 dark:text-zinc-200 outline-none transition`}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Part Name / Nomenclature (Full Width) */}
+                <div className="min-w-0">
+                  <label htmlFor="field-part-name" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                    6. Part Name / Nomenclature
+                  </label>
+                  <input
+                    id="field-part-name"
+                    type="text"
+                    value={draftProps.partName || ''}
+                    onChange={(e) => handleUpdateField('partName', e.target.value)}
+                    placeholder="—"
+                    className={`w-full min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                      invalidFields.partName
+                        ? 'border-red-500 focus:border-red-500'
+                        : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                    } rounded-none px-2 text-xs font-mono font-medium text-slate-900 dark:text-slate-100 outline-none transition`}
+                  />
+                </div>
+
+                {/* Row 3: Inspection Sampling & Lot Details (3 Columns: Lot Size, Sampling Plan, AQL) */}
+                <div 
+                  className="min-w-0"
+                  style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', 
+                    gap: '0.45rem' 
+                  }}
+                >
+                  <div className="min-w-0">
+                    <label htmlFor="field-lot-size" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      7. Production Lot Size
+                    </label>
+                    <div className={`flex items-center min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                      invalidFields.lotSize
+                        ? 'border-red-500 focus-within:border-red-500'
+                        : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus-within:border-slate-800 dark:focus-within:border-zinc-300'
+                    } rounded-none transition`}>
+                      <span className="pl-2 pr-1.5 text-[10px] text-slate-400 dark:text-zinc-500 font-mono select-none shrink-0 pointer-events-none">
+                        pcs
+                      </span>
+                      <input
+                        id="field-lot-size"
+                        type="number"
+                        min={1}
+                        value={draftProps.lotSize ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleUpdateField('lotSize', val === '' ? ('' as unknown as number) : Number(val));
+                        }}
+                        style={{ border: 'none', background: 'transparent', outline: 'none' }}
+                        className="flex-1 min-w-0 h-full bg-transparent border-0 px-1 text-xs font-mono font-medium text-slate-800 dark:text-slate-200 outline-none"
+                      />
                     </div>
-                    <div>
-                      <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">Balloons Extracted:</span>
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{characteristicsCount} Characteristics</span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <label htmlFor="field-sampling-level" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      8. Sampling Plan
+                    </label>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <select
+                        id="field-sampling-level"
+                        value={draftProps.samplingLevel || ''}
+                        onChange={(e) => handleUpdateField('samplingLevel', e.target.value)}
+                        className={`flex-1 min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                          invalidFields.samplingLevel
+                            ? 'border-red-500 focus:border-red-500'
+                            : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                        } rounded-none px-2 text-xs font-mono font-medium text-slate-800 dark:text-slate-200 outline-none transition cursor-pointer`}
+                      >
+                        <option value="I">Level I</option>
+                        <option value="II">Level II</option>
+                        <option value="III">Level III</option>
+                        <option value="S-1">S-1</option>
+                        <option value="S-2">S-2</option>
+                        <option value="S-3">S-3</option>
+                        <option value="S-4">S-4</option>
+                      </select>
+
+                      <select
+                        id="field-sampling-type"
+                        aria-label="Sampling Inspection Type"
+                        value={draftProps.samplingType || ''}
+                        onChange={(e) => handleUpdateField('samplingType', e.target.value)}
+                        className={`flex-1 min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                          invalidFields.samplingType
+                            ? 'border-red-500 focus:border-red-500'
+                            : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus:border-slate-800 dark:focus:border-zinc-300'
+                        } rounded-none px-2 text-xs font-mono font-medium text-slate-800 dark:text-slate-200 outline-none transition cursor-pointer`}
+                      >
+                        <option value="NORMAL">Normal</option>
+                        <option value="TIGHTENED">Tightened</option>
+                        <option value="REDUCED">Reduced</option>
+                        <option value="100% FAI">100% FAI</option>
+                      </select>
                     </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">Cryptographic SHA-256 Hash:</span>
-                      <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400 break-all select-all">
-                        {document.fileHash}
+                  </div>
+
+                  <div className="min-w-0">
+                    <label htmlFor="field-aql" className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                      9. AQL Threshold
+                    </label>
+                    <div className={`flex items-center min-w-0 h-7 bg-white dark:bg-[#161c28] border ${
+                      invalidFields.aql
+                        ? 'border-red-500 focus-within:border-red-500'
+                        : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-500 focus-within:border-slate-800 dark:focus-within:border-zinc-300'
+                    } rounded-none transition`}>
+                      <input
+                        id="field-aql"
+                        type="text"
+                        value={draftProps.aql || ''}
+                        onChange={(e) => handleUpdateField('aql', e.target.value)}
+                        placeholder="1.0"
+                        style={{ border: 'none', background: 'transparent', outline: 'none' }}
+                        className="flex-1 min-w-0 h-full bg-transparent border-0 px-2 text-xs font-mono font-medium text-slate-800 dark:text-slate-200 outline-none"
+                      />
+                      <span className="px-2 text-[10px] text-slate-400 dark:text-zinc-500 font-mono select-none shrink-0 pointer-events-none">
+                        %
                       </span>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-slate-50 dark:bg-[#161b22] border border-dashed border-slate-300 dark:border-zinc-800 rounded p-4 text-center text-xs text-slate-500">
-                  No active engineering blueprint loaded. Click &quot;Import Blueprint&quot; or &quot;Load Sample&quot; to begin.
-                </div>
-              )}
+
+              </div>
             </div>
 
-            {/* AS9102 Project Properties Form */}
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 mb-2 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-500" />
-                <span>AS9102 Form 1 Inspection Header</span>
-              </h3>
+            {/* SECTION 2: ACTIVE DRAWING METADATA (Includes Scope / Characteristic Count) */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 tracking-wider uppercase whitespace-nowrap">
+                  ACTIVE DRAWING
+                </span>
+                <div className="flex-1 h-px bg-slate-200 dark:bg-zinc-800" />
+              </div>
 
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-[#161b22] border border-slate-200 dark:border-zinc-800 rounded p-3 text-xs">
-                <div>
-                  <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">Part Number:</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{projectProps.partNumber || '—'}</span>
+              <div className="border border-slate-200 dark:border-zinc-800 rounded-none bg-slate-50/60 dark:bg-[#11151d] px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs min-w-0">
+                {/* Left: Document Name & Format Badge */}
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <FileText className="w-4 h-4 text-slate-700 dark:text-zinc-300 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-semibold text-slate-900 dark:text-white truncate block text-xs">
+                      {document ? document.name : 'No Blueprint Loaded'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 block truncate">
+                      {document?.filePath || 'Vector PDF Engineering Specification'}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">Part Revision:</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-100">Rev {projectProps.partRevision || '—'}</span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">Part Name:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">{projectProps.partName || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">CAGE Code:</span>
-                  <span className="font-mono text-slate-700 dark:text-slate-300">{projectProps.cageCode || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-zinc-500 block text-[10px]">Lot Size / AQL:</span>
-                  <span className="font-mono text-slate-700 dark:text-slate-300">
-                    {projectProps.lotSize} pcs • AQL {projectProps.aql} ({projectProps.samplingLevel})
-                  </span>
+
+                {/* Right: Inline Metadata Metrics Strip including Characteristics Count */}
+                <div className="flex items-center gap-3 text-slate-600 dark:text-zinc-300 font-mono text-[11px] shrink-0">
+                  {document && (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-400 dark:text-zinc-500 uppercase text-[9px]">Sheets</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          {document.numSheets}
+                        </span>
+                      </div>
+
+                      <span className="text-slate-300 dark:text-zinc-700">|</span>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-400 dark:text-zinc-500 uppercase text-[9px]">Size</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          {formatBytes(document.fileSize)}
+                        </span>
+                      </div>
+
+                      <span className="text-slate-300 dark:text-zinc-700">|</span>
+                    </>
+                  )}
+
+                  {/* Characteristic Scope / Count Indicator */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 dark:text-zinc-500 uppercase text-[9px]">Scope</span>
+                    <span className="font-bold text-slate-800 dark:text-zinc-200">
+                      {characteristicsCount} Characteristics
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Compliance & Security Banner */}
-            <div className="mt-auto bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded p-3 flex items-start gap-3">
-              <div className="p-1 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 mt-0.5">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div className="text-xs">
-                <div className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                  <span>100% Air-Gapped Local Environment</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                </div>
-                <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed mt-0.5">
-                  LOONIST complies with aerospace defense data protection standards (ITAR / EAR). Zero blueprint pixels or inspection characteristics are transmitted outside your local machine.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="h-10 bg-slate-100 dark:bg-[#161b22] px-4 flex items-center justify-between border-t border-slate-200 dark:border-zinc-800 text-xs">
-          <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
-            LOONIST v2.0 • InspectionXpert Enterprise Engine
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200 font-medium rounded text-xs transition cursor-pointer"
-          >
-            Close Backstage
-          </button>
-        </div>
       </div>
     </div>
   );
+
+  return createPortal(modalContent, window.document.body);
 };

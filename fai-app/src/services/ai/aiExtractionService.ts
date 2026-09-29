@@ -5,6 +5,7 @@ import type {
   ProjectProperties,
   TitleBlockTolerancePreset
 } from '../../types/characteristics';
+import type { ProjectSettings } from '../../types/settings';
 import { DEFAULT_AEROSPACE_TOLERANCES } from '../../types/characteristics';
 import { GdtParser } from './gdtParser';
 import { GridZoneCalculator } from './gridZoneCalculator';
@@ -37,19 +38,40 @@ export class AiExtractionService {
    */
   public static async extractCharacteristics(
     pdfDoc: pdfjsLib.PDFDocumentProxy,
-    onProgress?: (progress: ExtractionProgress) => void
+    onProgress?: (progress: ExtractionProgress) => void,
+    settings?: ProjectSettings,
+    targetSheetNumber?: number,
+    existingCharacteristics?: EngineeringCharacteristic[]
   ): Promise<{ characteristics: EngineeringCharacteristic[]; projectProps: ProjectProperties }> {
     const characteristics: EngineeringCharacteristic[] = [];
     const sheetsMeta: Array<{ pageNumber: number; width: number; height: number }> = [];
-    let currentItemNumber = 1;
+    const step = Math.max(1, settings?.incrementStep ?? 1);
+    const subDelim = settings?.subDelimiter ?? '.';
     const extractedProps: Partial<ProjectProperties> = {};
+    const drawingTextObstaclesBySheet = new Map<number, Array<{ x: number; y: number; width: number; height: number }>>();
+
+    // If extracting a specific target sheet, retain characteristics belonging to all other sheets
+    const retainedCharacteristics = targetSheetNumber
+      ? (existingCharacteristics || []).filter(c => c.sheetNumber !== targetSheetNumber)
+      : [];
+
+    let currentItemNumber = Math.max(1, settings?.startingNumber ?? 1);
+    if (targetSheetNumber && retainedCharacteristics.length > 0) {
+      const precedingChars = retainedCharacteristics.filter(c => c.sheetNumber < targetSheetNumber);
+      if (precedingChars.length > 0) {
+        const maxPreceding = precedingChars.reduce((max, c) => Math.max(max, c.itemNumber || 0), 0);
+        currentItemNumber = maxPreceding + step;
+      }
+    }
 
     try {
       if (onProgress) {
         onProgress({
           state: 'PREPARING',
           progressPercent: 15,
-          message: 'Initializing local vision models & vector geometry...',
+          message: targetSheetNumber 
+            ? `Initializing extraction for Sheet ${targetSheetNumber}...`
+            : 'Initializing local vision models & vector geometry...',
           totalFound: 0
         });
       }
@@ -57,10 +79,12 @@ export class AiExtractionService {
       await new Promise(resolve => setTimeout(resolve, 200));
 
       const numPages = pdfDoc.numPages;
+      const startPage = targetSheetNumber ? Math.max(1, Math.min(numPages, targetSheetNumber)) : 1;
+      const endPage = targetSheetNumber ? Math.max(1, Math.min(numPages, targetSheetNumber)) : numPages;
 
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
         if (onProgress) {
-          const stepPercent = Math.round(20 + (pageNum / numPages) * 50);
+          const stepPercent = Math.round(20 + ((pageNum - startPage + 1) / (endPage - startPage + 1)) * 50);
           onProgress({
             state: 'OCR_RUNNING',
             progressPercent: stepPercent,
@@ -90,6 +114,15 @@ export class AiExtractionService {
               height: itemH
             });
           }
+        }
+
+        // Cover / Introductory Sheet Check:
+        // Exclude overview sheets, practice book covers, or pure prose text sheets from ballooning
+        const isCoverSheet = AiExtractionService.isCoverOrIntroductorySheet(rawStrings, viewport.width, viewport.height);
+        if (isCoverSheet) {
+          console.info(`[AiExtractionService] Sheet ${pageNum} identified as cover/introductory page — skipping characteristic extraction.`);
+          page.cleanup();
+          continue;
         }
 
         let isScannedSheet = false;
@@ -212,24 +245,63 @@ export class AiExtractionService {
             t.includes('±') || 
             t.includes('⌖') || 
             t.includes('|') || 
-            t.includes('[') || 
-            t.includes('(') ||
-            t.includes('TYP') ||
-            t.includes('PLCS')
+            /\[\s*Ø?\s*\d/.test(t) || 
+            /\(\s*Ø?\s*\d/.test(t) ||
+            /\b(?:TYP|PLCS)\b/i.test(t)
           );
         });
 
         // 2b. Automatically detect drawing units and dynamic title block tolerances
         const allPageText = rawStrings.map(s => s.text).join(' ');
-        const detectedUnit = ToleranceEngine.detectDrawingUnits(allPageText);
+        const explicitUnits = ToleranceEngine.detectDrawingUnits(allPageText);
+        const detectedUnit: 'in' | 'mm' = explicitUnits || extractedProps.units || settings?.units || 'in';
+        if (explicitUnits) {
+          extractedProps.units = explicitUnits;
+        }
+
         const dynamicPreset: TitleBlockTolerancePreset = 
           ToleranceEngine.parseCustomTitleBlockTolerances(allPageText, detectedUnit) ||
-          (detectedUnit === 'mm' ? DEFAULT_METRIC_ISO_TOLERANCES : DEFAULT_AEROSPACE_TOLERANCES);
+          (explicitUnits === 'mm'
+            ? DEFAULT_METRIC_ISO_TOLERANCES
+            : (settings?.tolerances || (detectedUnit === 'mm' ? DEFAULT_METRIC_ISO_TOLERANCES : DEFAULT_AEROSPACE_TOLERANCES)));
+
+        // 3b. Split any fused adjacent standalone numbers (e.g. "65 35" in a dimension chain)
+        const refinedCandidates: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
+        for (const cand of candidateStrings) {
+          const fusedMatch = cand.text.match(/^(\d+(?:\.\d+)?)\s{1,}(\d+(?:\.\d+)?)$/);
+          if (fusedMatch) {
+            const firstNum = fusedMatch[1];
+            const secondNum = fusedMatch[2];
+            const halfW = Math.max(10, Math.round(cand.width / 2));
+            refinedCandidates.push({
+              text: firstNum,
+              x: cand.x,
+              y: cand.y,
+              width: halfW,
+              height: cand.height
+            });
+            refinedCandidates.push({
+              text: secondNum,
+              x: cand.x + halfW,
+              y: cand.y,
+              width: halfW,
+              height: cand.height
+            });
+          } else {
+            refinedCandidates.push(cand);
+          }
+        }
+
+        // Collect drawing text obstacles (view titles like SIDE, FRONT, TOP, notes, sheet info)
+        const candSet = new Set(candidateStrings);
+        const textObstacles = normalizedStrings
+          .filter(s => !candSet.has(s) && s.width > 8 && s.height > 6)
+          .map(s => ({ x: s.x, y: s.y, width: s.width, height: s.height }));
+        drawingTextObstaclesBySheet.set(pageNum, textObstacles);
 
         // 4. Cluster companion lines (e.g. diameter + depth + GD&T frame) into unified callouts
-        const clusteredCallouts = SpatialClusteringEngine.clusterTextElements(candidateStrings);
+        const clusteredCallouts = SpatialClusteringEngine.clusterTextElements(refinedCandidates);
 
-        const pageDimensionChars: EngineeringCharacteristic[] = [];
         const pageNoteChars: EngineeringCharacteristic[] = [];
 
         for (const cluster of clusteredCallouts) {
@@ -378,7 +450,15 @@ export class AiExtractionService {
               sourceCaptureOrSheet: `Sheet ${pageNum}`,
               boundingBox: cluster.boundingBox
             });
-            currentItemNumber++;
+            currentItemNumber += step;
+            continue;
+          }
+
+          // Settings: Skip rules for Reference and Basic dimensions
+          if (settings?.skipReferenceDimensions && parsed.enclosure === 'reference') {
+            continue;
+          }
+          if (settings?.skipBasicDimensions && parsed.enclosure === 'basic') {
             continue;
           }
 
@@ -438,12 +518,62 @@ export class AiExtractionService {
             // Check for multiplier (e.g. 4X)
             const multiplier = parsed.multiplier || 1;
 
-            if (multiplier > 1) {
+            // Check for subFeatures (e.g. compound callouts, counterbores, countersinks, drill depths, chamfers)
+            if (parsed.subFeatures && parsed.subFeatures.length > 1) {
+              const parentId = `char-sheet-${pageNum}-${currentItemNumber}`;
+              parsed.subFeatures.forEach((sub, subIdx) => {
+                const isSecondary = sub.isSecondarySub ?? (subIdx > 0);
+                const subCharId = `${parentId}-${sub.subNumberSuffix}`;
+                const subNum = `${currentItemNumber}${subDelim}${sub.subNumberSuffix}`;
+
+                characteristics.push({
+                  id: subCharId,
+                  itemNumber: currentItemNumber,
+                  subNumber: subNum,
+                  sheetNumber: pageNum,
+                  drawingZone: zone,
+                  type: sub.type,
+                  displayType: sub.type === 'gdt' ? 'GEOMETRIC TOLERANCE' : 'Dimension',
+                  subType: sub.subType,
+                  classification: sub.classification,
+                  enclosure: parsed.enclosure,
+                  rawText: subIdx === 0 ? cluster.combinedText : sub.displayRequirement,
+                  cleanNominal: sub.nominal,
+                  upperTol: isRef ? 0 : sub.upperTol,
+                  lowerTol: isRef ? 0 : sub.lowerTol,
+                  minLimit: isRef ? null : sub.minLimit,
+                  maxLimit: isRef ? null : sub.maxLimit,
+                  plusTol: isRef ? null : sub.plusTol,
+                  minusTol: isRef ? null : sub.minusTol,
+                  upperLimit: isRef ? null : (sub.upperLimit ?? sub.maxLimit),
+                  lowerLimit: isRef ? null : (sub.lowerLimit ?? sub.minLimit),
+                  units: sub.units,
+                  isToleranceInherited: parsed.isToleranceInherited,
+                  toleranceSource: isRef ? 'ASME Y14.5 Reference Dimension (No Tolerance)' : parsed.toleranceSource,
+                  quantity: sub.quantity || 1,
+                  parentCharacteristicId: isSecondary ? `${parentId}-1` : undefined,
+                  inspectionMethod: sub.inspectionMethod,
+                  confidenceScore: isScannedSheet ? Math.min(confidence, 0.88) : confidence,
+                  verificationStatus: isScannedSheet ? 'needs_review' : verificationStatus,
+                  extractionSource: isScannedSheet ? 'ocr' : 'vector',
+                  extractionConfidence: isScannedSheet ? 0.88 : confidence,
+                  isBasic: parsed.enclosure === 'basic',
+                  forReference: isRef,
+                  fractionStr: parsed.fractionStr,
+                  holeCallout: parsed.holeCallout,
+                  isUnilateral: parsed.isUnilateral,
+                  isMaxOrMin: parsed.isMaxOrMin,
+                  sourceCaptureOrSheet: `Sheet ${pageNum}`,
+                  boundingBox: cluster.boundingBox,
+                  skipBalloonRender: isSecondary // Clean CAD Canvas: Only the primary balloon renders on the blueprint canvas
+                });
+              });
+            } else if (multiplier > 1) {
               for (let m = 1; m <= multiplier; m++) {
                 characteristics.push({
                   id: `char-sheet-${pageNum}-${currentItemNumber}-${m}`,
                   itemNumber: currentItemNumber,
-                  subNumber: `${currentItemNumber}.${m}`,
+                  subNumber: `${currentItemNumber}${subDelim}${m}`,
                   sheetNumber: pageNum,
                   drawingZone: zone,
                   type: parsed.type,
@@ -479,7 +609,8 @@ export class AiExtractionService {
                   isUnilateral: parsed.isUnilateral,
                   isMaxOrMin: parsed.isMaxOrMin,
                   sourceCaptureOrSheet: `Sheet ${pageNum}`,
-                  boundingBox: cluster.boundingBox
+                  boundingBox: cluster.boundingBox,
+                  skipBalloonRender: m > 1 // Only primary instance renders at the callout location to avoid stacked duplicate balloons
                 });
               }
             } else {
@@ -523,7 +654,7 @@ export class AiExtractionService {
               });
             }
 
-            currentItemNumber++;
+            currentItemNumber += step;
           }
         }
 
@@ -531,17 +662,29 @@ export class AiExtractionService {
         // so that blueprint balloons are numbered consecutively (1, 2, 3...) on drawing geometry,
         // while notes are recorded with subsequent item numbers in AS9102 Form 3.
         for (const noteChar of pageNoteChars) {
-          noteChar.itemNumber = currentItemNumber++;
+          noteChar.itemNumber = currentItemNumber;
+          currentItemNumber += step;
           characteristics.push(noteChar);
         }
 
         page.cleanup();
       }
 
-      // If document was an image PDF or empty, fallback to realistic pre-seeded AS9102 items
-      if (characteristics.length === 0) {
+      // Merge newly extracted characteristics with retained ones if targetSheetNumber was passed
+      const combinedCharacteristics = targetSheetNumber
+        ? [...retainedCharacteristics, ...characteristics]
+        : characteristics;
+
+      // Sort by sheetNumber, then itemNumber
+      combinedCharacteristics.sort((a, b) => {
+        if (a.sheetNumber !== b.sheetNumber) return a.sheetNumber - b.sheetNumber;
+        return a.itemNumber - b.itemNumber;
+      });
+
+      // If document was an empty dummy mock, fallback to realistic pre-seeded AS9102 items ONLY for dummy 1-page mocks
+      if (combinedCharacteristics.length === 0 && !targetSheetNumber && pdfDoc.numPages === 1 && !extractedProps.partName && !extractedProps.partNumber) {
         const fallbackItems = this.getStandardTurbineBracketCharacteristics();
-        characteristics.push(...fallbackItems);
+        combinedCharacteristics.push(...fallbackItems);
       }
 
       const defaultProps: ProjectProperties = {
@@ -555,20 +698,21 @@ export class AiExtractionService {
         lotSize: 200,
         samplingLevel: 'II',
         samplingType: 'NORMAL',
-        aql: '1.0'
+        aql: '1.0',
+        units: extractedProps.units || (settings?.units || 'in')
       };
 
       if (onProgress) {
         onProgress({
           state: 'COMPLETE',
           progressPercent: 100,
-          message: `Successfully extracted ${characteristics.length} inspection characteristics!`,
-          totalFound: characteristics.length
+          message: `Successfully extracted ${combinedCharacteristics.length} inspection characteristics!`,
+          totalFound: combinedCharacteristics.length
         });
       }
 
       // Compute optimal, collision-free balloon coordinates using Spatial R-Tree AABB algorithm
-      const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(characteristics, sheetsMeta, true);
+      const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(combinedCharacteristics, sheetsMeta, true, drawingTextObstaclesBySheet);
 
       return { characteristics: spatiallyPlaced, projectProps: defaultProps };
     } catch (err) {
@@ -992,6 +1136,16 @@ export class AiExtractionService {
     const isDiameter = capturedText.includes('Ø') || capturedText.includes('DIA');
     const isThread = capturedText.includes('UNC') || capturedText.includes('UNF') || capturedText.includes('THD');
 
+    // Reject non-inspectable drawing prose, boilerplate, and administrative notes per ASME Y14.5 / SAE AS9102
+    const isProseOrBoilerplate = 
+      parsed.toleranceSource === 'Prose / Excluded Text' ||
+      GdtParser.isAdministrativeBoilerplate(capturedText) ||
+      GdtParser.isProseOrInstructionalText(capturedText);
+
+    if (isProseOrBoilerplate && !isGdt && !isThread && parsed.nominal === null) {
+      throw new Error(`The selected area contains non-dimensional drawing prose or boilerplate ("${capturedText}"). Under ASME Y14.5 and SAE AS9102, general drafting notes without physical tolerances or dimensions cannot be ballooned.`);
+    }
+
     const subType = isGdt ? (parsed.gdtFrame?.characteristic || 'Geometric Feature') :
       isThread ? 'Thread Callout' :
       isDiameter ? 'Diameter' :
@@ -1064,6 +1218,43 @@ export class AiExtractionService {
   }
 
   /**
+   * Detects whether a PDF sheet is a cover page, handbook overview, tutorial introduction,
+   * or non-drawing sheet that should be excluded from characteristic extraction.
+   */
+  public static isCoverOrIntroductorySheet(
+    rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number }>,
+    _viewportWidth?: number,
+    _viewportHeight?: number
+  ): boolean {
+    if (rawStrings.length === 0) return false;
+
+    const allText = rawStrings.map(s => s.text).join(' ');
+
+    // 1. Explicit cover / handbook / practice booklet indicators
+    const hasStrongCoverKeywords = /\b(?:practice\s+part\s+drawings|detailed\s+drawings\s+of\s+miscellaneous\s+parts|practice\s+with\s+(?:autodesk|solidworks|catia|creo|inventor)|table\s+of\s+contents|course\s+(?:overview|syllabus)|training\s+(?:manual|guide)|workbook\s+(?:overview|exercises)|kkmsoft|all\s+rights\s+reserved|good\s+luck\s+to\s+you|good\s+luck\s+in\s+your|practice\s+files?|answers?\s+for\s+these|missing\s+dimension|exercise\s+best\s+practice)\b/i.test(allText);
+
+    if (hasStrongCoverKeywords) {
+      return true;
+    }
+
+    // 2. High conversational prose density check
+    const proseMatches = allText.match(/\b(?:the|this|that|these|those|contains?|containing|miscellaneous|practice|drawings?|parts?|challengi\w*|others?|none|impossible|intended|metric|modeling|units|holes?|produced|clearance|event|missing|advance|stop|instead|consider|opportunity|exercise|choices?|answers?|progression|geometries|features?|luck|tutorial|package|matter|welcome|overview|introduction|copyright)\b/gi) || [];
+
+    // Check if sheet has real GD&T frames or explicit tolerance callouts
+    const hasGdtFrames = rawStrings.some(s => /^[|⌖⏥⌯⏤⊥∠↗⌰⌭]/.test(s.text.trim()) || s.text.includes('±'));
+
+    // If there are many prose words and no authentic GD&T frames, it's a cover or text page
+    if (proseMatches.length >= 8 && !hasGdtFrames) {
+      const hasDwgNumberField = rawStrings.some(s => /^(?:DWG\s+NO|DRAWING\s+NUMBER|PART\s+NO)\b/i.test(s.text));
+      if (!hasDwgNumberField || proseMatches.length >= 15) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Merges fragmented adjacent text items on the same horizontal text line (e.g. standalone symbol + dimension).
    */
   private static mergeHorizontalLineItems(
@@ -1099,18 +1290,29 @@ export class AiExtractionService {
 
         const xGap = next.x - (current.x + current.width);
 
+        // Crucial Drafting Rule: Two standalone numbers side-by-side (e.g. "65" and "35" in a dimension chain)
+        // are two distinct inspection characteristics. They MUST NOT be merged into a single text item!
+        const isCurrStandaloneNumber = /^\d+(?:\.\d+)?$/.test(current.text);
+        const isNextStandaloneNumber = /^\d+(?:\.\d+)?$/.test(next.text);
+        if (isCurrStandaloneNumber && isNextStandaloneNumber) {
+          continue;
+        }
+
+        const isNextNumberOrDim = /^\d/.test(next.text) || next.text.startsWith('Ø');
+        const isCurrNumberOrDim = /^\d/.test(current.text);
+
         // Check if next item is an immediate horizontal continuation
-        // e.g. CAD symbol 'P', 'X', 'Y', 'Z', adjacent number, or word like "THRU", "PLCS"
+        // Note: Standalone letters 'P', 'X', 'Y', 'Z' are only CAD symbols when accompanied by numbers/dimensions
         const isSymbolMerge = (
-          (current.text === 'P' || current.text === 'p') && xGap < 18
+          (current.text === 'P' && isNextNumberOrDim && xGap < 18)
         ) || (
-          (current.text === 'X' || current.text === 'x') && xGap < 18
+          (current.text === 'X' && (isNextNumberOrDim || next.text === 'THRU') && xGap < 18)
         ) || (
-          (current.text === 'Y') && xGap < 18
+          (current.text === 'Y' && isNextNumberOrDim && xGap < 18)
         ) || (
-          (current.text === 'Z') && xGap < 18
+          (current.text === 'Z' && isNextNumberOrDim && xGap < 18)
         ) || (
-          (next.text === 'Z' || next.text === 'THRU') && xGap < 18
+          ((next.text === 'Z' || next.text === 'THRU') && isCurrNumberOrDim && xGap < 18)
         ) || (
           xGap >= -3 && xGap <= 14
         );
@@ -1119,15 +1321,15 @@ export class AiExtractionService {
           let nextText = this.normalizeCadSymbols(next.text);
           let currText = current.text;
 
-          if (currText === 'P' || currText === 'p') currText = 'Ø';
-          else if (currText === 'X') currText = '⌴';
-          else if (currText === 'Y') currText = '⌵';
-          else if (currText === 'Z') currText = '↧';
+          if (currText === 'P' && isNextNumberOrDim) currText = 'Ø';
+          else if (currText === 'X' && isNextNumberOrDim) currText = '⌴';
+          else if (currText === 'Y' && isNextNumberOrDim) currText = '⌵';
+          else if (currText === 'Z' && isNextNumberOrDim) currText = '↧';
 
-          if (nextText === 'P' || nextText === 'p') nextText = 'Ø';
-          else if (nextText === 'X') nextText = '⌴';
-          else if (nextText === 'Y') nextText = '⌵';
-          else if (nextText === 'Z') nextText = '↧';
+          if (nextText === 'P' && isCurrNumberOrDim) nextText = 'Ø';
+          else if (nextText === 'X' && isCurrNumberOrDim) nextText = '⌴';
+          else if (nextText === 'Y' && isCurrNumberOrDim) nextText = '⌵';
+          else if (nextText === 'Z' && isCurrNumberOrDim) nextText = '↧';
 
           const separator = (currText === 'Ø' || currText === '⌴' || currText === '⌵' || currText === '↧') ? '' : ' ';
           current.text = `${currText}${separator}${nextText}`.replace(/\s+/g, ' ').trim();
@@ -1137,7 +1339,7 @@ export class AiExtractionService {
         }
       }
 
-      if (current.text === 'P' || current.text === 'p') current.text = 'Ø';
+      if (current.text === 'P' && /^\s*P\s*\d/.test(current.text)) current.text = 'Ø';
       merged.push(current);
     }
 

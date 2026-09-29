@@ -1,23 +1,34 @@
 import React from 'react';
-import { 
-  Sparkles, 
-  SlidersHorizontal, 
-  Circle, 
-  Triangle, 
-  Hexagon, 
+import {
+  Sparkles,
+  Search,
+  Circle,
+  Triangle,
+  Hexagon,
   Square,
-  CheckCircle2,
-  ShieldAlert,
-  AlertTriangle
+  Balloon,
+  RotateCw,
+  RotateCcw,
+  ListOrdered,
+  RefreshCw,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { RibbonGroup } from '../RibbonGroup';
 import { RibbonButton } from '../RibbonButton';
-import type { BalloonAppearance, EngineeringCharacteristic } from '../../../../types/characteristics';
+import type { BalloonAppearance, BalloonShape, EngineeringCharacteristic } from '../../../../types/characteristics';
 
 interface HomeRibbonTabProps {
   hasDrawing: boolean;
-  onSmartExtract: () => void;
+  onSmartExtract: (scope?: 'active' | 'all') => void;
   isExtracting: boolean;
+  extractScope?: 'active' | 'all';
+  onSetExtractScope?: (scope: 'active' | 'all') => void;
+  activeSheetIndex?: number;
+  totalSheetsCount?: number;
+  onRunInspection?: () => void;
+  isInspecting?: boolean;
+  hasInspectionResults?: boolean;
   characteristicsCount: number;
   characteristics?: EngineeringCharacteristic[];
   activeFilter?: 'all' | 'critical' | 'review';
@@ -26,6 +37,12 @@ interface HomeRibbonTabProps {
   onToggleDrawer?: () => void;
   balloonAppearance: BalloonAppearance;
   onUpdateBalloonAppearance: (appearance: BalloonAppearance) => void;
+  onRotateClockwise?: () => void;
+  onRotateCounterClockwise?: () => void;
+  onRenumberAll?: () => void;
+  onRepositionBalloons?: () => void;
+  balloonsLocked?: boolean;
+  onToggleLockBalloons?: () => void;
 }
 
 const BALLOON_COLORS = [
@@ -36,186 +53,127 @@ const BALLOON_COLORS = [
   { name: 'black', hex: '#0f172a', label: 'Black' }
 ];
 
+const BALLOON_SHAPES: Array<{
+  id: BalloonShape;
+  label: string;
+  Icon: React.ComponentType<{
+    className?: string;
+    fill?: string;
+    fillOpacity?: number;
+    stroke?: string;
+    style?: React.CSSProperties;
+  }>;
+}> = [
+    { id: 'balloon', label: 'Balloon (Inspection Marker)', Icon: Balloon },
+    { id: 'circle', label: 'Circle (Standard Dimensions)', Icon: Circle },
+    { id: 'triangle', label: 'Triangle (Flag Note)', Icon: Triangle },
+    { id: 'hexagon', label: 'Hexagon (Critical GD&T)', Icon: Hexagon },
+    { id: 'square', label: 'Square (Basic Dimension)', Icon: Square }
+  ];
+
 export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
   hasDrawing,
   onSmartExtract,
   isExtracting,
-  characteristicsCount,
-  characteristics = [],
-  activeFilter = 'all',
-  onSetTableFilter,
-  isDrawerOpen = false,
-  onToggleDrawer,
+  extractScope = 'active',
+  activeSheetIndex: _activeSheetIndex = 0,
+  totalSheetsCount: _totalSheetsCount = 1,
+  onRunInspection,
+  isInspecting = false,
+  hasInspectionResults = false,
+  characteristicsCount = 0,
   balloonAppearance,
-  onUpdateBalloonAppearance
+  onUpdateBalloonAppearance,
+  onRotateClockwise,
+  onRotateCounterClockwise,
+  onRenumberAll,
+  onRepositionBalloons,
+  balloonsLocked = false,
+  onToggleLockBalloons
 }) => {
-  const criticalCount = characteristics.filter(
-    (c) => c.classification === 'Critical' || c.subType === 'GDT' || c.isCritical
-  ).length;
-
-  const needsReviewCount = characteristics.filter(
-    (c) => c.verificationStatus === 'needs_review'
-  ).length;
+  const activeColorObj = BALLOON_COLORS.find((c) => c.name === balloonAppearance.color) || BALLOON_COLORS[0];
+  const isBlack = balloonAppearance.color === 'black';
+  const activeColorHex = activeColorObj.hex;
 
   return (
     <div className="flex items-center h-full overflow-x-auto select-none no-scrollbar">
-      {/* 1. AI EXTRACTION */}
-      <RibbonGroup title="AI EXTRACTION">
+      {/* 1. DRAWING ANALYSIS */}
+      <RibbonGroup title="DRAWING ANALYSIS">
         <RibbonButton
           variant="large"
-          accent="blue"
           icon={
-            <Sparkles className={`w-5 h-5 text-amber-500 dark:text-amber-400 ${isExtracting ? 'animate-spin' : ''}`} />
+            <Sparkles className="w-5 h-5 text-slate-700 dark:text-zinc-200" />
           }
-          label={isExtracting ? 'Extracting...' : 'Smart Extract'}
-          subLabel="ASME Y14.5 AI"
+          label={isExtracting ? 'Extracting...' : 'Auto Extract'}
           disabled={!hasDrawing || isExtracting}
-          title="Automatically detect and balloon all dimensions, GD&T, and notes on this drawing"
-          onClick={onSmartExtract}
+          title="Auto Extract: automatically detect and balloon all dimensions, GD&T, and notes as per ASME standards"
+          onClick={() => onSmartExtract(extractScope)}
+          style={{ width: '84px', minWidth: '84px' }}
         />
 
-        {onToggleDrawer && (
+        {onRunInspection && (
+          <div className="ribbon-divider" />
+        )}
+
+        {onRunInspection && (
           <RibbonButton
             variant="large"
-            accent="blue"
-            icon={<SlidersHorizontal className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
-            label="Inspector"
-            subLabel="HITL Review"
-            badge={characteristicsCount > 0 ? characteristicsCount : undefined}
-            active={isDrawerOpen}
-            disabled={characteristicsCount === 0}
-            title="Open HITL AI Characteristics Review Drawer (Magnified 300 DPI Crop Box)"
-            onClick={onToggleDrawer}
+            icon={
+              <Search className="w-5 h-5 text-slate-700 dark:text-zinc-200" />
+            }
+            label={isInspecting ? 'Inspecting...' : 'Inspect'}
+            disabled={!hasDrawing || isInspecting}
+            title={
+              hasInspectionResults
+                ? "Refresh inspection analysis and update existing results"
+                : "Run drawing inspection analysis and generate results"
+            }
+            onClick={onRunInspection}
+            style={{ width: '92px', minWidth: '92px' }}
           />
         )}
       </RibbonGroup>
 
-      {/* 2. QUALITY TRIAGE */}
-      <RibbonGroup title="QUALITY TRIAGE">
-        <div className="flex flex-col gap-1 justify-center">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onSetTableFilter?.('all')}
-              disabled={characteristicsCount === 0}
-              className={`h-6 px-2.5 rounded flex items-center gap-1.5 transition cursor-pointer text-xs font-semibold ${
-                activeFilter === 'all'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700'
-              } disabled:opacity-40`}
-              title="Show All Inspection Characteristics"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>All</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                activeFilter === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300'
-              }`}>
-                {characteristicsCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSetTableFilter?.('critical')}
-              disabled={characteristicsCount === 0}
-              className={`h-6 px-2.5 rounded flex items-center gap-1.5 transition cursor-pointer text-xs font-semibold ${
-                activeFilter === 'critical'
-                  ? 'bg-red-600 text-white shadow-2xs'
-                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700'
-              } disabled:opacity-40`}
-              title="Filter by Key Characteristics / Critical GD&T (AS9102 Section 5.3)"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-              <span>Critical GD&T</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                activeFilter === 'critical' ? 'bg-red-700 text-white' : 'bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300'
-              }`}>
-                {criticalCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSetTableFilter?.('review')}
-              disabled={characteristicsCount === 0}
-              className={`h-6 px-2.5 rounded flex items-center gap-1.5 transition cursor-pointer text-xs font-semibold ${
-                activeFilter === 'review'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700'
-              } disabled:opacity-40`}
-              title="Filter by Low-Confidence OCR / Flagged Items Needing Human Verification"
-            >
-              <AlertTriangle className={`w-3.5 h-3.5 ${needsReviewCount > 0 ? 'text-amber-400 animate-pulse' : 'text-slate-400'}`} />
-              <span>Needs Review</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                activeFilter === 'review' 
-                  ? 'bg-amber-700 text-white' 
-                  : needsReviewCount > 0 
-                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' 
-                  : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300'
-              }`}>
-                {needsReviewCount}
-              </span>
-            </button>
-          </div>
-        </div>
-      </RibbonGroup>
-
-      {/* 3. BALLOON MARKUP */}
-      <RibbonGroup title="BALLOON MARKUP" noSeparator>
+      {/* 2. BALLOON MARKUP */}
+      <RibbonGroup title="BALLOON MARKUP">
         <div className="flex flex-col gap-1 justify-center">
           {/* Shape & Colors */}
           <div className="flex items-center gap-1.5">
             {/* Shapes */}
             <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded border border-slate-200 dark:border-zinc-700">
-              <button
-                type="button"
-                onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: 'circle' })}
-                title="Circle (Standard Dimensions)"
-                className={`p-1 rounded cursor-pointer transition ${
-                  balloonAppearance.shape === 'circle'
-                    ? 'bg-white dark:bg-zinc-700 shadow-2xs text-blue-600 dark:text-blue-400'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white'
-                }`}
-              >
-                <Circle className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: 'triangle' })}
-                title="Triangle (Flag Note)"
-                className={`p-1 rounded cursor-pointer transition ${
-                  balloonAppearance.shape === 'triangle'
-                    ? 'bg-white dark:bg-zinc-700 shadow-2xs text-amber-600 dark:text-amber-400'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white'
-                }`}
-              >
-                <Triangle className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: 'hexagon' })}
-                title="Hexagon (Critical GD&T)"
-                className={`p-1 rounded cursor-pointer transition ${
-                  balloonAppearance.shape === 'hexagon'
-                    ? 'bg-white dark:bg-zinc-700 shadow-2xs text-red-600 dark:text-red-400'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white'
-                }`}
-              >
-                <Hexagon className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: 'square' })}
-                title="Square (Basic Dimension)"
-                className={`p-1 rounded cursor-pointer transition ${
-                  balloonAppearance.shape === 'square'
-                    ? 'bg-white dark:bg-zinc-700 shadow-2xs text-purple-600 dark:text-purple-400'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white'
-                }`}
-              >
-                <Square className="w-3.5 h-3.5" />
-              </button>
+              {BALLOON_SHAPES.map((s) => {
+                const isSelected = balloonAppearance.shape === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: s.id })}
+                    title={s.label}
+                    className={`p-1 rounded cursor-pointer transition flex items-center justify-center ${isSelected
+                        ? 'bg-white dark:bg-zinc-700 shadow-2xs'
+                        : 'hover:bg-slate-200/60 dark:hover:bg-zinc-700/50'
+                      }`}
+                  >
+                    <s.Icon
+                      className={`w-3.5 h-3.5 transition-all ${isSelected
+                          ? `scale-105 ${isBlack ? 'text-slate-900 dark:text-zinc-200' : ''}`
+                          : 'text-slate-600 dark:text-white opacity-80 hover:opacity-100'
+                        }`}
+                      fill={isSelected ? (isBlack ? 'currentColor' : activeColorHex) : 'none'}
+                      fillOpacity={isSelected ? 0.25 : 0}
+                      stroke={isSelected ? (isBlack ? 'currentColor' : activeColorHex) : 'currentColor'}
+                      style={
+                        isSelected && !isBlack
+                          ? {
+                            color: activeColorHex,
+                            stroke: activeColorHex
+                          }
+                          : undefined
+                      }
+                    />
+                  </button>
+                );
+              })}
             </div>
 
             {/* Colors */}
@@ -227,11 +185,13 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
                   onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, color: c.name })}
                   title={c.label}
                   style={{ backgroundColor: c.hex }}
-                  className={`w-3.5 h-3.5 rounded-full transition-transform cursor-pointer ${
-                    balloonAppearance.color === c.name
+                  className={`w-3.5 h-3.5 rounded-full transition-transform cursor-pointer border ${c.name === 'black'
+                      ? 'border-slate-400 dark:border-zinc-300 shadow-2xs'
+                      : 'border-black/15 dark:border-white/25'
+                    } ${balloonAppearance.color === c.name
                       ? 'ring-2 ring-offset-1 ring-slate-700 dark:ring-white scale-110'
-                      : 'opacity-70 hover:opacity-100 hover:scale-105'
-                  }`}
+                      : 'opacity-90 hover:opacity-100 hover:scale-105'
+                    }`}
                 />
               ))}
             </div>
@@ -257,11 +217,80 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
                 type="checkbox"
                 checked={balloonAppearance.showLeaderLine}
                 onChange={(e) => onUpdateBalloonAppearance({ ...balloonAppearance, showLeaderLine: e.target.checked })}
-                className="rounded border-slate-300 text-blue-600 w-3 h-3 cursor-pointer"
+                className="rounded border-slate-300 accent-slate-700 text-slate-700 w-3 h-3 cursor-pointer"
               />
               <span>Leader Line</span>
             </label>
           </div>
+        </div>
+      </RibbonGroup>
+
+      {/* 3. ORIENTATION */}
+      <RibbonGroup title="ORIENTATION">
+        <div className="flex flex-col gap-0.5 justify-center">
+          <RibbonButton
+            variant="small"
+            icon={<RotateCw className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+            label="Rotate 90° CW"
+            hotkey="R"
+            disabled={!hasDrawing}
+            title="Rotate Drawing 90° Clockwise"
+            onClick={onRotateClockwise}
+          />
+          {onRotateCounterClockwise && (
+            <RibbonButton
+              variant="small"
+              icon={<RotateCcw className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+              label="Rotate 90° CCW"
+              disabled={!hasDrawing}
+              title="Rotate Drawing 90° Counter-Clockwise"
+              onClick={onRotateCounterClockwise}
+            />
+          )}
+        </div>
+      </RibbonGroup>
+
+      {/* 4. PLACEMENT & ORDER */}
+      <RibbonGroup title="PLACEMENT & ORDER" noSeparator>
+        {onRenumberAll && (
+          <RibbonButton
+            variant="large"
+            icon={<ListOrdered className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
+            label="Renumber"
+            subLabel="Sequential"
+            disabled={characteristicsCount === 0}
+            title="Renumber all drawing balloons sequentially (1, 2, 3...)"
+            onClick={onRenumberAll}
+            style={{ width: '80px', minWidth: '80px' }}
+          />
+        )}
+
+        <div className="ribbon-divider" />
+
+        <div className="flex flex-col gap-0.5 justify-center">
+          {onRepositionBalloons && (
+            <RibbonButton
+              variant="small"
+              icon={<RefreshCw className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />}
+              label="Auto Reposition"
+              disabled={characteristicsCount === 0}
+              title="Recalculate balloon coordinates avoiding callouts"
+              onClick={onRepositionBalloons}
+            />
+          )}
+
+          {onToggleLockBalloons && (
+            <RibbonButton
+              variant="small"
+              icon={balloonsLocked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />}
+              label={balloonsLocked ? 'Locked' : 'Lock Drag'}
+              active={balloonsLocked}
+              accent="amber"
+              disabled={characteristicsCount === 0}
+              title="Lock balloon positions to prevent accidental mouse dragging"
+              onClick={onToggleLockBalloons}
+            />
+          )}
         </div>
       </RibbonGroup>
     </div>
