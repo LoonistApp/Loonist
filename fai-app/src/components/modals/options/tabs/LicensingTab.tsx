@@ -7,7 +7,6 @@ import {
   Download, 
   RotateCw, 
   LogOut, 
-  Server, 
   CheckCircle2, 
   AlertTriangle
 } from 'lucide-react';
@@ -155,184 +154,145 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
     setFeedback({ type: 'info', text: res.message });
   };
 
+  const isActive = settings.status === 'ACTIVE';
+  const hasSeat = Boolean(settings.deviceId);
+  const expiryText = settings.expiresAt
+    ? `${new Date(settings.expiresAt).toLocaleDateString()} (${expiryCheck.isExpired ? 'expired' : `${expiryCheck.daysRemaining} days left`})`
+    : null;
+
   return (
     <div className="flex flex-col gap-5 text-xs text-slate-800">
-      
-      {/* 1. CLOUDFLARE LICENSE STATUS CARD */}
+
+      {/* 1. LICENSE STATUS */}
       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <div className="flex flex-row items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div>
-              <h3 className="font-semibold text-sm text-slate-900">
-                {settings.tenantName || 'Not activated'}
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                Cloudflare D1 Ledger & Ed25519 Cryptographic Control Plane
-              </p>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm text-slate-900">
+              {isActive ? 'Licensed' : settings.status === 'EXPIRED' ? 'License expired' : 'Not activated'}
+            </h3>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              {isActive || settings.status === 'EXPIRED'
+                ? [settings.tenantName && settings.tenantName !== settings.tenantId && `Licensed to ${settings.tenantName}`, expiryText && `Valid until ${expiryText}`].filter(Boolean).join(' · ')
+                : 'Activate this workstation with the license key from your administrator.'}
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {settings.status === 'ACTIVE' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-emerald-700 border border-emerald-500/40">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                ACTIVE (Verified Offline)
-              </span>
-            ) : settings.status === 'OFFLINE_LEASE' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-400">
-                <Clock className="w-3.5 h-3.5" />
-                OFFLINE LEASE (Cleanroom)
-              </span>
-            ) : settings.status === 'EXPIRED' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-500/50">
-                <Clock className="w-3.5 h-3.5" />
-                EXPIRED
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-red-700 border border-red-500">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                UNLICENSED / TRIAL
-              </span>
-            )}
-          </div>
+          {isActive ? (
+            <span className="shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold border border-emerald-500/40 text-emerald-600">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Active
+            </span>
+          ) : settings.status === 'EXPIRED' ? (
+            <span className="shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold border border-amber-500/50 text-amber-600">
+              <Clock className="w-3.5 h-3.5" />
+              Expired
+            </span>
+          ) : (
+            <span className="shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold border border-red-500 text-red-500">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Unlicensed
+            </span>
+          )}
         </div>
 
-        {/* Metadata Details Grid */}
-        <div className="grid grid-cols-2 gap-3 p-3 bg-white rounded border border-slate-200 text-[11px]">
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-mono">Bound Hardware Device ID</span>
-            <span className="font-mono font-medium text-slate-800 select-all truncate block">
-              {settings.deviceId || 'Unregistered Workstation'}
-            </span>
-          </div>
-
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-mono">Lease Expiration / Air-Gap Window</span>
-            <span className={`font-medium block ${expiryCheck.isExpired ? 'text-red-600 font-bold' : 'text-slate-800 '}`}>
-              {settings.expiresAt ? new Date(settings.expiresAt).toLocaleDateString() : 'N/A'} 
-              {' '}({expiryCheck.message})
-            </span>
-          </div>
-
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-mono">Cloudflare Tenant ID</span>
-            <span className="font-mono text-slate-700 select-all">
-              {settings.tenantId || '—'}
-            </span>
-          </div>
-
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-mono">Licensed Features</span>
-            <span className="text-blue-600 font-mono text-[10px]">
-              {settings.features.join(', ') || '—'}
-            </span>
-          </div>
-        </div>
-
-        {settings.statusDetail && (
-          <p className={`mt-2 text-[11px] ${settings.status === 'ACTIVE' ? 'text-emerald-700 ' : 'text-amber-700 '}`}>
-            {settings.statusDetail}
-          </p>
+        {settings.statusDetail && !isActive && hasSeat && (
+          <p className="mt-2 text-[11px] text-amber-600">{settings.statusDetail}</p>
         )}
       </div>
 
       {/* FEEDBACK BANNER */}
       {feedback && (
-        <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+        <div className={`px-3 py-2 rounded border text-[11px] ${
           feedback.type === 'success'
-            ? 'bg-emerald-50 text-emerald-800 border-emerald-500/40'
+            ? 'border-emerald-500/40 text-emerald-600'
             : feedback.type === 'error'
-            ? 'bg-red-50 text-red-800 border-red-500'
-            : 'bg-blue-50 text-blue-700 border-blue-400'
+            ? 'border-red-500 text-red-500'
+            : 'border-blue-400 text-blue-600'
         }`}>
-          <span>{feedback.text}</span>
+          {feedback.text}
         </div>
       )}
 
-      {/* 2. ACTIVATE NEW SEAT */}
-      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="font-semibold text-xs text-slate-900 uppercase tracking-wider">
-            Activate Seat via Single-Use Token
+      {/* 2. ACTIVATE (only while not licensed) */}
+      {!isActive && (
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <h3 className="font-semibold text-xs text-slate-900 uppercase tracking-wider mb-3">
+            Activate
           </h3>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Enter license key"
+              value={tokenInput}
+              onChange={(e) => setTokenInput(e.target.value)}
+              className="flex-1 min-w-0 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-600 font-mono"
+            />
+            <button
+              type="button"
+              onClick={handleActivate}
+              disabled={isActivating || !tokenInput.trim()}
+              className="shrink-0 whitespace-nowrap bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-medium px-4 py-1.5 rounded transition cursor-pointer"
+            >
+              {isActivating ? 'Activating…' : 'Activate'}
+            </button>
+          </div>
         </div>
-        <p className="text-[11px] text-slate-500 mb-3">
-          Exchange an enterprise single-use token generated by your quality director. The Cloudflare Worker will bind your device public key in D1.
-        </p>
+      )}
 
-        <div className="flex items-center gap-2">
+      {/* 3. MANAGE LICENSE (only once a license exists) */}
+      {hasSeat && (
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <h3 className="font-semibold text-xs text-slate-900 uppercase tracking-wider mb-1">
+            Manage License
+          </h3>
+          <p className="text-[11px] text-slate-500 mb-3">
+            For computers without internet access, export an offline license file and copy it over by USB.
+          </p>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleRenew}
+              disabled={isRenewing}
+              className="flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded border border-slate-300 font-medium transition cursor-pointer"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              {isRenewing ? 'Refreshing…' : 'Refresh License'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportAirGapCert}
+              className="flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded border border-slate-300 font-medium transition cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export Offline License
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeactivate}
+              className="flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 hover:bg-slate-200 text-red-500 rounded border border-red-500 font-medium transition cursor-pointer ml-auto"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Release Seat
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Licensing server address: development builds only */}
+      {import.meta.env.DEV && (
+        <div className="flex items-center gap-3 text-[11px] text-slate-500">
+          <span className="whitespace-nowrap">Licensing server (dev only):</span>
           <input
             type="text"
-            placeholder="Paste token: e.g. tok_sec_9f8b2c41-89e4-4d2a..."
-            value={tokenInput}
-            onChange={(e) => setTokenInput(e.target.value)}
-            className="flex-1 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-600 font-mono"
+            value={settings.apiUrl}
+            onChange={(e) => onChange({ apiUrl: e.target.value })}
+            className="bg-white border border-slate-300 rounded px-2 py-0.5 text-[11px] text-slate-700 font-mono flex-1 max-w-[320px]"
           />
-          <button
-            type="button"
-            onClick={handleActivate}
-            disabled={isActivating || !tokenInput.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-medium px-4 py-1.5 rounded transition cursor-pointer shrink-0 flex items-center gap-1.5"
-          >
-            {isActivating ? 'Verifying with Cloudflare...' : 'Activate Seat'}
-          </button>
         </div>
-      </div>
-
-      {/* 3. AIR-GAPPED CLEANROOM / SCIF CONTROLS */}
-      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="font-semibold text-xs text-slate-900 uppercase tracking-wider">
-            Air-Gapped Cleanroom Transport & Seat Actions
-          </h3>
-        </div>
-        <p className="text-[11px] text-slate-500 mb-3">
-          For classified manufacturing cells with no network access, export a cryptographically signed license file for USB installation.
-        </p>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleExportAirGapCert}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded border border-slate-300 font-medium transition cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Offline License (.lic)
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRenew}
-            disabled={isRenewing}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded border border-slate-300 font-medium transition cursor-pointer"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isRenewing ? 'animate-spin' : ''}`} />
-            Refresh License
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDeactivate}
-            className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-200 text-red-500 rounded border border-red-500 font-medium transition cursor-pointer ml-auto"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Release Seat
-          </button>
-        </div>
-      </div>
-
-      {/* 4. EDGE API ENDPOINT CONFIGURATION */}
-      <div className="flex items-center gap-3 pt-2 text-[11px] text-slate-500">
-        <Server className="w-3.5 h-3.5 text-slate-400" />
-        <span>Cloudflare Worker Edge URL:</span>
-        <input
-          type="text"
-          value={settings.apiUrl}
-          onChange={(e) => onChange({ apiUrl: e.target.value })}
-          className="bg-white border border-slate-300 rounded px-2 py-0.5 text-[11px] text-slate-700 font-mono flex-1 max-w-[320px]"
-        />
-        <span className="text-[10px] text-slate-400">(e.g. http://localhost:8787 for local testing)</span>
-      </div>
+      )}
 
     </div>
   );

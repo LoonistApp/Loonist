@@ -35,6 +35,15 @@ export type LicenseCallResult =
   | { success: true; payload?: LicensePayload; signature?: string; expiresAt?: string; devicePublicKey: string; verification?: LicenseVerification; message: string }
   | { success: false; message: string };
 
+export interface AppInfo {
+  version: string;
+  electron: string;
+  chrome: string;
+  node: string;
+  platform: string;
+  packaged: boolean;
+}
+
 export interface IElectronAPI {
   getProject: (projectId: string) => Promise<{ id: string; name: string; status: string }>;
   openBlueprintDialog: () => Promise<BlueprintFileResult>;
@@ -49,6 +58,7 @@ export interface IElectronAPI {
   restoreWindow?: () => Promise<{ isMaximized: boolean }>;
   isWindowMaximized?: () => Promise<{ isMaximized: boolean }>;
   closeWindow?: () => Promise<{ success: boolean }>;
+  getAppInfo?: () => Promise<AppInfo>;
   licenseActivate?: (apiUrl: string, token: string) => Promise<LicenseCallResult>;
   licenseRenew?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
   licenseRevoke?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;

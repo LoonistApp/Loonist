@@ -97,8 +97,8 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
     { id: 'masterData', label: 'Factory Master Data', icon: <Wrench className="w-4 h-4" />, group: 'Application Options', desc: 'Inspection tools, manufacturing operations, severity classifications' },
     { id: 'templates', label: 'Templates', icon: <Folder className="w-4 h-4" />, group: 'Application Options', desc: 'AS9102 Form 1/2/3 and custom Excel export templates' },
     { id: 'netInspect', label: 'Net-Inspect Gateway', icon: <Cloud className="w-4 h-4" />, group: 'Application Options', desc: 'Aerospace upload limits, basic/ref flags, custom field mapping' },
-    { id: 'licensing', label: 'Licensing & Air-Gap', icon: <ShieldCheck className="w-4 h-4" />, group: 'Application Options', desc: 'Cloudflare D1 seat activation, Ed25519 verification, SCIF lease export' },
-    { id: 'itarPrivacy', label: 'ITAR Privacy & Diagnostics', icon: <Lock className="w-4 h-4" />, group: 'Security & System', desc: '100% on-device data sovereignty, hardware acceleration, system info' },
+    { id: 'licensing', label: 'Licensing', icon: <ShieldCheck className="w-4 h-4" />, group: 'Application Options', desc: 'Activate, refresh or release this workstation license; offline license file' },
+    { id: 'itarPrivacy', label: 'Privacy & About', icon: <Lock className="w-4 h-4" />, group: 'Security & System', desc: 'How LOONIST handles your data, version and system information' },
   ];
 
   const filteredNavItems = navItems.filter(item =>

@@ -37,9 +37,8 @@ app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 app.setName('LOONIST');
 
 function createWindow() {
-  const preloadCandidateMjs = path.join(__dirname, 'preload.mjs');
-  const preloadCandidateJs = path.join(__dirname, 'preload.js');
-  const preloadPath = fs.existsSync(preloadCandidateMjs) ? preloadCandidateMjs : preloadCandidateJs;
+  // The preload is built as CommonJS (.cjs): sandboxed preload scripts cannot be ES modules
+  const preloadPath = path.join(__dirname, 'preload.cjs');
 
   const mainWindow = new BrowserWindow({
     width: 1440,
@@ -108,7 +107,7 @@ app.whenReady().then(() => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self' http://localhost:* ws://localhost:*; script-src 'self' 'unsafe-inline' http://localhost:*; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' blob: http://localhost:* ws://localhost:*;"
+          "default-src 'self' http://localhost:* ws://localhost:*; script-src 'self' 'unsafe-inline' http://localhost:*; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' blob: http://localhost:* ws://localhost:*;"
         ]
       }
     });
@@ -377,6 +376,16 @@ handleIpc('ipc-window-is-maximized', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   return { isMaximized: Boolean(win?.isMaximized()) };
 });
+
+/** Real runtime versions for Options → Privacy & About. */
+handleIpc('ipc-app-info', noPayload, () => ({
+  version: app.getVersion(),
+  electron: process.versions.electron,
+  chrome: process.versions.chrome,
+  node: process.versions.node,
+  platform: `${process.platform} ${process.arch}`,
+  packaged: app.isPackaged
+}));
 
 handleIpc('ipc-window-close', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();

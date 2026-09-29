@@ -27,6 +27,19 @@ export default defineConfig({
         onstart(options) {
           options.reload()
         },
+        vite: {
+          build: {
+            // Sandboxed preload scripts cannot be ES modules; emit CommonJS
+            lib: {
+              entry: 'electron/preload.ts',
+              formats: ['cjs'],
+              fileName: () => 'preload.cjs'
+            },
+            rollupOptions: {
+              output: { inlineDynamicImports: true }
+            }
+          }
+        }
       },
     ]),
     renderer(),

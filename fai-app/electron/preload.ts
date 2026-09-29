@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   restoreWindow: () => ipcRenderer.invoke('ipc-window-restore'),
   isWindowMaximized: () => ipcRenderer.invoke('ipc-window-is-maximized'),
   closeWindow: () => ipcRenderer.invoke('ipc-window-close'),
+  getAppInfo: () => ipcRenderer.invoke('ipc-app-info'),
   // Licensing runs in the main process; the device private key never reaches the renderer
   licenseActivate: (apiUrl: string, token: string) => ipcRenderer.invoke('ipc-license-activate', { apiUrl, token }),
   licenseRenew: (apiUrl: string, deviceId: string) => ipcRenderer.invoke('ipc-license-renew', { apiUrl, deviceId }),

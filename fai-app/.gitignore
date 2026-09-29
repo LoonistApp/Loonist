@@ -13,6 +13,9 @@ dist-electron
 dist-ssr
 *.local
 
+# pdf.js assets copied from node_modules at build time
+public/pdfjs
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

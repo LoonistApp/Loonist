@@ -5,6 +5,11 @@ import type { SheetMetadata } from '../types/blueprint';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
+// pdf.js runtime assets are bundled in public/pdfjs (scripts/copy-pdfjs-assets.mjs) so
+// rendering never reaches the internet. Resolved against the page so they work both on
+// the dev server and from file:// in the packaged app.
+const pdfjsAsset = (dir: string) => new URL(`pdfjs/${dir}/`, document.baseURI).href;
+
 export class PDFRenderService {
   private static currentRenderTask: pdfjsLib.RenderTask | null = null;
 
@@ -15,8 +20,11 @@ export class PDFRenderService {
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(data),
       useSystemFonts: true,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/cmaps/',
+      cMapUrl: pdfjsAsset('cmaps'),
       cMapPacked: true,
+      standardFontDataUrl: pdfjsAsset('standard_fonts'),
+      wasmUrl: pdfjsAsset('wasm'),
+      iccUrl: pdfjsAsset('iccs'),
     });
     return await loadingTask.promise;
   }
