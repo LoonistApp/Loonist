@@ -32,8 +32,8 @@
 | 📄 [`LOONIST.PRD.md`](./LOONIST.PRD.md) | **Master PRD (SSOT)** | Master Product Requirements Document defining the offline-first desktop architecture. |
 | 🧠 [`Phase_1_Business_Domain_Analysis.md`](./Phase_1_Business_Domain_Analysis.md) | **Phase 1: Domain Analysis** | DDD Bounded Contexts, Event Storming, Business Rules, ERD, State Machines. |
 | 🏗️ [`Phase_2_High_Level_Design.md`](./Phase_2_High_Level_Design.md) | **Phase 2: High-Level System Design** | Full System Architecture: C4 Context Diagrams, IPC Security Boundaries, SQLite Undo/Redo Engine, Cloudflare Licensing API, Industrial CAD UI. |
-| 🛠️ [`Phase_3_Low_Level_Design.md`](./Phase_3_Low_Level_Design.md) | **Phase 3: Low-Level System Design** | Desktop Application internals, ONNX hardware execution, R-Tree collision, Measurement Engine, PDF/Excel exporters, SHA-256 audit ledger, 6-Sprint Roadmap. |
-| 🔬 [`Algorithms/`](./Algorithms/) | **Algorithms Catalog (12 Core Algorithms)** | Mathematical formulations, flowcharts, and source mappings for all 12 vision, parsing, spatial, and compliance algorithms. |
+| 🛠️ [`Phase_3_Low_Level_Design.md`](./Phase_3_Low_Level_Design.md) | **Phase 3: Low-Level System Design** | Desktop Application internals, ONNX hardware execution, R-Tree collision, Measurement Engine, PDF/Excel exporters, SHA-256 audit ledger, Sprint 7 configuration/licensing subsystems, 8-Sprint Roadmap. |
+| 🔬 [`Algorithms/`](./Algorithms/) | **Algorithms Catalog (14 Core Algorithms)** | Mathematical formulations, flowcharts, and source mappings for all 14 vision, parsing, spatial, and compliance algorithms. |
 
 ### 🚀 Sprint Technical Walkthroughs & Implementation Journals
 | Sprint | Journal / Walkthrough | Status | Key Deliverables & Systems |
@@ -44,13 +44,15 @@
 | **Sprint 4** | 📄 [`Sprint_4_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_4_Technical_Walkthrough.md) | ✅ Complete | Spatial R-Tree AABB collision engine, dynamic vector leader lines, Multi-Document Session Manager, Antigravity dual-axis draggable splitters. |
 | **Sprint 5** | 📄 [`Sprint_5_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_5_Technical_Walkthrough.md) | ✅ Complete | Physical measurement engine (Bilateral/Unilateral/Limit), high-density frozen sticky CAD table, Vector PDF exporter (`pdf-lib`), certified AS9102 Excel exporter, SHA-256 audit ledger, neutral dark theme. |
 | **Sprint 6** | 📄 [`Sprint_6_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_6_Technical_Walkthrough.md) | ✅ Complete | Hybrid dual-path vision pipeline, Canvas pre-processing (Otsu adaptive binarization, deskewing, blueprint inversion), offline Tesseract WASM OCR, CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`), and Prose & Tutorial Sentence Exclusion Engine. |
+| **Sprint 7** | 📄 [`Sprint_7_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_7_Technical_Walkthrough.md) | ✅ Complete | Per-project Settings, Application Options (Master Data, Templates, Net-Inspect, ITAR, Licensing), in-app Ed25519 licensing client, Help Center, ASME Y14.5 chamfer & compound callout deconstruction, drawing-unit detection + ISO 2768-m, marquee boilerplate rejection, balloon action popover, sheet scope. |
+| **Sprint 8** | — | 📋 Planned | Signed Windows installer CI/CD, EV code signing, licensing CSP + key storage hardening, IPC Zod coverage for Sprint 7 channels. |
 
 ---
 
 ## 📊 Codebase & Verification Metrics
 
-- **Total Production Codebase:** **12,800+ Lines of Code** across 57 engine files in `src/` and `scripts/`.
-- **Automated Verification Harness:** **14 Test Suites (45+ unit & integration tests)** running via `scripts/run_all_feature_tests.ts` with **100% clean pass rate** and zero TypeScript compilation errors (`tsc -b`).
+- **Total Production Codebase:** **28,000+ Lines of Code** across 98 TypeScript/TSX/CSS files in `src/`, `scripts/`, and `electron/`.
+- **Automated Verification Harness:** **23 Test Suites** running via `scripts/run_all_feature_tests.ts` (`npm test`) with **100% clean pass rate**, zero TypeScript compilation errors (`tsc -b`), and zero `oxlint` errors.
 - **Core Engine Modules:**
   - `src/services/ai/ocrEngineService.ts` (100% offline WebAssembly deep learning OCR & CAD symbol restoration)
   - `src/services/ai/imagePreprocessingService.ts` (Otsu adaptive binarization, deskewing, dark blueprint inversion)
@@ -61,6 +63,10 @@
   - `src/services/export/markedPdfExporter.ts` (Vector PDF badge & arrow burn-in)
   - `src/services/export/as9102ExcelExporter.ts` (SAE AS9102 Form 1, 2, 3 multi-sheet OpenXML generator)
   - `src/services/compliance/auditLedgerService.ts` (Cryptographic SHA-256 tamper-evident ledger)
+  - `src/services/license/licenseClient.ts` (Ed25519 device keys, offline signature verification, Cloudflare activate/renew/revoke)
+  - `src/services/validation/form1ValidationService.ts` (SAE AS9102 Form 1 mandatory field validation)
+  - `src/stores/useApplicationOptionsStore.ts` + `src/types/settings.ts` (Application Options & per-project Settings)
+  - `src/data/helpData.ts` (GD&T library, AS9102 guide, Quick Start content)
   - `src/components/layout/TableManager.tsx` (High-density CAD table with dual sticky-frozen `#ID`/`#Cha` columns)
   - `src/index.css` (Neutral industrial monochromatic CAD dark theme tokens)
 

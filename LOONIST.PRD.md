@@ -5,7 +5,7 @@
 | **Product Name** | `LOONIST` |
 | **Version** | v2.1 (Competitive Disruption Baseline — Desktop Enterprise SaaS) |
 | **Document Status** | Approved Master Baseline PRD |
-| **Last Updated** | 13 September 2026 |
+| **Last Updated** | 29 September 2026 |
 | **Product Owner (POC)** | Harsh Yadav |
 | **Architectural Model** | Offline-First Desktop App with Cloudflare Asymmetric Licensing Control Plane |
 | **Target Infrastructure** | Electron + React 19 + Local SQLite + Local ONNX/WASM AI + Cloudflare Workers Edge |
@@ -71,15 +71,20 @@
 1. **Activation (One-Time / Air-Gapped):**
    * *Connected Mode:* User enters token $\to$ Electron queries Cloudflare Edge API $\to$ receives Ed25519 signed license bound to device public key.
    * *Air-Gapped Mode:* User exports offline activation file via USB $\to$ activates via web portal $\to$ imports cryptographic license certificate.
+   * *In-App (Sprint 7):* Activation, renewal, revocation, and offline certificate export live in **Options → Licensing**.
 2. **Document Ingestion (Multi-Tab Workspace):**
    * User opens local PDF blueprints. Multi-document session manager isolates viewports, zoom levels, rotation, and characteristics across active tabs.
 3. **Dual-Engine Characteristic Extraction ("Auto Balloon"):**
    * *Primary Engine:* PDF.js vector stream glyph scanner + ASME Y14.5 AST parser + Spatial Proximity Clustering.
    * *Secondary Fallback Engine:* Client-side raster OCR (WebWorker/WASM) for scanned drawings and exploded stroked CAD fonts (`m/l/c` vector paths).
+   * *Drafting Standards (Sprint 7):* Drawing units are read from drawing notes before project defaults; integer metric dimensions receive ISO 2768-m size-band tolerances; ASME Y14.5 § 1.8.16 chamfers and compound hole callouts (drill/countersink, counterbore, thread/spotface) are split into individual Form 3 sub-characteristics.
+   * *Per-Project Rules (Sprint 7):* Tolerance preset, units, skip reference `( )` / basic `[ ]` dimensions, and balloon numbering (start, step, sub-delimiter) are configured in **Project Settings** and saved inside the `.loonist` archive.
 4. **Interactive Spatial Ballooning (Sprint 4):**
    * Canvas overlays numbered vector balloons avoiding drawing lines using R-Tree spatial collision detection.
    * Drag-and-drop interactive balloon positioning with dynamic leader lines.
    * Cascade renumbering: deleting or moving a balloon auto-updates the sequence while preserving multiplier sub-indices.
+   * *Balloon Actions (Sprint 7):* Per-balloon shape and colour, split, reset, and quick delete (canvas, HUD, list, `Delete` key); one balloon per leader on the canvas while all sub-characteristics stay in the table.
+   * *Manual Marquee (Sprint 7):* Boxes drawn over prose or administrative notes (e.g. `DO NOT SCALE DRAWING`) are rejected with an ASME Y14.5 / AS9102 explanation.
 5. **Human-in-the-Loop (HITL) Verification:**
    * Inspector reviews extracted characteristics in the bottom data table or side drawer.
    * Ambiguous items display a 300 DPI high-resolution magnified crop of the raw drawing alongside parsed nominals for 2-second visual sign-off.
@@ -89,9 +94,15 @@
 7. **Multi-Artifact Export Pipeline (Sprint 5):**
    * **Marked Blueprint PDF:** High-resolution vector synthesis burning balloon badges and leader lines directly into the customer's drawing PDF for shop-floor distribution.
    * **SAE AS9102 Rev B/C Excel Package:** Form 1 (Part Accountability), Form 2 (Product Accountability), and Form 3 (Characteristic Accountability & Results) compiled into a fully formatted `.xlsx` workbook.
+   * **Form 3 CSV (Sprint 7):** Flat characteristic export selectable alongside `.xlsx` in the unified Export dialog.
+   * **Security Watermark (Sprint 7):** Optional `ITAR RESTRICTED` / `COMPANY CONFIDENTIAL` / `PRELIMINARY FAIR` / `CUSTOMER APPROVED` watermark on the viewport and every page of the marked PDF.
+   * **Net-Inspect Portal CSV (Planned):** Field mapping is configurable in Options; the exporter itself is not yet implemented.
    * **Automotive AIAG PPAP Package (Phase 2):** Form 18 Dimensional Results mapping.
 8. **Project File Archiving (`.loonist` format):**
    * Single-click save of the complete inspection state into a portable, versioned `.loonist` file for offline archival and team collaboration.
+9. **Configuration & In-App Help (Sprint 7):**
+   * **Application Options:** Workspace ergonomics, factory Master Data (inspection methods, operations, classifications, custom fields), AS9102 templates, Net-Inspect mapping, ITAR/Privacy, and Licensing.
+   * **Help Center:** Quick Start workflow, 14-symbol ASME Y14.5 GD&T library, AS9102 Form 1/2/3 field guide, keyboard shortcuts, diagnostics, and About.
 
 ---
 
@@ -176,5 +187,19 @@
 - [x] (Sprint 6) 100% offline WebAssembly Deep Learning OCR engine (`ocrEngineService.ts`) with CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`).
 - [x] (Sprint 6) Prose & Tutorial Sentence Exclusion Engine with 60+ keyword heuristics and Step 14 residual token validation.
 - [x] (Sprint 6) Interactive optical marquee snip-to-capture tool (`box-capture`) and HUD provenance badges (`VECTOR` / `OCR` / `MANUAL`).
-- [x] (Sprint 6) Unified master test suite expanded to 14 feature test suites with 100% clean pass rate.
-- [ ] (Sprint 7) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.
+- [x] (Sprint 6) SAE AS9102 Form 1 (Part Accountability) Record Validation service with mandatory aerospace CAGE code and sampling plan enforcement.
+- [x] (Sprint 6) Unified master test suite expanded to 15 feature test suites with 100% clean pass rate.
+- [x] (Sprint 7) Per-project Settings (tolerance presets, mm/in units, skip reference/basic dimensions, numbering start/step/sub-delimiter, AS9102 Rev B/C, ANSI/ASQ Z1.4 sampling, security watermark) persisted in `.loonist` archives.
+- [x] (Sprint 7) Application Options with Workspace, Master Data, Templates, Net-Inspect, ITAR/Privacy, and Licensing tabs persisted across sessions.
+- [x] (Sprint 7) In-app Ed25519 licensing client (`@noble/curves`): device keypair generation, offline signature verification, activate/renew/revoke, offline certificate export.
+- [x] (Sprint 7) Help Center: Quick Start, 14-symbol ASME Y14.5 GD&T library, AS9102 Form 1/2/3 guide, keyboard shortcuts, diagnostics, About.
+- [x] (Sprint 7) ASME Y14.5 § 1.8.16 chamfer parsing (depth vs angle, multiplier decoupling) and compound callout deconstruction into AS9102 Form 3 sub-characteristics.
+- [x] (Sprint 7) Drawing-note unit detection with ISO 2768-m size-band tolerances for integer metric dimensions.
+- [x] (Sprint 7) Manual marquee rejection of non-inspectable prose and administrative notes.
+- [x] (Sprint 7) Balloon action popover (shape, colour, split, reset, delete), current/all-sheet scope, quick delete, double-click-to-pan, unified Export dialog (PDF + XLSX/CSV).
+- [x] (Sprint 7) Unified master test suite expanded to 23 feature test suites with 100% clean pass rate.
+- [ ] (Sprint 8) Allow the licensing API origin in the Electron CSP `connect-src` so in-app activation works in the packaged app.
+- [ ] (Sprint 8) Move the device Ed25519 private key from `localStorage` to OS-protected storage (Electron `safeStorage` / keychain).
+- [ ] (Sprint 8) Zod payload validation on all Sprint 7 IPC channels (window controls, message box, exit) to restore the 100% IPC validation guardrail.
+- [ ] (Sprint 8) Wire remaining Project Settings into engines (balloon prefix, leading zeros, multiplier behaviour, OCR review floor, auto-balloon notes, auto zones, AS9102 revision) and implement the Net-Inspect CSV exporter.
+- [ ] (Sprint 8) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.
