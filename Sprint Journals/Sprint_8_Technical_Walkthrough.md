@@ -22,6 +22,8 @@ Sprint 7 left three licensing defects open (see the Sprint 7 journal, §6). Spri
 | **7** | New installs showed a fake **ACTIVE** license with a placeholder signature. | New installs start **UNLICENSED**; the old demo license is cleared on load. |
 | **8** | Activating and then pressing **Cancel** in Options discarded the result although the server had already consumed the token. | Activate / refresh / release results are saved immediately. |
 | **9** | Exported configuration profiles carried the workstation's license binding, and importing one overwrote this workstation's license. | Profiles now carry only the licensing server URL. |
+| **10** | The app never verified the server's signature on a stored license, and the saved `ACTIVE` flag was trusted as-is. | Licenses are verified offline in the main process on every start-up and whenever Options → Licensing opens: signature by an embedded trusted server key, bound to this workstation, not expired. The status is derived from that check. |
+| **11** | A signed license did not name the workstation, so a copied license would verify anywhere. | The Worker now includes `devicePublicKey` in the signed payload; the app rejects licenses whose key differs from its own. Licenses issued before this change ask for **Refresh License**. |
 
 ---
 
@@ -94,14 +96,21 @@ Run with `wrangler dev --local` and an isolated local D1 seeded from `schema.sql
 | Revoke with device signature | 200 |
 | Renew after revoke | 403 |
 
+### Offline verification (`electron/licenseTrust.ts`)
+* `verifyLicense()` verdicts: `ACTIVE`, `EXPIRED`, `NOT_ACTIVATED`, `INVALID` (bad signature, wrong workstation, missing binding, malformed), `UNVERIFIABLE` (no trusted key in this build — never treated as active).
+* Trusted keys: `PRODUCTION_LICENSE_PUBLIC_KEY` in every build; `DEVELOPMENT_LICENSE_PUBLIC_KEY` (matches `.dev.vars`) only in unpackaged builds. The production key pair was generated on 29 September 2026: public key `9bca5120…f61d33` is built in; the private key is in the git-ignored `cloudflare-licensing-api/.license-production-private-key` and must be uploaded with `wrangler secret put LICENSE_PRIVATE_KEY` before the production Worker is deployed.
+* Activation is refused before the token is sent when the build has no trusted key, so a single-use token is never burned on a build that could not accept the result.
+* Licenses returned by `/activate` and `/renew` are verified before the app stores them.
+* 14 additional unit checks (41 total in `test_licensing_security.ts`); end-to-end, licenses signed by the local Worker verify offline with the embedded development key, and fail when copied to another device key or when the expiry is edited.
+
 ### Not yet verified
 * The Electron main-process path (`safeStorage` key file, IPC round trip) has been type-checked and built but not exercised in a running app.
-* Offline signature verification against the Worker's **public** key is still not performed by the app: the server public key is not yet embedded in the build.
 
 ---
 
 ## 5. Remaining Sprint 8 Scope
-* Embed the licensing server's Ed25519 public key and verify stored licenses offline on start-up.
+* Upload the production private key to the Worker (`wrangler secret put LICENSE_PRIVATE_KEY`), then move the key file into a password manager or vault and delete the local copy.
+* Import of offline (`.lic`) certificates for air-gapped workstations.
 * Decide what an UNLICENSED / EXPIRED workstation may do (the app does not currently restrict features by license state).
 * Wire remaining Project Settings; Net-Inspect CSV exporter.
 * Signed Windows installer pipeline (GitHub Actions, EV code signing, RFC 3161 timestamps).

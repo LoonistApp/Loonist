@@ -204,6 +204,8 @@
 - [x] (Sprint 8) Device Ed25519 private key held only in the main process, encrypted with Electron `safeStorage`; legacy plain-text keys removed on load.
 - [x] (Sprint 8) Zod payload validation on every IPC channel through a single validated handler (100% IPC validation guardrail restored).
 - [x] (Sprint 8) Renew and revoke requests signed with the device key and verified by the Worker; renew re-signs the license from D1.
-- [ ] (Sprint 8) Embed the licensing server public key and verify stored licenses offline on start-up.
+- [x] (Sprint 8) Stored licenses verified offline on start-up against an embedded server public key and bound to the workstation's device key.
+- [x] (Sprint 8) Production licensing key pair generated; public key built into `electron/licenseTrust.ts`.
+- [ ] (Sprint 8) Upload the production private key to the Worker with `wrangler secret put LICENSE_PRIVATE_KEY` and deploy.
 - [ ] (Sprint 8) Wire remaining Project Settings into engines (balloon prefix, leading zeros, multiplier behaviour, OCR review floor, auto-balloon notes, auto zones, AS9102 revision) and implement the Net-Inspect CSV exporter.
 - [ ] (Sprint 8) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.

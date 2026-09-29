@@ -154,7 +154,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * **Edge API:** Cloudflare Workers built with Hono.js.
 * **Database:** Cloudflare D1 serverless ledger mapping Tenants, Devices, and Licenses.
 * **Cryptography:** Issues Ed25519 signed license certificates. The desktop app verifies the mathematical signature locally against an embedded public key. Supports 30-day offline grace periods and completely air-gapped USB activations.
-* **Desktop Client (Sprint 8):** licensing runs in the Electron main process (`electron/licensing.ts`). The device Ed25519 key is created there and stored encrypted with `safeStorage`; it never reaches the renderer. `/renew` and `/revoke` requests are signed with it and verified by the Worker against the public key registered at activation. The renderer reaches it only through Zod-validated IPC, so its CSP stays closed to external hosts. Surfaced in **Options → Licensing**.
+* **Desktop Client (Sprint 8):** licensing runs in the Electron main process (`electron/licensing.ts`). The device Ed25519 key is created there and stored encrypted with `safeStorage`; it never reaches the renderer. `/renew` and `/revoke` requests are signed with it and verified by the Worker against the public key registered at activation. The renderer reaches it only through Zod-validated IPC, so its CSP stays closed to external hosts. Stored licenses are verified offline on start-up against an embedded server public key and must carry this workstation's device key. Surfaced in **Options → Licensing**.
 
 ### 3.8 Industrial CAD User Interface & Theme Architecture
 * **Authentic CAD Monochromatic Palette:**

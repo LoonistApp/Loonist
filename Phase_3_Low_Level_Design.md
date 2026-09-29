@@ -1110,9 +1110,17 @@ URL rule (`licenseApiUrlSchema`): `https://`, or `http://localhost` / `127.0.0.1
 - Default licensing state is `UNLICENSED`; the pre-Sprint 8 demo license (placeholder signature) is cleared on load.
 - Configuration profile export contains only `licensing.apiUrl`; import keeps this workstation's license.
 
-### 40.5 Open items
-- Embed the Worker's Ed25519 public key and call `verifySignatureOffline()` on start-up.
+### 40.5 Offline verification (`electron/licenseTrust.ts`)
+- Signed payload: `{ licenseId, deviceId, tenantId, expiresAt, features, devicePublicKey }` in that key order; signature = Ed25519 over `JSON.stringify(payload)`.
+- `verifyLicense(license, trustedKeys, devicePublicKey, now)` → `ACTIVE | EXPIRED | NOT_ACTIVATED | INVALID | UNVERIFIABLE` with a user-facing message.
+- `trustedServerKeys(isPackaged)`: production key always; development key (`.dev.vars`) only when `!app.isPackaged`; empty strings ignored.
+- Channel `ipc-license-verify` (`licenseVerifySchema`) → `verifyStoredLicense()`. Called by `CloudflareLicenseClient.refreshStatus()` on app start-up and when the Licensing tab opens; the renderer stores `licensePayload`, `signature`, `status` and `statusDetail` but never decides validity itself.
+- `activateLicense()` refuses before contacting the server when no trusted key exists; activate and renew responses must verify `ACTIVE` before they are returned.
+
+### 40.6 Open items
+- Production Worker secret `LICENSE_PRIVATE_KEY` not yet uploaded (public key `9bca5120…f61d33` is built in).
 - Feature gating by license state is not implemented.
+- Importing offline `.lic` certificates is not implemented.
 
 ---
 
