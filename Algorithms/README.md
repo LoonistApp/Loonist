@@ -20,6 +20,8 @@ This directory contains the formal mathematical formulations, algorithmic specif
 | **10** | **Physical Measurement Tolerance Conformance** | Quality Compliance | $O(1)$ per actual | [`measurementEngine.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/compliance/measurementEngine.ts) | [`10_Physical_Measurement_Tolerance_Evaluation.md`](./10_Physical_Measurement_Tolerance_Evaluation.md) |
 | **11** | **Tamper-Evident SHA-256 Audit Ledger** | Cryptography & Security | $O(B)$ hash chain | [`auditLedgerService.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/compliance/auditLedgerService.ts) | [`11_SHA256_Cryptographic_Audit_Ledger.md`](./11_SHA256_Cryptographic_Audit_Ledger.md) |
 | **12** | **CAD Symbol OCR Normalization & Alignment** | OCR & Pattern Recognition | $O(S)$ regex stream | [`ocrEngineService.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/ocrEngineService.ts) | [`12_CAD_Symbol_Normalization_And_Orientation.md`](./12_CAD_Symbol_Normalization_And_Orientation.md) |
+| **13** | **Chamfer & Compound Callout Deconstruction** | Semantic Parsing & CAD | $O(L)$ regex passes | [`gdtParser.ts`](../fai-app/src/services/ai/gdtParser.ts) | [`13_Chamfer_And_Compound_Callout_Deconstruction.md`](./13_Chamfer_And_Compound_Callout_Deconstruction.md) |
+| **14** | **Drawing Unit Detection & ISO 2768-m Size Bands** | Engineering Tolerancing | $O(P)$ page text | [`toleranceEngine.ts`](../fai-app/src/services/ai/toleranceEngine.ts) & [`aiExtractionService.ts`](../fai-app/src/services/ai/aiExtractionService.ts) | [`14_Drawing_Unit_Detection_And_ISO_2768.md`](./14_Drawing_Unit_Detection_And_ISO_2768.md) |
 
 ---
 
@@ -66,6 +68,7 @@ flowchart TD
 ### 2. Natural Language & Semantic Parsing
 - **ASME Y14.5 GD&T AST Parser ([`03_ASME_Y14_5_GDT_AST_Parser.md`](./03_ASME_Y14_5_GDT_AST_Parser.md)):** Deconstructs complex engineering callouts into structured abstract syntax trees (14 GD&T symbols, composite frames, hole callouts, limit dimensions).
 - **Prose & Sentence Exclusion ([`04_Prose_And_Sentence_Exclusion.md`](./04_Prose_And_Sentence_Exclusion.md)):** Prevents narrative cover sheet sentences (e.g. Autodesk Inventor tutorial text) from ballooning as fake dimensions using natural language syntax and residual token validation.
+- **Chamfer & Compound Callout Deconstruction ([`13_Chamfer_And_Compound_Callout_Deconstruction.md`](./13_Chamfer_And_Compound_Callout_Deconstruction.md)):** Parses ASME Y14.5 § 1.8.16 chamfers ahead of multiplier rules and splits drill/countersink, counterbore and thread/spotface callouts into individual AS9102 Form 3 sub-characteristics.
 
 ### 3. Computational Geometry & Spatial Indexing
 - **Spatial Proximity Clustering ([`05_Spatial_Proximity_Clustering.md`](./05_Spatial_Proximity_Clustering.md)):** Merges companion multi-line blueprint callouts into unified characteristics using font-relative spatial bounding boxes.
@@ -75,5 +78,6 @@ flowchart TD
 
 ### 4. Tolerancing, Quality & Cryptography
 - **Title Block Tolerance Precision Matrix ([`06_Title_Block_Tolerance_Matrix.md`](./06_Title_Block_Tolerance_Matrix.md)):** Resolves implicit tolerances based on decimal place count (`.X` to `.XXXX`) and ISO 2768-m.
+- **Drawing Unit Detection & ISO 2768-m ([`14_Drawing_Unit_Detection_And_ISO_2768.md`](./14_Drawing_Unit_Detection_And_ISO_2768.md)):** Resolves drawing units from notes before project defaults and applies ISO 2768-m size-band tolerances to integer millimetre dimensions.
 - **Physical Measurement Conformance ([`10_Physical_Measurement_Tolerance_Evaluation.md`](./10_Physical_Measurement_Tolerance_Evaluation.md)):** Evaluates measured physical dimensions against bilateral/unilateral tolerance bands with a 10% marginal boundary warning.
 - **Tamper-Evident SHA-256 Ledger ([`11_SHA256_Cryptographic_Audit_Ledger.md`](./11_SHA256_Cryptographic_Audit_Ledger.md)):** Blockchain-style cryptographic hash chaining for all quality actions.

@@ -33,6 +33,23 @@ Issue ID,Parent ID,Issue Type,Summary,Description,Sprint
 26,25,Story,Build AS9102 Rule Engine,"Block exports if required compliance fields are missing.",Sprint 5
 27,25,Story,Compile AS9102 Excel Workbooks,"Programmatically generate Form 1, Form 2, and Form 3 (.xlsx).",Sprint 5
 28,,Epic,Enterprise CI/CD & OTA Updates,"Automate secure distribution and updating.",
-29,28,Story,Build GitHub Actions workflow,"Automate the build process for the Electron .exe.",Sprint 6
-30,28,Story,Integrate EV Code Signing,"Apply Sectigo EV Code Signing certificate and RFC 3161 Timestamping.",Sprint 6
-34,28,Story,Implement Staged OTA Auto-Updater,"Cryptographic manifest verification and automated rollback on boot failure.",Sprint 6
+29,28,Story,Build GitHub Actions workflow,"Automate the build process for the Electron .exe.",Sprint 8
+30,28,Story,Integrate EV Code Signing,"Apply Sectigo EV Code Signing certificate and RFC 3161 Timestamping.",Sprint 8
+34,28,Story,Implement Staged OTA Auto-Updater,"Cryptographic manifest verification and automated rollback on boot failure.",Sprint 8
+38,12,Story,Canvas image pre-processing,"Otsu adaptive binarization, projection-profile deskew, and dark blueprint inversion for scanned drawings.",Sprint 6
+39,12,Story,Offline WASM OCR & CAD symbol normalizer,"Tesseract.js worker pool with dual 0/90 degree passes and restoration of Ø, ±, °, ↧, ⌴, ⌵.",Sprint 6
+40,12,Story,Prose & tutorial sentence exclusion,"Keyword, grammar and residual-token filters that stop cover-sheet sentences from being ballooned.",Sprint 6
+41,25,Story,AS9102 Form 1 record validation,"Flag blank part number, revision, CAGE code, drawing number/revision, part name, sampling plan, AQL and lot size < 1.",Sprint 6
+42,,Epic,Configuration Help & Licensing Client,"Make the inspection engine configurable per project and per installation, with in-app licensing and help.",
+43,42,Story,Project Settings subsystem,"Tolerance presets, units, skip reference/basic dims, numbering policy, AS9102 revision, sampling, watermark; saved in .loonist.",Sprint 7
+44,42,Story,Application Options,"Workspace, Master Data, Templates, Net-Inspect mapping, ITAR/Privacy and Licensing tabs persisted across sessions.",Sprint 7
+45,1,Story,In-app Ed25519 licensing client,"Device keypair, offline signature verification, activate/renew/revoke, offline certificate export.",Sprint 7
+46,42,Story,Help Center,"Quick Start, 14-symbol ASME Y14.5 GD&T library, AS9102 guide, hotkeys, diagnostics and About.",Sprint 7
+47,12,Story,Chamfer & compound callout deconstruction,"ASME Y14.5 1.8.16 chamfers before multipliers; split drill/countersink, counterbore and thread/spotface callouts into Form 3 rows.",Sprint 7
+48,12,Story,Drawing unit detection & ISO 2768-m,"Read units from drawing notes before project defaults; ISO 2768-m size bands for integer mm dimensions.",Sprint 7
+49,21,Story,Manual marquee boilerplate rejection,"Reject prose and administrative notes captured with the marquee tool with an ASME/AS9102 message.",Sprint 7
+50,21,Story,Balloon actions & sheet scope,"Per-balloon shape/colour/split/delete popover, current vs all-sheet scope, quick delete, double-click-to-pan, Export dialog.",Sprint 7
+51,1,Story,Allow licensing API in Electron CSP,"Add the licensing origin to connect-src so in-app activation works in the packaged app.",Sprint 8
+52,5,Story,Protect device private key,"Move the Ed25519 device private key from localStorage to Electron safeStorage via the main process.",Sprint 8
+53,5,Story,Zod schemas for Sprint 7 IPC channels,"Add payload validation to window-control, message-box and exit IPC handlers.",Sprint 8
+54,42,Story,Wire remaining Project Settings,"Consume balloon prefix, leading zeros, multiplier behaviour, OCR floor, auto notes/zones, AS9102 revision; build Net-Inspect CSV exporter.",Sprint 8
