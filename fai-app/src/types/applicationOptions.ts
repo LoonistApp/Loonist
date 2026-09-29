@@ -117,7 +117,6 @@ export interface LicensingSettings {
   features: string[];
   signature: string;
   devicePublicKey: string;
-  devicePrivateKeyHex: string;
   isAirGapped: boolean;
   lastValidatedAt: string | null;
 }
@@ -240,19 +239,18 @@ export const DEFAULT_APPLICATION_OPTIONS: ApplicationOptions = {
   },
   licensing: {
     apiUrl: 'https://licensing.loonist.com',
-    status: 'ACTIVE',
+    status: 'UNLICENSED',
     tokenInput: '',
-    tenantId: 'tenant-aerospace-corp-01',
-    tenantName: 'LOONIST Aerospace Systems',
-    deviceId: 'dev_' + Math.random().toString(36).substring(2, 10),
-    licenseId: 'lic_enterprise_ed25519_demo',
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    features: ['ALL', 'AS9102_REV_C', 'NET_INSPECT_EXPORT', 'OFFLINE_AIRGAP'],
-    signature: '7f9a8b1c4d2e3f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
-    devicePublicKey: '3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b',
-    devicePrivateKeyHex: '',
+    tenantId: '',
+    tenantName: '',
+    deviceId: '',
+    licenseId: '',
+    expiresAt: null,
+    features: [],
+    signature: '',
+    devicePublicKey: '',
     isAirGapped: false,
-    lastValidatedAt: new Date().toISOString()
+    lastValidatedAt: null
   },
   itarPrivacy: {
     localProcessingOnly: true,

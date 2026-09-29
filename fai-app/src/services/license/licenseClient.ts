@@ -1,22 +1,15 @@
 /**
  * LOONIST — Aerospace First Article Inspection Platform
- * Cloudflare Edge Licensing & Ed25519 Cryptographic Client
- * 
- * Interacts with Cloudflare Workers (Hono) & D1 Database.
- * Verifies Ed25519 signatures locally for 30-day offline SCIF air-gapped operation.
+ * Cloudflare Edge Licensing & Ed25519 Cryptographic Client (renderer side)
+ *
+ * Network calls and the device private key live in the Electron main process
+ * (electron/licensing.ts). This module forwards requests over the validated IPC
+ * bridge and keeps the offline checks that need no secrets.
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
-import type { CloudflareLicensePayload, LicenseStatus } from '../../types/applicationOptions';
-
-export interface LicenseActivationResult {
-  success: boolean;
-  message: string;
-  status: LicenseStatus;
-  payload?: CloudflareLicensePayload;
-  signature?: string;
-  tenantName?: string;
-}
+import type { CloudflareLicensePayload } from '../../types/applicationOptions';
+import type { LicenseCallResult } from '../../types/electron';
 
 export interface LicenseValidationResult {
   isValid: boolean;
@@ -25,23 +18,40 @@ export interface LicenseValidationResult {
   message: string;
 }
 
-export class CloudflareLicenseClient {
-  /**
-   * Generates a persistent random Ed25519 device keypair for hardware-bound licensing.
-   */
-  public static generateDeviceKeyPair(): { publicKeyHex: string; privateKeyHex: string } {
-    const privKey = ed25519.utils.randomSecretKey();
-    const pubKey = ed25519.getPublicKey(privKey);
+const DESKTOP_ONLY: LicenseCallResult = {
+  success: false,
+  message: 'Licensing is only available in the LOONIST desktop app.'
+};
 
-    const toHex = (bytes: Uint8Array) =>
-      Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-
-    return {
-      publicKeyHex: toHex(pubKey),
-      privateKeyHex: toHex(privKey)
-    };
+/** Mirrors the main-process URL rule so the user gets a clear message before any request. */
+export function checkLicenseApiUrl(apiUrl: string): string | null {
+  try {
+    const url = new URL(apiUrl.trim());
+    if (url.protocol === 'https:') return null;
+    if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) return null;
+  } catch {
+    // fall through
   }
+  return 'The licensing server URL must start with https:// (http://localhost is allowed for testing).';
+}
 
+async function callMain(
+  call: ((...args: string[]) => Promise<LicenseCallResult>) | undefined,
+  apiUrl: string,
+  arg: string
+): Promise<LicenseCallResult> {
+  if (!call) return DESKTOP_ONLY;
+  const urlError = checkLicenseApiUrl(apiUrl);
+  if (urlError) return { success: false, message: urlError };
+  try {
+    return await call(apiUrl.trim(), arg.trim());
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, message: `Licensing request failed: ${message}` };
+  }
+}
+
+export class CloudflareLicenseClient {
   /**
    * Verifies an Ed25519 license signature offline with zero network requests.
    * Ensures absolute ITAR compliance in air-gapped defense cleanrooms.
@@ -102,108 +112,24 @@ export class CloudflareLicenseClient {
   }
 
   /**
-   * ACTIVATE: Calls Cloudflare Worker `/activate` endpoint to bind token to D1.
+   * ACTIVATE: binds a single-use token to this workstation's device key (main process).
    */
-  public static async activateToken(
-    apiUrl: string,
-    token: string,
-    publicKey: string
-  ): Promise<LicenseActivationResult> {
-    const cleanUrl = apiUrl.replace(/\/+$/, '');
-    
-    try {
-      const response = await fetch(`${cleanUrl}/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token.trim(), publicKey: publicKey.trim() })
-      });
-
-      if (!response.ok) {
-        const errorJson = await response.json().catch(() => ({ error: 'Activation failed' }));
-        return {
-          success: false,
-          status: 'UNLICENSED',
-          message: errorJson.error || `HTTP ${response.status}: Failed to activate token`
-        };
-      }
-
-      const data = await response.json();
-      return {
-        success: true,
-        status: 'ACTIVE',
-        message: 'License successfully activated and bound via Cloudflare D1',
-        payload: data.payload,
-        signature: data.signature,
-        tenantName: data.payload?.tenantId || 'Aerospace Tenant'
-      };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return {
-        success: false,
-        status: 'UNLICENSED',
-        message: `Network error reaching Cloudflare edge at ${cleanUrl}: ${message}`
-      };
-    }
+  public static activateToken(apiUrl: string, token: string): Promise<LicenseCallResult> {
+    return callMain(window.api?.licenseActivate, apiUrl, token);
   }
 
   /**
-   * RENEW: Calls Cloudflare Worker `/renew` endpoint.
+   * RENEW: extends the lease; the request is signed with the device key (main process).
    */
-  public static async renewLicense(
-    apiUrl: string,
-    deviceId: string
-  ): Promise<{ success: boolean; expiresAt?: string; message: string }> {
-    const cleanUrl = apiUrl.replace(/\/+$/, '');
-    
-    try {
-      const response = await fetch(`${cleanUrl}/renew`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId })
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: 'Renew failed' }));
-        return { success: false, message: err.error || 'Failed to renew license' };
-      }
-
-      const data = await response.json();
-      return {
-        success: true,
-        expiresAt: data.expiresAt,
-        message: 'License lease successfully extended by 30 days'
-      };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { success: false, message: `Could not contact Cloudflare API: ${message}` };
-    }
+  public static renewLicense(apiUrl: string, deviceId: string): Promise<LicenseCallResult> {
+    return callMain(window.api?.licenseRenew, apiUrl, deviceId);
   }
 
   /**
-   * REVOKE: Calls Cloudflare Worker `/revoke` endpoint.
+   * REVOKE: releases this seat; the request is signed with the device key (main process).
    */
-  public static async revokeLicense(
-    apiUrl: string,
-    deviceId: string
-  ): Promise<{ success: boolean; message: string }> {
-    const cleanUrl = apiUrl.replace(/\/+$/, '');
-    
-    try {
-      const response = await fetch(`${cleanUrl}/revoke`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId })
-      });
-
-      if (!response.ok) {
-        return { success: false, message: 'Failed to revoke seat' };
-      }
-
-      return { success: true, message: 'Seat revoked successfully. Available for re-assignment.' };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { success: false, message: `Could not contact Cloudflare API: ${message}` };
-    }
+  public static revokeLicense(apiUrl: string, deviceId: string): Promise<LicenseCallResult> {
+    return callMain(window.api?.licenseRevoke, apiUrl, deviceId);
   }
 
   /**

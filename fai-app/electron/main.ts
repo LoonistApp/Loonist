@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { DBManager } from './database';
+import { activateLicense, renewLicense, revokeLicense } from './licensing';
+import { licenseActivateSchema, licenseDeviceSchema } from './licenseProtocol';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,27 +145,41 @@ function validateSender(event: Electron.IpcMainInvokeEvent) {
   }
 }
 
+/**
+ * Registers an allowlisted IPC channel: checks the sender, then validates the payload
+ * with a Zod schema before the handler runs.
+ */
+function handleIpc<S extends z.ZodType>(
+  channel: string,
+  schema: S,
+  handler: (data: z.infer<S>) => unknown
+) {
+  ipcMain.handle(channel, async (event, payload) => {
+    validateSender(event);
+    const parsed = schema.safeParse(payload);
+    if (!parsed.success) {
+      console.error(`IPC validation failed on ${channel}:`, parsed.error.issues);
+      throw new Error('Invalid IPC payload');
+    }
+    return handler(parsed.data);
+  });
+}
+
+const noPayload = z.undefined();
+
 const getProjectSchema = z.object({
   projectId: z.string().min(1, "Project ID is required")
 });
 
-ipcMain.handle('ipc-get-project', async (event, payload) => {
-  validateSender(event);
-  const parsed = getProjectSchema.safeParse(payload);
-  if (!parsed.success) {
-     console.error('IPC Validation failed:', parsed.error);
-     throw new Error('Invalid IPC payload');
-  }
-  return { id: parsed.data.projectId, name: 'Secure FAI Project', status: 'Approved' };
+handleIpc('ipc-get-project', getProjectSchema, ({ projectId }) => {
+  return { id: projectId, name: 'Secure FAI Project', status: 'Approved' };
 });
 
 // ==========================================
 // SPRINT 2: BLUEPRINT FILE INGESTION IPC
 // ==========================================
 
-ipcMain.handle('ipc-open-blueprint-dialog', async (event) => {
-  validateSender(event);
-
+handleIpc('ipc-open-blueprint-dialog', noPayload, async () => {
   if (!mainWindowRef) {
     throw new Error('No active window');
   }
@@ -195,9 +211,7 @@ ipcMain.handle('ipc-open-blueprint-dialog', async (event) => {
   };
 });
 
-ipcMain.handle('ipc-load-sample-blueprint', async (event) => {
-  validateSender(event);
-
+handleIpc('ipc-load-sample-blueprint', noPayload, async () => {
   // Look for sample in app directory or resources
   const samplePath = path.join(__dirname, '../public/sample_blueprint.pdf');
   if (fs.existsSync(samplePath)) {
@@ -217,11 +231,12 @@ ipcMain.handle('ipc-load-sample-blueprint', async (event) => {
   return { cancelled: true, error: 'Sample blueprint file not found' };
 });
 
-ipcMain.handle('ipc-load-blueprint-path', async (event, payload: { filePath: string }) => {
-  validateSender(event);
+const loadBlueprintPathSchema = z.object({
+  filePath: z.string().min(1).max(4096)
+});
 
-  const filePath = payload?.filePath;
-  if (!filePath || !fs.existsSync(filePath)) {
+handleIpc('ipc-load-blueprint-path', loadBlueprintPathSchema, async ({ filePath }) => {
+  if (!fs.existsSync(filePath)) {
     return { cancelled: true, error: 'File not found on disk' };
   }
 
@@ -247,16 +262,19 @@ ipcMain.handle('ipc-load-blueprint-path', async (event, payload: { filePath: str
 // SPRINT 4: LOONIST PROJECT PERSISTENCE IPC
 // ==========================================
 
-ipcMain.handle('ipc-save-project-file', async (event, payload: { fileName?: string; content: string }) => {
-  validateSender(event);
+const saveProjectFileSchema = z.object({
+  fileName: z.string().max(255).optional(),
+  content: z.string()
+});
 
+handleIpc('ipc-save-project-file', saveProjectFileSchema, async ({ fileName, content }) => {
   if (!mainWindowRef) {
     throw new Error('No active window');
   }
 
   const result = await dialog.showSaveDialog(mainWindowRef, {
     title: 'Save LOONIST Inspection Project',
-    defaultPath: payload?.fileName || 'inspection_project.loonist',
+    defaultPath: fileName || 'inspection_project.loonist',
     filters: [
       { name: 'LOONIST Project Package (*.loonist)', extensions: ['loonist'] },
       { name: 'JSON Document (*.json)', extensions: ['json'] },
@@ -268,13 +286,11 @@ ipcMain.handle('ipc-save-project-file', async (event, payload: { fileName?: stri
     return { cancelled: true };
   }
 
-  await fs.promises.writeFile(result.filePath, payload.content, 'utf-8');
+  await fs.promises.writeFile(result.filePath, content, 'utf-8');
   return { cancelled: false, filePath: result.filePath };
 });
 
-ipcMain.handle('ipc-load-project-file', async (event) => {
-  validateSender(event);
-
+handleIpc('ipc-load-project-file', noPayload, async () => {
   if (!mainWindowRef) {
     throw new Error('No active window');
   }
@@ -304,44 +320,44 @@ ipcMain.handle('ipc-load-project-file', async (event) => {
   };
 });
 
-ipcMain.handle('ipc-show-message-box', async (event, payload: { message: string; title?: string }) => {
-  validateSender(event);
+// ==========================================
+// SPRINT 7: WINDOW CONTROLS & DIALOGS
+// ==========================================
+
+const messageBoxSchema = z.object({
+  message: z.string().max(4000),
+  title: z.string().max(200).optional()
+});
+
+handleIpc('ipc-show-message-box', messageBoxSchema, async ({ message, title }) => {
+  const options = {
+    type: 'none' as const,
+    title: title || 'LOONIST',
+    message,
+    buttons: ['OK'],
+    noLink: true,
+  };
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   if (win) {
-    await dialog.showMessageBox(win, {
-      type: 'none',
-      title: payload.title || 'LOONIST',
-      message: payload.message,
-      buttons: ['OK'],
-      noLink: true,
-    });
+    await dialog.showMessageBox(win, options);
   } else {
-    await dialog.showMessageBox({
-      type: 'none',
-      title: payload.title || 'LOONIST',
-      message: payload.message,
-      buttons: ['OK'],
-      noLink: true,
-    });
+    await dialog.showMessageBox(options);
   }
   return { success: true };
 });
 
-ipcMain.handle('ipc-exit-app', async (event) => {
-  validateSender(event);
+handleIpc('ipc-exit-app', noPayload, () => {
   app.quit();
   return { success: true };
 });
 
-ipcMain.handle('ipc-window-minimize', async (event) => {
-  validateSender(event);
+handleIpc('ipc-window-minimize', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   win?.minimize();
   return { success: true };
 });
 
-ipcMain.handle('ipc-window-maximize', async (event) => {
-  validateSender(event);
+handleIpc('ipc-window-maximize', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   if (win?.isMaximized()) {
     win.unmaximize();
@@ -351,23 +367,27 @@ ipcMain.handle('ipc-window-maximize', async (event) => {
   return { isMaximized: Boolean(win?.isMaximized()) };
 });
 
-ipcMain.handle('ipc-window-restore', async (event) => {
-  validateSender(event);
+handleIpc('ipc-window-restore', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   win?.unmaximize();
   return { isMaximized: false };
 });
 
-ipcMain.handle('ipc-window-is-maximized', async (event) => {
-  validateSender(event);
+handleIpc('ipc-window-is-maximized', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   return { isMaximized: Boolean(win?.isMaximized()) };
 });
 
-ipcMain.handle('ipc-window-close', async (event) => {
-  validateSender(event);
+handleIpc('ipc-window-close', noPayload, () => {
   const win = mainWindowRef || BrowserWindow.getFocusedWindow();
   win?.close();
   return { success: true };
 });
 
+// ==========================================
+// SPRINT 8: LICENSING (MAIN PROCESS ONLY)
+// ==========================================
+
+handleIpc('ipc-license-activate', licenseActivateSchema, ({ apiUrl, token }) => activateLicense(apiUrl, token));
+handleIpc('ipc-license-renew', licenseDeviceSchema, ({ apiUrl, deviceId }) => renewLicense(apiUrl, deviceId));
+handleIpc('ipc-license-revoke', licenseDeviceSchema, ({ apiUrl, deviceId }) => revokeLicense(apiUrl, deviceId));

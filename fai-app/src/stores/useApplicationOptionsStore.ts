@@ -18,6 +18,21 @@ import { DEFAULT_APPLICATION_OPTIONS, DEFAULT_TABLE_COLUMNS, BUILT_IN_TEMPLATE_I
 
 const STORAGE_KEY = 'loonist_app_options_v1';
 
+// Placeholder signature shipped as a demo default before Sprint 8
+const DEMO_LICENSE_SIGNATURE = '7f9a8b1c4d2e3f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a';
+
+/**
+ * Drops the plain-text device private key stored by earlier versions (the key now lives
+ * encrypted in the main process) and clears the fake demo license.
+ */
+export function sanitizeLicensing(licensing: LicensingSettings & { devicePrivateKeyHex?: string }): LicensingSettings {
+  const { devicePrivateKeyHex: _discarded, ...rest } = licensing;
+  if (rest.signature === DEMO_LICENSE_SIGNATURE) {
+    return { ...DEFAULT_APPLICATION_OPTIONS.licensing, apiUrl: rest.apiUrl || DEFAULT_APPLICATION_OPTIONS.licensing.apiUrl };
+  }
+  return rest;
+}
+
 /**
  * Keeps only the built-in template plus templates the user actually uploaded
  * (earlier versions stored placeholder rows with no file behind them).
@@ -44,14 +59,19 @@ let globalState: ApplicationOptions = (() => {
     if (!raw) return DEFAULT_APPLICATION_OPTIONS;
     const parsed = JSON.parse(raw);
     // Deep merge defaults to guarantee new fields are always present
-    return {
+    const loaded: ApplicationOptions = {
       workspace: { ...DEFAULT_APPLICATION_OPTIONS.workspace, ...(parsed.workspace || {}) },
       masterData: { ...DEFAULT_APPLICATION_OPTIONS.masterData, ...(parsed.masterData || {}) },
       templates: sanitizeTemplates({ ...DEFAULT_APPLICATION_OPTIONS.templates, ...(parsed.templates || {}) }),
       netInspect: { ...DEFAULT_APPLICATION_OPTIONS.netInspect, ...(parsed.netInspect || {}) },
-      licensing: { ...DEFAULT_APPLICATION_OPTIONS.licensing, ...(parsed.licensing || {}) },
+      licensing: sanitizeLicensing({ ...DEFAULT_APPLICATION_OPTIONS.licensing, ...(parsed.licensing || {}) }),
       itarPrivacy: { ...DEFAULT_APPLICATION_OPTIONS.itarPrivacy, ...(parsed.itarPrivacy || {}) },
     };
+    // Rewrite immediately so a plain-text private key from an older version does not linger on disk
+    if (parsed.licensing && 'devicePrivateKeyHex' in parsed.licensing) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+    }
+    return loaded;
   } catch {
     return DEFAULT_APPLICATION_OPTIONS;
   }
@@ -167,7 +187,8 @@ export const applicationOptionsActions = {
       software: 'LOONIST FAI',
       version: '2026.9',
       exportedAt: new Date().toISOString(),
-      options: globalState
+      // License bindings are per workstation, so only the server URL is shared
+      options: { ...globalState, licensing: { apiUrl: globalState.licensing.apiUrl } }
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -190,9 +211,13 @@ export const applicationOptionsActions = {
       globalState = {
         workspace: { ...DEFAULT_APPLICATION_OPTIONS.workspace, ...(opts.workspace || {}) },
         masterData: { ...DEFAULT_APPLICATION_OPTIONS.masterData, ...(opts.masterData || {}) },
-        templates: { ...DEFAULT_APPLICATION_OPTIONS.templates, ...(opts.templates || {}) },
+        templates: sanitizeTemplates({ ...DEFAULT_APPLICATION_OPTIONS.templates, ...(opts.templates || {}) }),
         netInspect: { ...DEFAULT_APPLICATION_OPTIONS.netInspect, ...(opts.netInspect || {}) },
-        licensing: { ...DEFAULT_APPLICATION_OPTIONS.licensing, ...(opts.licensing || {}) },
+        // Keep this workstation's own license; only adopt the server URL from the profile
+        licensing: {
+          ...globalState.licensing,
+          apiUrl: typeof opts.licensing?.apiUrl === 'string' ? opts.licensing.apiUrl : globalState.licensing.apiUrl
+        },
         itarPrivacy: { ...DEFAULT_APPLICATION_OPTIONS.itarPrivacy, ...(opts.itarPrivacy || {}) },
       };
       notify();

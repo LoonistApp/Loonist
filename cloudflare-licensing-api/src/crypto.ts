@@ -19,3 +19,17 @@ export async function signLicensePayload(
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }
+
+/**
+ * Verifies a desktop device's Ed25519 signature over a request message.
+ */
+export function verifyDeviceSignature(message: string, signatureHex: string, publicKeyHex: string): boolean {
+  try {
+    if (!/^[0-9a-f]{128}$/i.test(signatureHex) || !/^[0-9a-f]{64}$/i.test(publicKeyHex)) {
+      return false;
+    }
+    return ed25519.verify(signatureHex, new TextEncoder().encode(message), publicKeyHex);
+  } catch {
+    return false;
+  }
+}

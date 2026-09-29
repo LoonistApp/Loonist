@@ -16,12 +16,24 @@ export interface ProjectFileResult {
   error?: string;
 }
 
+export interface LicensePayload {
+  licenseId: string;
+  deviceId: string;
+  tenantId: string;
+  expiresAt: string;
+  features: string[];
+}
+
+export type LicenseCallResult =
+  | { success: true; payload?: LicensePayload; signature?: string; expiresAt?: string; devicePublicKey: string; message: string }
+  | { success: false; message: string };
+
 export interface IElectronAPI {
   getProject: (projectId: string) => Promise<{ id: string; name: string; status: string }>;
   openBlueprintDialog: () => Promise<BlueprintFileResult>;
   loadSampleBlueprint: () => Promise<BlueprintFileResult>;
   loadBlueprintPath: (filePath: string) => Promise<BlueprintFileResult>;
-  saveProjectFile: (fileName?: string, content?: string) => Promise<{ cancelled: boolean; filePath?: string; error?: string }>;
+  saveProjectFile: (fileName: string | undefined, content: string) => Promise<{ cancelled: boolean; filePath?: string; error?: string }>;
   loadProjectFile: () => Promise<ProjectFileResult>;
   showMessageBox?: (message: string, title?: string) => Promise<{ success: boolean }>;
   exitApp?: () => Promise<{ success: boolean }>;
@@ -30,6 +42,9 @@ export interface IElectronAPI {
   restoreWindow?: () => Promise<{ isMaximized: boolean }>;
   isWindowMaximized?: () => Promise<{ isMaximized: boolean }>;
   closeWindow?: () => Promise<{ success: boolean }>;
+  licenseActivate?: (apiUrl: string, token: string) => Promise<LicenseCallResult>;
+  licenseRenew?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
+  licenseRevoke?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
 }
 
 declare global {

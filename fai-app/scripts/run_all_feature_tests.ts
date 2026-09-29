@@ -156,6 +156,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 7 / Export',
     script: 'scripts/test_custom_excel_templates.ts',
     description: 'Verifies placeholder filling, Form 3 row repetition, style and merge preservation, shared strings, and rejection of invalid templates'
+  },
+  {
+    name: 'Licensing Security Hardening',
+    sprint: 'Sprint 8 / Security',
+    script: 'scripts/test_licensing_security.ts',
+    description: 'Verifies signed renew/revoke requests against the Worker, licensing URL rules, no renderer-held private key, closed renderer CSP, and Zod validation on every IPC channel'
   }
 ];
 

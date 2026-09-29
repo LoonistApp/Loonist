@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { LicensingSettings } from '../../../../types/applicationOptions';
+import { applicationOptionsActions } from '../../../../stores/useApplicationOptionsStore';
 import { CloudflareLicenseClient } from '../../../../services/license/licenseClient';
 import { 
   Key, 
@@ -31,6 +32,13 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
   // Validate expiration offline
   const expiryCheck = CloudflareLicenseClient.validateExpiry(settings.expiresAt);
 
+  // License changes are saved immediately: the server has already consumed the token or
+  // changed the seat, so the result must survive even if the Options dialog is cancelled.
+  const applyLicense = (patch: Partial<LicensingSettings>) => {
+    onChange(patch);
+    applicationOptionsActions.updateLicensing(patch);
+  };
+
   // Handle Cloudflare Token Activation
   const handleActivate = async () => {
     if (!tokenInput.trim()) {
@@ -39,37 +47,25 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
     }
 
     setIsActivating(true);
-    setFeedback({ type: 'info', text: 'Connecting to Cloudflare edge licensing worker...' });
+    setFeedback({ type: 'info', text: 'Connecting to the licensing server...' });
 
-    let pubKey = settings.devicePublicKey;
-    let privKey = settings.devicePrivateKeyHex;
-    if (!pubKey) {
-      const generated = CloudflareLicenseClient.generateDeviceKeyPair();
-      pubKey = generated.publicKeyHex;
-      privKey = generated.privateKeyHex;
-    }
-
-    const res = await CloudflareLicenseClient.activateToken(
-      settings.apiUrl,
-      tokenInput,
-      pubKey
-    );
+    const res = await CloudflareLicenseClient.activateToken(settings.apiUrl, tokenInput);
 
     setIsActivating(false);
 
     if (res.success && res.payload) {
-      onChange({
-        status: res.status,
+      applyLicense({
+        apiUrl: settings.apiUrl,
+        status: 'ACTIVE',
         tokenInput: '',
         tenantId: res.payload.tenantId,
-        tenantName: res.tenantName || 'Defense Aerospace Contractor',
+        tenantName: res.payload.tenantId,
         deviceId: res.payload.deviceId,
         licenseId: res.payload.licenseId,
         expiresAt: res.payload.expiresAt,
         features: res.payload.features,
         signature: res.signature || '',
-        devicePublicKey: pubKey,
-        devicePrivateKeyHex: privKey,
+        devicePublicKey: res.devicePublicKey,
         lastValidatedAt: new Date().toISOString()
       });
       setFeedback({ type: 'success', text: res.message });
@@ -79,22 +75,23 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
     }
   };
 
-  // Handle Cloudflare 30-Day Lease Extension
+  // Re-fetch a freshly signed license (picks up expiry extended by an administrator)
   const handleRenew = async () => {
+    if (!settings.deviceId) {
+      setFeedback({ type: 'error', text: 'Activate this workstation before renewing.' });
+      return;
+    }
     setIsRenewing(true);
-    setFeedback({ type: 'info', text: 'Requesting lease extension from Cloudflare D1...' });
+    setFeedback({ type: 'info', text: 'Refreshing license from the server...' });
 
-    const res = await CloudflareLicenseClient.renewLicense(
-      settings.apiUrl,
-      settings.deviceId
-    );
+    const res = await CloudflareLicenseClient.renewLicense(settings.apiUrl, settings.deviceId);
 
     setIsRenewing(false);
 
     if (res.success) {
-      const newExpiry = res.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      onChange({
-        expiresAt: newExpiry,
+      applyLicense({
+        expiresAt: res.payload?.expiresAt || res.expiresAt || settings.expiresAt,
+        signature: res.signature || settings.signature,
         status: 'ACTIVE',
         lastValidatedAt: new Date().toISOString()
       });
@@ -123,18 +120,27 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
 
   // Deactivate Seat in Cloudflare D1
   const handleDeactivate = async () => {
+    if (!settings.deviceId) {
+      setFeedback({ type: 'error', text: 'This workstation has no active seat to release.' });
+      return;
+    }
     if (!confirm('Are you sure you want to release this seat? LOONIST will return to trial mode.')) return;
 
-    await CloudflareLicenseClient.revokeLicense(settings.apiUrl, settings.deviceId);
+    const res = await CloudflareLicenseClient.revokeLicense(settings.apiUrl, settings.deviceId);
+    if (!res.success) {
+      setFeedback({ type: 'error', text: res.message });
+      return;
+    }
 
-    onChange({
+    applyLicense({
       status: 'UNLICENSED',
       expiresAt: null,
       licenseId: '',
+      deviceId: '',
       signature: ''
     });
 
-    setFeedback({ type: 'info', text: 'Seat has been released back to the tenant pool.' });
+    setFeedback({ type: 'info', text: res.message });
   };
 
   return (
@@ -147,7 +153,7 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
             <ShieldCheck className="w-5 h-5 text-sky-600 dark:text-sky-400" />
             <div>
               <h3 className="font-semibold text-sm text-slate-900 dark:text-white">
-                {settings.tenantName || 'Enterprise Defense Aerospace'}
+                {settings.tenantName || 'Not activated'}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                 Cloudflare D1 Ledger & Ed25519 Cryptographic Control Plane
@@ -195,14 +201,14 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-mono">Cloudflare Tenant ID</span>
             <span className="font-mono text-slate-700 dark:text-zinc-300 select-all">
-              {settings.tenantId || 'tenant_default'}
+              {settings.tenantId || '—'}
             </span>
           </div>
 
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-mono">Licensed Features</span>
             <span className="text-sky-600 dark:text-sky-400 font-mono text-[10px]">
-              {settings.features.join(', ') || 'CORE_ENGINE'}
+              {settings.features.join(', ') || '—'}
             </span>
           </div>
         </div>
@@ -281,7 +287,7 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 rounded border border-slate-300 dark:border-zinc-700 font-medium transition cursor-pointer"
           >
             <RotateCw className={`w-3.5 h-3.5 ${isRenewing ? 'animate-spin' : ''}`} />
-            Renew 30-Day Lease
+            Refresh License
           </button>
 
           <button

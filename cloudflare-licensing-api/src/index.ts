@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { signLicensePayload } from './crypto';
+import { signLicensePayload, verifyDeviceSignature } from './crypto';
 
 type Bindings = {
   DB: D1Database;
@@ -66,34 +66,88 @@ app.post('/activate', async (c) => {
   });
 });
 
+const MAX_REQUEST_AGE_MS = 5 * 60 * 1000;
+
 /**
- * RENEW: Extends the expiration date for an existing active device license.
+ * Checks that a renew / revoke request was signed by the device key registered at activation.
+ * The message format must match `deviceRequestMessage()` in the desktop app (electron/licensing.ts).
+ */
+async function verifyDeviceRequest(
+  db: D1Database,
+  action: 'renew' | 'revoke',
+  body: { deviceId?: unknown; timestamp?: unknown; signature?: unknown }
+): Promise<{ ok: true; device: Record<string, unknown> } | { ok: false; status: 400 | 401 | 403; error: string }> {
+  const { deviceId, timestamp, signature } = body;
+  if (typeof deviceId !== 'string' || typeof timestamp !== 'string' || typeof signature !== 'string') {
+    return { ok: false, status: 400, error: 'Missing deviceId, timestamp or signature' };
+  }
+
+  const age = Date.now() - Date.parse(timestamp);
+  if (!Number.isFinite(age) || Math.abs(age) > MAX_REQUEST_AGE_MS) {
+    return { ok: false, status: 401, error: 'Request timestamp is too old or invalid. Check the workstation clock.' };
+  }
+
+  const device = await db.prepare('SELECT * FROM Devices WHERE id = ? AND status = "ACTIVE"').bind(deviceId).first();
+  if (!device) {
+    return { ok: false, status: 403, error: 'Device not active or not found' };
+  }
+
+  if (!verifyDeviceSignature(`LOONIST:${action}:${deviceId}:${timestamp}`, signature, String(device.public_key))) {
+    return { ok: false, status: 401, error: 'Device signature is invalid' };
+  }
+
+  return { ok: true, device };
+}
+
+/**
+ * RENEW: Returns a freshly signed license for an active, authenticated device, carrying the
+ * current expiry recorded in D1 (extend `Licenses.expires_at` to extend a subscription).
  */
 app.post('/renew', async (c) => {
-  const { deviceId } = await c.req.json();
-  
-  if (!deviceId) return c.json({ error: 'Missing deviceId' }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const check = await verifyDeviceRequest(c.env.DB, 'renew', body);
+  if (!check.ok) return c.json({ error: check.error }, check.status);
 
-  const device = await c.env.DB.prepare('SELECT * FROM Devices WHERE id = ? AND status = "ACTIVE"').bind(deviceId).first();
-  if (!device) return c.json({ error: 'Device not active or not found' }, 403);
+  const license = await c.env.DB
+    .prepare('SELECT * FROM Licenses WHERE device_id = ? AND status = "ACTIVATED"')
+    .bind(check.device.id)
+    .first();
+  if (!license) return c.json({ error: 'No active license for this device' }, 403);
 
-  // Example: Extend by 30 days
-  const newExpiration = new Date();
-  newExpiration.setDate(newExpiration.getDate() + 30);
-  const isoExpiration = newExpiration.toISOString();
+  if (Date.parse(String(license.expires_at)) <= Date.now()) {
+    return c.json({ error: 'License has expired. Contact your administrator to extend it.' }, 403);
+  }
 
-  // Scaffolded: In reality, we'd update the DB here
-  return c.json({ message: 'Renew successful', expiresAt: isoExpiration });
+  const privateKey = c.env.LICENSE_PRIVATE_KEY;
+  if (!privateKey) {
+    return c.json({ error: 'Server misconfiguration: missing private key' }, 500);
+  }
+
+  const payload = {
+    licenseId: license.id,
+    deviceId: check.device.id,
+    tenantId: license.tenant_id,
+    expiresAt: license.expires_at,
+    features: ['ALL']
+  };
+  const signature = await signLicensePayload(payload, privateKey);
+
+  await c.env.DB.prepare('INSERT INTO AuditLogs (id, action, payload) VALUES (?, "RENEW", ?)')
+    .bind(crypto.randomUUID(), JSON.stringify({ deviceId: check.device.id, licenseId: license.id }))
+    .run();
+
+  return c.json({ payload, signature, expiresAt: license.expires_at });
 });
 
 /**
- * REVOKE: Manually revokes a device and its licenses.
+ * REVOKE: Releases the seat. Only the device itself (proven by its signature) can release it.
  */
 app.post('/revoke', async (c) => {
-  const { deviceId } = await c.req.json();
-  
-  if (!deviceId) return c.json({ error: 'Missing deviceId' }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const check = await verifyDeviceRequest(c.env.DB, 'revoke', body);
+  if (!check.ok) return c.json({ error: check.error }, check.status);
 
+  const deviceId = check.device.id;
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE Devices SET status = "REVOKED" WHERE id = ?').bind(deviceId),
     c.env.DB.prepare('UPDATE Licenses SET status = "REVOKED" WHERE device_id = ?').bind(deviceId),
