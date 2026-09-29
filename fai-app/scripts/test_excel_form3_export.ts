@@ -131,6 +131,16 @@ const form1Json = XLSX.utils.sheet_to_json(wb.Sheets['Form 1'], { header: 1 }) a
 assert(form1Json.length > 5, 'Form 1 must contain part number accountability rows');
 console.log('✓ Form 1 Part Number Accountability populated with CAGE, Drawing, Part Numbers');
 
+// 2b. No hard-coded sample data may leak into a customer report
+const form1And2Text = JSON.stringify([
+  form1Json,
+  XLSX.utils.sheet_to_json(wb.Sheets['Form 2'], { header: 1 })
+]);
+for (const sample of ['SN-2026-001', 'PO-882941', 'CNC-5AXIS', 'LOONIST AEROSPACE', 'TITANIUM', 'COC-', 'Lead Quality Assurance']) {
+  assert(!form1And2Text.includes(sample), `Form 1/2 must not contain sample value "${sample}"`);
+}
+console.log('✓ Form 1 and Form 2 contain only project data');
+
 // 3. Inspect Form 3 Characteristic Rows and Actuals
 const form3Json = XLSX.utils.sheet_to_json(wb.Sheets['Form 3'], { header: 1 }) as any[][];
 const headerRowIdx = form3Json.findIndex(row => row && row[0] === '5. Char No.');

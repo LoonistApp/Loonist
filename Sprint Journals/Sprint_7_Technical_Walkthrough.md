@@ -22,8 +22,9 @@ With Sprint 7, LOONIST delivers:
 4. **Help & Engineering Knowledge Base:** Help ribbon tab with Quick Start workflow, searchable 14-symbol ASME Y14.5 GD&T library, AS9102 Form 1/2/3 field guide, keyboard shortcuts, system diagnostics, and About.
 5. **Industrial Inspection Standards:** ASME Y14.5 § 1.8.16 chamfer parsing, compound callout deconstruction into AS9102 Form 3 sub-characteristics, automatic drawing-unit detection, ISO 2768-m size-band tolerances for metric drawings, and a one-balloon-per-leader Clean Canvas rule.
 6. **Manual Marquee Validation:** Rejects boilerplate and prose (e.g. `DO NOT SCALE DRAWING`) captured with the marquee tool, with an explicit ASME Y14.5 / AS9102 message.
-7. **Inspection Workspace UX:** Per-balloon action popover (shape, colour, split, reset, delete), unified Export dialog (PDF + XLSX/CSV), current-sheet vs all-sheets scope, quick delete everywhere, double-click-to-pan, and native window controls.
-8. **Test Harness Expansion:** 23 automated suites (8 new in Sprint 7), all passing.
+7. **Custom Excel Templates:** Customers upload their own `.xlsx` / `.xltx` FAIR layout with `{{placeholders}}`; LOONIST fills it on export and preserves all formatting.
+8. **Inspection Workspace UX:** Per-balloon action popover (shape, colour, split, reset, delete), unified Export dialog (PDF + XLSX/CSV), current-sheet vs all-sheets scope, quick delete everywhere, double-click-to-pan, and native window controls.
+9. **Test Harness Expansion:** 24 automated suites (9 new in Sprint 7), all passing.
 
 ---
 
@@ -96,7 +97,7 @@ flowchart TD
 | :--- | :--- | :--- |
 | **Workspace** | Invert wheel zoom, middle-click pan, canvas background (`white` / `charcoal` / `blueprint`), decimal separator, table column visibility/order, table preset views | `App.tsx`, `ViewportCanvas.tsx`, `TableManager.tsx`, `LeftPropertiesDock.tsx` (via `numberFormat.ts`) |
 | **Master Data** | Inspection methods, manufacturing operations, classifications, custom field definitions | Inspector dock method dropdown |
-| **Templates** | AS9102 template library | UI only |
+| **Templates** | Built-in AS9102 layout plus uploaded customer Excel templates (see §4.8) | `App.tsx` Excel export |
 | **Net-Inspect** | Portal field mapping | UI only (no Net-Inspect exporter yet) |
 | **ITAR / Privacy** | Data-residency and telemetry controls | UI only |
 | **Licensing** | Token activation, renew, revoke, offline certificate export | `CloudflareLicenseClient` |
@@ -135,45 +136,55 @@ Delivered at the close of Sprint 6 (see the Sprint 6 journal) and enforced live 
 * **Export dialog** ([`ExportModal.tsx`](../fai-app/src/components/layout/ExportModal.tsx)): marked PDF plus AS9102 workbook as `.xlsx` or `.csv`.
 * **Electron shell:** 7 new IPC channels — `ipc-show-message-box`, `ipc-exit-app`, `ipc-window-minimize`, `ipc-window-maximize`, `ipc-window-restore`, `ipc-window-is-maximized`, `ipc-window-close` — each guarded by `validateSender()`. App name set to `LOONIST`; npm package renamed `fai-app` → `loonist`.
 
+### 4.8 Custom Excel Export Templates ([`excelTemplateFiller.ts`](../fai-app/src/services/export/excelTemplateFiller.ts), [`templateFileStore.ts`](../fai-app/src/services/export/templateFileStore.ts), [`TemplatesTab.tsx`](../fai-app/src/components/modals/options/tabs/TemplatesTab.tsx))
+* **Authoring:** The customer types placeholders into their own Excel layout — project fields such as `{{partNumber}}`, `{{cageCode}}`, `{{fairNumber}}` in any cell, and one Form 3 row of `{{char.*}}` fields (`{{char.itemNumber}}`, `{{char.requirement}}`, `{{char.lowerLimit}}`, `{{char.result}}`, `{{char.status}}`, …). **Starter Template** downloads an example with every field; the tab lists all placeholders.
+* **Upload:** `inspectTemplate()` validates the workbook and reports fields found, which sheets contain the repeat row, and unknown placeholders. Bytes are stored locally in IndexedDB (`loonist_templates`), never synced; orphaned files are pruned when Options are saved.
+* **Export:** When a custom template is selected, `fillExcelTemplate()` edits the sheet XML directly (via `fflate`), so styles, logos, merged cells and print settings are preserved. The `{{char.*}}` row is repeated per characteristic, rows below shift down, row-local merges are copied, merges / dimension / conditional formats below are shifted, a lone numeric placeholder stays a number, and Excel recalculates on open. `.xltx` templates are saved as `.xlsx`. Form 3 values come from the same `As9102ExcelExporter.buildForm3Row()` used by the built-in workbook.
+* **Fallback:** A missing template file shows a warning and exports the built-in layout.
+* **Built-in layout cleanup:** Removed hard-coded sample values (serial number, PO, process reference, organization name, prepared-by, and four fictitious Form 2 material/process rows with certificate numbers) from the built-in workbook. Fields LOONIST does not capture are now left blank; lot size and sampling plan are filled from the project. A regression check in `test_excel_form3_export.ts` guards against their return.
+* **Limitation:** Formulas below the repeated row are not rewritten to include the new rows.
+* **Verified in Excel 16:** filled workbooks (inline strings, shared strings, zero characteristics) open without repair prompts.
+
 ---
 
 ## 5. Master Verification Harness & Test Results
 
-The unified runner ([`run_all_feature_tests.ts`](../fai-app/scripts/run_all_feature_tests.ts)) now executes **23 suites**. 8 are new in Sprint 7.
+The unified runner ([`run_all_feature_tests.ts`](../fai-app/scripts/run_all_feature_tests.ts)) now executes **24 suites**. 9 are new in Sprint 7.
 
 ### Verified Execution Output (29 September 2026):
 ```
-► [Sprint 1 & 2] Running: AI Extraction Pipeline... PASS (8643ms)
-► [Sprint 3] Running: Multi-Document Switching & Cache... PASS (2135ms)
-► [Sprint 3 & 4] Running: LOONIST Self-Contained Project Archive (*.loonist)... PASS (2100ms)
-► [Sprint 4] Running: Spatial Placement Engine (R-Tree AABB)... PASS (1956ms)
-► [Sprint 4] Running: Balloon Markup & Collision Detection... PASS (2136ms)
-► [Sprint 4] Running: Antigravity IDE Resizable Splitter Panels... PASS (2374ms)
-► [Sprint 5] Running: Physical Quality Measurement Engine... PASS (2451ms)
-► [Sprint 5] Running: Tamper-Evident SHA-256 Audit Ledger... PASS (2282ms)
-► [Sprint 5] Running: Vector Marked Blueprint PDF Exporter (pdf-lib)... PASS (3844ms)
-► [Sprint 5] Running: Certified SAE AS9102 Multi-Sheet Excel Exporter... PASS (2820ms)
-► [Sprint 5 / UI] Running: Aerospace CAD Dark Mode Theme Engine... PASS (2267ms)
-► [Sprint 5 / UI] Running: Characteristics Table Vertical Scroll & Sticky Header... PASS (2484ms)
-► [Sprint 5 / Vision] Running: Image Pre-Processing & OCR Vision Pipeline... PASS (2168ms)
-► [Sprint 5 / Parser] Running: Prose & Tutorial Sentence Exclusion Engine... PASS (2371ms)
-► [Sprint 6 / Compliance] Running: SAE AS9102 Form 1 Part Accountability Validation... PASS (2092ms)
-► [Sprint 7 / Settings] Running: Production Settings Subsystem (5-Zone Industrial Architecture)... PASS (3786ms)
-► [Sprint 7 / Help] Running: Production Help & Engineering Knowledge Base (5-Zone Center)... PASS (2234ms)
-► [Sprint 7 / ASME-AS9102] Running: ASME Y14.5 § 1.8.16 Chamfer & AS9102 Form 3 Tolerance Standards... PASS (2524ms)
-► [Sprint 7 / CAD Viewport] Running: Double-Click-To-Pan Omnidirectional Drawing Viewer... PASS (2355ms)
-► [Sprint 7 / UI Scope] Running: Characteristics Table Multi-Sheet Scope Isolation & Telemetry... PASS (2142ms)
-► [Sprint 7 / Senior QC] Running: Industrial Inspection Standards & Compound Callout Deconstruction... PASS (2172ms)
-► [Sprint 7 / Inspection UI] Running: Inspection Workspace Sheet Scope & Viewport Synchronization... PASS (1822ms)
-► [Sprint 7 / Marquee Capture] Running: Manual Marquee Box Capture Validation & Non-Inspectable Area Rejection... PASS (2672ms)
+► [Sprint 1 & 2] Running: AI Extraction Pipeline... PASS (6704ms)
+► [Sprint 3] Running: Multi-Document Switching & Cache... PASS (3211ms)
+► [Sprint 3 & 4] Running: LOONIST Self-Contained Project Archive (*.loonist)... PASS (3153ms)
+► [Sprint 4] Running: Spatial Placement Engine (R-Tree AABB)... PASS (2756ms)
+► [Sprint 4] Running: Balloon Markup & Collision Detection... PASS (2029ms)
+► [Sprint 4] Running: Antigravity IDE Resizable Splitter Panels... PASS (1874ms)
+► [Sprint 5] Running: Physical Quality Measurement Engine... PASS (1869ms)
+► [Sprint 5] Running: Tamper-Evident SHA-256 Audit Ledger... PASS (2018ms)
+► [Sprint 5] Running: Vector Marked Blueprint PDF Exporter (pdf-lib)... PASS (2981ms)
+► [Sprint 5] Running: Certified SAE AS9102 Multi-Sheet Excel Exporter... PASS (2180ms)
+► [Sprint 5 / UI] Running: Aerospace CAD Dark Mode Theme Engine... PASS (2700ms)
+► [Sprint 5 / UI] Running: Characteristics Table Vertical Scroll & Sticky Header... PASS (3035ms)
+► [Sprint 5 / Vision] Running: Image Pre-Processing & OCR Vision Pipeline... PASS (3485ms)
+► [Sprint 5 / Parser] Running: Prose & Tutorial Sentence Exclusion Engine... PASS (3030ms)
+► [Sprint 6 / Compliance] Running: SAE AS9102 Form 1 Part Accountability Validation... PASS (3188ms)
+► [Sprint 7 / Settings] Running: Production Settings Subsystem (5-Zone Industrial Architecture)... PASS (3558ms)
+► [Sprint 7 / Help] Running: Production Help & Engineering Knowledge Base (5-Zone Center)... PASS (2181ms)
+► [Sprint 7 / ASME-AS9102] Running: ASME Y14.5 § 1.8.16 Chamfer & AS9102 Form 3 Tolerance Standards... PASS (1863ms)
+► [Sprint 7 / CAD Viewport] Running: Double-Click-To-Pan Omnidirectional Drawing Viewer... PASS (1871ms)
+► [Sprint 7 / UI Scope] Running: Characteristics Table Multi-Sheet Scope Isolation & Telemetry... PASS (1902ms)
+► [Sprint 7 / Senior QC] Running: Industrial Inspection Standards & Compound Callout Deconstruction... PASS (2538ms)
+► [Sprint 7 / Inspection UI] Running: Inspection Workspace Sheet Scope & Viewport Synchronization... PASS (2456ms)
+► [Sprint 7 / Marquee Capture] Running: Manual Marquee Box Capture Validation & Non-Inspectable Area Rejection... PASS (3224ms)
+► [Sprint 7 / Export] Running: Custom Excel Export Templates... PASS (4218ms)
 
 ================================================================
                      TEST EXECUTION SUMMARY
 ================================================================
-Total Suites Executed: 23
-Passed:                23
+Total Suites Executed: 24
+Passed:                24
 Failed:                0
-Execution Time:        61.83s
+Execution Time:        68.03s
 ================================================================
 ```
 
@@ -188,6 +199,7 @@ Execution Time:        61.83s
 | Industrial Standards | [`test_industrial_inspection_standards.ts`](../fai-app/scripts/test_industrial_inspection_standards.ts) | Unit-note priority, ISO 2768-m, angular isolation, compound deconstruction, `ALL CHAMFERS`, single balloon per leader |
 | Inspection Sheet Scope | [`test_inspection_sheet_scroller.ts`](../fai-app/scripts/test_inspection_sheet_scroller.ts) | SheetTabs as single navigation source, quick-delete entry points, scope filtering |
 | Manual Marquee Rejection | [`test_manual_marquee_rejection.ts`](../fai-app/scripts/test_manual_marquee_rejection.ts) | Boilerplate rejected; `185`, `Ø30 THRU`, `R12` accepted; blank geometry allowed |
+| Custom Excel Templates | [`test_custom_excel_templates.ts`](../fai-app/scripts/test_custom_excel_templates.ts) | Placeholder filling, Form 3 row repetition, row shifting, style and merge preservation, shared strings, `.xltx`, invalid-file rejection |
 
 ### Build & Lint
 * `npm run build` (`tsc -b && vite build`): **0 TypeScript errors**.

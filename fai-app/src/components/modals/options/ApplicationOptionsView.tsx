@@ -21,6 +21,7 @@ import { TemplatesTab } from './tabs/TemplatesTab';
 import { NetInspectTab } from './tabs/NetInspectTab';
 import { LicensingTab } from './tabs/LicensingTab';
 import { ItarPrivacyTab } from './tabs/ItarPrivacyTab';
+import { templateFileStore } from '../../../services/export/templateFileStore';
 
 export type OptionsSectionId =
   | 'workspace'
@@ -58,6 +59,10 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
     actions.updateNetInspect(draftOptions.netInspect);
     actions.updateLicensing(draftOptions.licensing);
     actions.updateItarPrivacy(draftOptions.itarPrivacy);
+    // Remove stored template files for templates deleted in this session
+    templateFileStore.prune(draftOptions.templates.templates.map(t => t.id)).catch(err =>
+      console.warn('Failed to clean up template files', err)
+    );
     onSave?.();
   };
 
@@ -90,7 +95,7 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
   const navItems: Array<{ id: OptionsSectionId; label: string; icon: React.ReactNode; group: string; desc: string }> = [
     { id: 'workspace', label: 'Workspace & Ergonomics', icon: <Sliders className="w-4 h-4" />, group: 'Application Options', desc: 'CAD mouse zoom polarity, canvas background, table column customizer' },
     { id: 'masterData', label: 'Factory Master Data', icon: <Wrench className="w-4 h-4" />, group: 'Application Options', desc: 'Inspection tools, manufacturing operations, severity classifications' },
-    { id: 'templates', label: 'Templates & Folders', icon: <Folder className="w-4 h-4" />, group: 'Application Options', desc: 'AS9102 Form 1/2/3 Excel templates, Cloudflare R2 file bindings' },
+    { id: 'templates', label: 'Templates', icon: <Folder className="w-4 h-4" />, group: 'Application Options', desc: 'AS9102 Form 1/2/3 and custom Excel export templates' },
     { id: 'netInspect', label: 'Net-Inspect Gateway', icon: <Cloud className="w-4 h-4" />, group: 'Application Options', desc: 'Aerospace upload limits, basic/ref flags, custom field mapping' },
     { id: 'licensing', label: 'Licensing & Air-Gap', icon: <ShieldCheck className="w-4 h-4" />, group: 'Application Options', desc: 'Cloudflare D1 seat activation, Ed25519 verification, SCIF lease export' },
     { id: 'itarPrivacy', label: 'ITAR Privacy & Diagnostics', icon: <Lock className="w-4 h-4" />, group: 'Security & System', desc: '100% on-device data sovereignty, hardware acceleration, system info' },

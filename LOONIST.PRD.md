@@ -94,6 +94,7 @@
 7. **Multi-Artifact Export Pipeline (Sprint 5):**
    * **Marked Blueprint PDF:** High-resolution vector synthesis burning balloon badges and leader lines directly into the customer's drawing PDF for shop-floor distribution.
    * **SAE AS9102 Rev B/C Excel Package:** Form 1 (Part Accountability), Form 2 (Product Accountability), and Form 3 (Characteristic Accountability & Results) compiled into a fully formatted `.xlsx` workbook.
+   * **Customer Excel Templates (Sprint 7):** Upload the customer's own FAIR workbook with `{{placeholders}}` in Options → Templates; LOONIST fills it on export and keeps all formatting.
    * **Form 3 CSV (Sprint 7):** Flat characteristic export selectable alongside `.xlsx` in the unified Export dialog.
    * **Security Watermark (Sprint 7):** Optional `ITAR RESTRICTED` / `COMPANY CONFIDENTIAL` / `PRELIMINARY FAIR` / `CUSTOMER APPROVED` watermark on the viewport and every page of the marked PDF.
    * **Net-Inspect Portal CSV (Planned):** Field mapping is configurable in Options; the exporter itself is not yet implemented.
@@ -197,7 +198,8 @@
 - [x] (Sprint 7) Drawing-note unit detection with ISO 2768-m size-band tolerances for integer metric dimensions.
 - [x] (Sprint 7) Manual marquee rejection of non-inspectable prose and administrative notes.
 - [x] (Sprint 7) Balloon action popover (shape, colour, split, reset, delete), current/all-sheet scope, quick delete, double-click-to-pan, unified Export dialog (PDF + XLSX/CSV).
-- [x] (Sprint 7) Unified master test suite expanded to 23 feature test suites with 100% clean pass rate.
+- [x] (Sprint 7) Custom Excel FAIR templates: upload a customer `.xlsx` with `{{placeholders}}`; export fills it while preserving formatting.
+- [x] (Sprint 7) Unified master test suite expanded to 24 feature test suites with 100% clean pass rate.
 - [ ] (Sprint 8) Allow the licensing API origin in the Electron CSP `connect-src` so in-app activation works in the packaged app.
 - [ ] (Sprint 8) Move the device Ed25519 private key from `localStorage` to OS-protected storage (Electron `safeStorage` / keychain).
 - [ ] (Sprint 8) Zod payload validation on all Sprint 7 IPC channels (window controls, message box, exit) to restore the 100% IPC validation guardrail.

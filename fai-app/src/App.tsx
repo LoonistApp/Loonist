@@ -10,6 +10,9 @@ import { SheetTabs } from './components/viewport/SheetTabs';
 import { HorizontalSplitter, VerticalSplitter } from './components/layout/Splitter';
 import { AiExtractionService } from './services/ai/aiExtractionService';
 import { As9102ExcelExporter } from './services/export/as9102ExcelExporter';
+import { fillExcelTemplate, buildProjectValues, buildCharacteristicValues } from './services/export/excelTemplateFiller';
+import { templateFileStore } from './services/export/templateFileStore';
+import { BUILT_IN_TEMPLATE_ID } from './types/applicationOptions';
 import { MarkedPdfExporter } from './services/export/markedPdfExporter';
 import { AuditLedgerService } from './services/compliance/auditLedgerService';
 import { MeasurementEngine } from './services/compliance/measurementEngine';
@@ -737,7 +740,7 @@ export function App() {
   }, [blueprintDoc, pdfDoc, characteristics]);
 
   // Export to AS9102 Excel / CSV Handler
-  const handleExportExcel = useCallback((format: 'xlsx' | 'csv' = 'xlsx') => {
+  const handleExportExcel = useCallback(async (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (characteristics.length === 0) {
       showLoonistDialog('Please run Smart Extract or add characteristics before exporting.');
       return;
@@ -748,14 +751,39 @@ export function App() {
         projectProps,
         `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
       );
-    } else {
-      As9102ExcelExporter.exportToExcel(
-        characteristics,
-        projectProps,
-        `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`
+      return;
+    }
+
+    const fileName = `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`;
+    const { activeTemplateId, templates } = appOptions.templates;
+    const customTemplate = templates.find(t => t.id === activeTemplateId && t.isCustom);
+    if (!customTemplate || activeTemplateId === BUILT_IN_TEMPLATE_ID) {
+      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
+      return;
+    }
+
+    try {
+      const templateBytes = await templateFileStore.load(customTemplate.id);
+      if (!templateBytes) {
+        await showLoonistDialog(
+          `The template file for "${customTemplate.name}" is missing. The report was exported with the built-in AS9102 layout instead. Re-upload the template in Options → Templates.`
+        );
+        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
+        return;
+      }
+      const filled = fillExcelTemplate(
+        templateBytes,
+        buildProjectValues(projectProps, characteristics.length),
+        characteristics.map(buildCharacteristicValues)
+      );
+      As9102ExcelExporter.downloadXlsx(filled, fileName);
+    } catch (err) {
+      console.error('Custom template export failed:', err);
+      await showLoonistDialog(
+        `Could not fill the template "${customTemplate.name}". Check that it opens in Excel, or switch back to the built-in template in Options → Templates.`
       );
     }
-  }, [characteristics, projectProps]);
+  }, [characteristics, projectProps, appOptions.templates]);
 
   // Vector Marked Blueprint PDF Exporter (pdf-lib)
   const handleExportMarkedPdf = useCallback(async () => {

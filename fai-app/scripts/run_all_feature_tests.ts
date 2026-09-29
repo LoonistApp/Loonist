@@ -150,6 +150,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 7 / Marquee Capture',
     script: 'scripts/test_manual_marquee_rejection.ts',
     description: 'Verifies that general drawing boilerplate, non-inspectable prose, and notes without dimensions are rejected from manual ballooning per ASME Y14.5 / AS9102'
+  },
+  {
+    name: 'Custom Excel Export Templates',
+    sprint: 'Sprint 7 / Export',
+    script: 'scripts/test_custom_excel_templates.ts',
+    description: 'Verifies placeholder filling, Form 3 row repetition, style and merge preservation, shared strings, and rejection of invalid templates'
   }
 ];
 

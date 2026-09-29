@@ -75,18 +75,20 @@ export class As9102ExcelExporter {
     // ==========================================
     // FORM 1: PART NUMBER ACCOUNTABILITY
     // ==========================================
+    // Fields LOONIST does not capture are left blank for the inspector to complete
     const form1Data: any[][] = [
       ['SAE AS9102 REV B/C - FORM 1: PART NUMBER ACCOUNTABILITY'],
       [],
       ['1. Part Number:', projectProps.partNumber, '2. Part Name:', projectProps.partName],
-      ['3. Serial Number:', 'SN-2026-001', '4. FAIR Identifier / Report Number:', `FAIR-${projectProps.partNumber}-001`],
+      ['3. Serial Number:', '', '4. FAIR Identifier / Report Number:', `FAIR-${projectProps.partNumber}`],
       ['5. Part Revision Level:', projectProps.partRevision, '6. Drawing Number:', projectProps.drawingNumber],
-      ['7. Drawing Revision Level:', projectProps.drawingRevision, '8. Organization Name / CAGE:', `LOONIST AEROSPACE (${projectProps.cageCode})`],
-      ['9. Manufacturing Process Reference:', 'CNC-5AXIS-MILL-01', '10. Purchase Order Number:', 'PO-882941-AER'],
-      ['11. Inspection Reason:', 'Baseline Full First Article Inspection', '12. FAI Complete (Yes/No):', 'YES'],
+      ['7. Drawing Revision Level:', projectProps.drawingRevision, '8. Organization Name / CAGE:', projectProps.cageCode],
+      ['9. Manufacturing Process Reference:', '', '10. Purchase Order Number:', ''],
+      ['11. Inspection Reason:', '', '12. FAI Complete (Yes/No):', ''],
+      ['Lot Size:', projectProps.lotSize, 'Sampling Plan:', [projectProps.samplingLevel, projectProps.samplingType, projectProps.aql ? `AQL ${projectProps.aql}` : ''].filter(Boolean).join(' ')],
       [],
-      ['13. Comments / Notes:', 'Inspected and certified in accordance with SAE AS9102 Rev C standard requirements.'],
-      ['14. Prepared By:', 'Lead Quality Assurance Inspector', 'Date:', new Date().toLocaleDateString()]
+      ['13. Comments / Notes:', ''],
+      ['14. Prepared By:', '', 'Date:', new Date().toLocaleDateString()]
     ];
 
     const wsForm1 = XLSX.utils.aoa_to_sheet(form1Data);
@@ -112,35 +114,8 @@ export class As9102ExcelExporter {
         '7. Code',
         '8. Special Process Supplier',
         '10. Certificate of Conformance #'
-      ],
-      [
-        'TITANIUM ALLOY BAR',
-        'AMS 4928 / TI-6AL-4V GRADE 5',
-        'RAW-MAT',
-        'TIMET AEROSPACE',
-        'COC-TI-994218-B'
-      ],
-      [
-        'ANODIZE SURFACE TREATMENT',
-        'MIL-A-8625 TYPE II CLASS 1',
-        'PROC-SURF',
-        'AERO-COAT CORP',
-        'COC-ANO-55102'
-      ],
-      [
-        'STRESS RELIEF HEAT TREAT',
-        'AMS 2801 / BAC 5613',
-        'HEAT-TRT',
-        'BODYCOTE THERMAL',
-        'HT-88231-A'
-      ],
-      [
-        '100% FIRST ARTICLE INSPECTION',
-        'SAE AS9102 REV C / ISO 9001',
-        'QA-INSP',
-        'INTERNAL LOONIST QA LAB',
-        'QA-FAIR-2026-01'
       ]
+      // Materials and special processes are entered by the inspector
     ];
 
     const wsForm2 = XLSX.utils.aoa_to_sheet(form2Data);
@@ -190,65 +165,20 @@ export class As9102ExcelExporter {
     ];
 
     for (const char of characteristics) {
-      const isRef = char.forReference || char.enclosure === 'reference';
-      const isBasic = char.isBasic || char.enclosure === 'basic';
-      
-      const designator = isRef 
-        ? 'Reference' 
-        : isBasic 
-        ? 'Basic' 
-        : char.classification;
-
-      // In ASME Y14.5 and AS9102, reference dimensions have no tolerances or limits
-      const lowerLimitVal = isRef 
-        ? '--' 
-        : char.lowerLimit !== null 
-        ? Number(char.lowerLimit.toFixed(4)) 
-        : '--';
-
-      const upperLimitVal = isRef 
-        ? '--' 
-        : char.upperLimit !== null 
-        ? Number(char.upperLimit.toFixed(4)) 
-        : '--';
-
-      // Sprint 5: Physical Measured Actual Value
-      let resultVal: string | number;
-      if (char.measuredValue !== undefined && char.measuredValue !== null) {
-        resultVal = Number(char.measuredValue.toFixed(4));
-      } else if (isRef) {
-        resultVal = 'REFERENCE';
-      } else {
-        resultVal = 'UNMEASURED';
-      }
-
-      // Deviation from Nominal
-      let deviationVal = '--';
-      if (char.measuredValue !== undefined && char.measuredValue !== null && char.cleanNominal !== null) {
-        const d = Number((char.measuredValue - char.cleanNominal).toFixed(4));
-        deviationVal = d > 0 ? `+${d}` : String(d);
-      }
-
-      // Conformance Status
-      let statusLabel = 'PENDING';
-      if (char.conformanceStatus === 'FAIL') statusLabel = 'REJECT';
-      else if (char.conformanceStatus === 'MARGINAL') statusLabel = 'MARGINAL';
-      else if (char.conformanceStatus === 'PASS') statusLabel = 'ACCEPT';
-      else if (isRef) statusLabel = 'ACCEPT';
-
+      const row = As9102ExcelExporter.buildForm3Row(char);
       form3Data.push([
         char.itemNumber,
-        char.subNumber || String(char.itemNumber),
-        `${char.sourceCaptureOrSheet || `Sheet ${char.sheetNumber}`} (${char.drawingZone})`,
-        designator,
+        row.subNumber,
+        row.location,
+        row.designator,
         char.rawText,
-        lowerLimitVal,
-        upperLimitVal,
-        resultVal,
-        deviationVal,
+        row.lowerLimit,
+        row.upperLimit,
+        row.result,
+        row.deviation,
         char.inspectionMethod,
-        char.comments || char.toleranceSource,
-        statusLabel
+        row.comments,
+        row.status
       ]);
     }
 
@@ -271,4 +201,102 @@ export class As9102ExcelExporter {
 
     return wb;
   }
+
+  /**
+   * Computes the AS9102 Form 3 values for one characteristic.
+   * Shared by the built-in workbook and customer Excel templates.
+   */
+  public static buildForm3Row(char: EngineeringCharacteristic): Form3RowValues {
+    const isRef = char.forReference || char.enclosure === 'reference';
+    const isBasic = char.isBasic || char.enclosure === 'basic';
+
+    const designator = isRef
+      ? 'Reference'
+      : isBasic
+      ? 'Basic'
+      : char.classification;
+
+    // In ASME Y14.5 and AS9102, reference dimensions have no tolerances or limits
+    const lowerLimit = isRef
+      ? '--'
+      : char.lowerLimit !== null
+      ? Number(char.lowerLimit.toFixed(4))
+      : '--';
+
+    const upperLimit = isRef
+      ? '--'
+      : char.upperLimit !== null
+      ? Number(char.upperLimit.toFixed(4))
+      : '--';
+
+    // Sprint 5: Physical Measured Actual Value
+    let result: string | number;
+    if (char.measuredValue !== undefined && char.measuredValue !== null) {
+      result = Number(char.measuredValue.toFixed(4));
+    } else if (isRef) {
+      result = 'REFERENCE';
+    } else {
+      result = 'UNMEASURED';
+    }
+
+    // Deviation from Nominal
+    let deviation = '--';
+    if (char.measuredValue !== undefined && char.measuredValue !== null && char.cleanNominal !== null) {
+      const d = Number((char.measuredValue - char.cleanNominal).toFixed(4));
+      deviation = d > 0 ? `+${d}` : String(d);
+    }
+
+    // Conformance Status
+    let status = 'PENDING';
+    if (char.conformanceStatus === 'FAIL') status = 'REJECT';
+    else if (char.conformanceStatus === 'MARGINAL') status = 'MARGINAL';
+    else if (char.conformanceStatus === 'PASS') status = 'ACCEPT';
+    else if (isRef) status = 'ACCEPT';
+
+    return {
+      subNumber: char.subNumber || String(char.itemNumber),
+      location: `${char.sourceCaptureOrSheet || `Sheet ${char.sheetNumber}`} (${char.drawingZone})`,
+      designator,
+      lowerLimit,
+      upperLimit,
+      result,
+      deviation,
+      comments: char.comments || char.toleranceSource,
+      status
+    };
+  }
+
+  /**
+   * Saves a generated workbook through the browser download pipeline.
+   */
+  public static downloadXlsx(bytes: Uint8Array, fileName: string): void {
+    const targetFileName = fileName.endsWith('.xlsx')
+      ? fileName
+      : `${fileName.replace(/\.xl[st]x?$/i, '')}.xlsx`;
+    const blob = new Blob([bytes as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = targetFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+}
+
+export interface Form3RowValues {
+  subNumber: string;
+  location: string;
+  designator: string;
+  lowerLimit: string | number;
+  upperLimit: string | number;
+  result: string | number;
+  deviation: string;
+  comments: string | undefined;
+  status: string;
 }

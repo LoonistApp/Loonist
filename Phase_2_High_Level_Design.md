@@ -169,12 +169,13 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
   - Keeps active sheet rasterized in GPU memory while offloading inactive pages to maintain a strict $<1.5\text{GB}$ memory envelope.
 
 ### 3.9 Unified Verification & Test Harness
-* **Master Test Suite:** 23 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, prose sentence exclusion, AS9102 Form 1 validation, project settings, help content, chamfer and compound callouts, metric unit detection, sheet scope, double-click-to-pan, and manual marquee rejection.
+* **Master Test Suite:** 24 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, prose sentence exclusion, AS9102 Form 1 validation, project settings, help content, chamfer and compound callouts, metric unit detection, sheet scope, double-click-to-pan, and manual marquee rejection, and custom Excel templates.
 * **Execution:** Run via `npm test` (`scripts/run_all_feature_tests.ts`) with 100% pass rate requirement across all release branches.
 
 ### 3.10 Configuration & Knowledge Layer (Sprint 7)
 * **Project Settings (per `.loonist` project):** Tolerance preset, units, skip rules for reference/basic dimensions, balloon numbering, AS9102 revision, ANSI/ASQ Z1.4 sampling, and security watermark. Consumed by the extraction engine, viewport, and marked PDF exporter.
 * **Application Options (per installation):** Workspace ergonomics, factory Master Data, AS9102 templates, Net-Inspect field mapping, ITAR/Privacy, and Licensing — held in a reactive store persisted locally (`loonist_app_options_v1`).
+* **Custom Excel Templates:** Customer `.xlsx` layouts with `{{placeholders}}` stored locally in IndexedDB and filled on export by editing the workbook XML, preserving formatting.
 * **Help Center:** Static, offline knowledge base (`helpData.ts`) powering Quick Start, the 14-symbol ASME Y14.5 GD&T library, the AS9102 Form 1/2/3 guide, hotkeys, diagnostics, and About — no network access required.
 * **Drafting-Standards Engine Additions:** ASME Y14.5 § 1.8.16 chamfers and compound callout deconstruction ([Algorithm 13](./Algorithms/13_Chamfer_And_Compound_Callout_Deconstruction.md)); note-driven unit detection with ISO 2768-m size bands ([Algorithm 14](./Algorithms/14_Drawing_Unit_Detection_And_ISO_2768.md)).
 

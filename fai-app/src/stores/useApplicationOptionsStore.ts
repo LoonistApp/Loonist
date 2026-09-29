@@ -14,9 +14,27 @@ import type {
   ItarPrivacySettings,
   TableColumnConfig
 } from '../types/applicationOptions';
-import { DEFAULT_APPLICATION_OPTIONS, DEFAULT_TABLE_COLUMNS } from '../types/applicationOptions';
+import { DEFAULT_APPLICATION_OPTIONS, DEFAULT_TABLE_COLUMNS, BUILT_IN_TEMPLATE_ID } from '../types/applicationOptions';
 
 const STORAGE_KEY = 'loonist_app_options_v1';
+
+/**
+ * Keeps only the built-in template plus templates the user actually uploaded
+ * (earlier versions stored placeholder rows with no file behind them).
+ */
+function sanitizeTemplates(templates: TemplatesSettings): TemplatesSettings {
+  const builtIns = DEFAULT_APPLICATION_OPTIONS.templates.templates;
+  const uploaded = (templates.templates || []).filter(t => t.isCustom && t.id.startsWith('tmpl-'));
+  const list = [...builtIns, ...uploaded];
+  const activeTemplateId = list.some(t => t.id === templates.activeTemplateId)
+    ? templates.activeTemplateId
+    : BUILT_IN_TEMPLATE_ID;
+  return {
+    ...templates,
+    activeTemplateId,
+    templates: list.map(t => ({ ...t, isDefault: t.id === activeTemplateId }))
+  };
+}
 
 // In-memory singleton state so all components stay 100% in sync without full reloads
 let globalState: ApplicationOptions = (() => {
@@ -29,7 +47,7 @@ let globalState: ApplicationOptions = (() => {
     return {
       workspace: { ...DEFAULT_APPLICATION_OPTIONS.workspace, ...(parsed.workspace || {}) },
       masterData: { ...DEFAULT_APPLICATION_OPTIONS.masterData, ...(parsed.masterData || {}) },
-      templates: { ...DEFAULT_APPLICATION_OPTIONS.templates, ...(parsed.templates || {}) },
+      templates: sanitizeTemplates({ ...DEFAULT_APPLICATION_OPTIONS.templates, ...(parsed.templates || {}) }),
       netInspect: { ...DEFAULT_APPLICATION_OPTIONS.netInspect, ...(parsed.netInspect || {}) },
       licensing: { ...DEFAULT_APPLICATION_OPTIONS.licensing, ...(parsed.licensing || {}) },
       itarPrivacy: { ...DEFAULT_APPLICATION_OPTIONS.itarPrivacy, ...(parsed.itarPrivacy || {}) },
