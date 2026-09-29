@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { TemplatesSettings, TemplateItem } from '../../../../types/applicationOptions';
 import { BUILT_IN_TEMPLATE_ID } from '../../../../types/applicationOptions';
 import {
-  FileSpreadsheet,
   Plus,
   Trash2,
   CheckCircle2,
@@ -136,19 +135,16 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-6 text-xs text-slate-800 dark:text-zinc-200">
+    <div className="flex flex-col gap-6 text-xs text-slate-800">
 
       {/* EXCEL EXPORT TEMPLATES GRID */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-4 rounded-lg border border-slate-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <h3 className="font-semibold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-              AS9102 & Customer Excel Export Templates (.xlsx)
-            </h3>
-          </div>
+      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h3 className="min-w-0 truncate font-semibold text-xs text-slate-900 uppercase tracking-wider">
+            Excel Export Templates
+          </h3>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <input
               type="file"
               ref={fileInputRef}
@@ -159,7 +155,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
             <button
               type="button"
               onClick={handleDownloadStarter}
-              className="flex items-center gap-1.5 bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 px-2.5 py-1 rounded border border-slate-300 dark:border-zinc-700 font-medium text-xs transition cursor-pointer"
+              className="flex items-center gap-1.5 whitespace-nowrap bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1 rounded border border-slate-300 font-medium text-xs transition cursor-pointer"
               title="Download an example template with every placeholder"
             >
               <Download className="w-3.5 h-3.5" /> Starter Template
@@ -168,7 +164,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
               type="button"
               onClick={handleUploadClick}
               disabled={isUploading}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 text-white px-2.5 py-1 rounded font-medium text-xs transition cursor-pointer"
+              className={`flex items-center gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded font-medium text-xs transition cursor-pointer ${isUploading ? 'opacity-60' : ''}`}
             >
               <Plus className="w-3.5 h-3.5" /> {isUploading ? 'Reading…' : 'Add Custom Template'}
             </button>
@@ -177,65 +173,64 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
         {feedback && (
           <div
-            className={`mb-3 px-3 py-2 rounded border text-[11px] leading-relaxed ${
+            className={`mb-3 px-3 py-2 rounded border text-[11px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300'
+                ? 'border-emerald-500/40 text-emerald-600'
                 : feedback.type === 'warning'
-                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300'
-                : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900 text-red-700 dark:text-red-300'
+                ? 'border-amber-500/50 text-amber-600'
+                : 'border-red-500 text-red-500'
             }`}
           >
             {feedback.text}
           </div>
         )}
 
-        <div className="border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 overflow-hidden max-h-[300px] overflow-y-auto">
+        <div className="border border-slate-200 rounded bg-white overflow-hidden">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 sticky top-0">
+            <thead className="bg-slate-100 border-b border-slate-200">
               <tr>
-                <th className="py-1.5 px-3 w-10 text-center font-semibold text-[11px] text-slate-600 dark:text-zinc-400">#</th>
-                <th className="py-1.5 px-3 font-semibold text-[11px] text-slate-600 dark:text-zinc-400">Template Name</th>
-                <th className="py-1.5 px-3 font-semibold text-[11px] text-slate-600 dark:text-zinc-400">Standard</th>
-                <th className="py-1.5 px-3 font-semibold text-[11px] text-slate-600 dark:text-zinc-400">File Name</th>
-                <th className="py-1.5 px-3 w-20 text-center font-semibold text-[11px] text-slate-600 dark:text-zinc-400">Default</th>
-                <th className="py-1.5 px-3 w-16 text-center font-semibold text-[11px] text-slate-600 dark:text-zinc-400">Action</th>
+                <th className="py-1.5 px-3 w-10 text-center font-semibold text-[11px] text-slate-600">#</th>
+                <th className="py-1.5 px-3 font-semibold text-[11px] text-slate-600">Template Name</th>
+                <th className="py-1.5 px-3 font-semibold text-[11px] text-slate-600 whitespace-nowrap">Standard</th>
+                <th className="py-1.5 px-3 w-20 text-center font-semibold text-[11px] text-slate-600">Default</th>
+                <th className="py-1.5 px-3 w-16 text-center font-semibold text-[11px] text-slate-600">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+            <tbody>
               {settings.templates.map((tmpl: TemplateItem, idx: number) => (
                 <tr
                   key={tmpl.id}
-                  className={`hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition ${
-                    tmpl.isDefault ? 'bg-sky-50/40 dark:bg-sky-950/20' : ''
-                  }`}
+                  className={`border-b border-slate-200 transition ${tmpl.isDefault ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                 >
                   <td className="py-1.5 px-3 text-center font-mono text-[10px] text-slate-400">{idx + 1}</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
-                    {tmpl.name}
-                    {tmpl.isCustom && !missingIds.has(tmpl.id) && (
-                      <span className="text-[9px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
-                        Custom
-                      </span>
-                    )}
-                    {missingIds.has(tmpl.id) && (
-                      <span
-                        className="flex items-center gap-0.5 text-[9px] bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 px-1 py-0.2 rounded border border-red-200 dark:border-red-800"
-                        title="The file for this template is not stored on this computer. Remove it and upload it again."
-                      >
-                        <AlertTriangle className="w-2.5 h-2.5" /> File missing
-                      </span>
-                    )}
+                  <td className="py-1.5 px-3 font-medium text-slate-900">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span>{tmpl.name}</span>
+                      {tmpl.isCustom && !missingIds.has(tmpl.id) && (
+                        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded border border-amber-500/50 text-amber-600">
+                          Custom
+                        </span>
+                      )}
+                      {missingIds.has(tmpl.id) && (
+                        <span
+                          className="shrink-0 flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded border border-red-500 text-red-500"
+                          title="The file for this template is not stored on this computer. Remove it and upload it again."
+                        >
+                          <AlertTriangle className="w-3 h-3" /> File missing
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 font-mono font-normal text-[10px] text-slate-500 truncate">
+                      {tmpl.isCustom ? tmpl.filename : 'Generated by LOONIST'}
+                    </div>
                   </td>
-                  <td className="py-1.5 px-3 text-slate-600 dark:text-zinc-400">{tmpl.standard}</td>
-                  <td className="py-1.5 px-3 font-mono text-[11px] text-slate-500 dark:text-zinc-400">{tmpl.filename}</td>
+                  <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap">{tmpl.standard}</td>
                   <td className="py-1.5 px-3 text-center">
                     <button
                       type="button"
                       onClick={() => handleSetDefault(tmpl.id)}
                       className={`p-1 rounded cursor-pointer transition ${
-                        tmpl.isDefault
-                          ? 'text-sky-600 dark:text-sky-400'
-                          : 'text-slate-300 dark:text-zinc-600 hover:text-slate-600 dark:hover:text-zinc-300'
+                        tmpl.isDefault ? 'text-blue-600' : 'text-slate-400 hover:text-slate-900'
                       }`}
                       title={tmpl.isDefault ? 'Used for Excel export' : 'Use for Excel export'}
                     >
@@ -247,7 +242,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                       <button
                         type="button"
                         onClick={() => handleDeleteTemplate(tmpl.id)}
-                        className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 cursor-pointer"
+                        className="p-1 rounded hover:bg-slate-200 text-red-500 cursor-pointer"
                         title="Remove template"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -266,21 +261,21 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
         <button
           type="button"
           onClick={() => setShowReference(v => !v)}
-          className="mt-3 flex items-center gap-1 text-[11px] font-medium text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
+          className="mt-3 flex items-center gap-1 text-[11px] font-medium text-blue-600 cursor-pointer"
         >
           {showReference ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           How custom templates work
         </button>
 
         {showReference && (
-          <div className="mt-2 flex flex-col gap-3 text-[11px] text-slate-600 dark:text-zinc-400">
-            <p className="leading-relaxed">
+          <div className="mt-2 flex flex-col gap-3 text-[11px] text-slate-600">
+            <p>
               Type placeholders into any cell of your Excel file. On export LOONIST replaces them and keeps all of your
               formatting, logos and merged cells. Put the <span className="font-mono">{'{{char.*}}'}</span> fields on a
               single row: that row is repeated once per characteristic and everything below it moves down. Formulas below
               that row are not adjusted.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <TokenList title="Project fields (any cell)" tokens={PROJECT_TOKENS} />
               <TokenList title="Characteristic fields (Form 3 row)" tokens={CHARACTERISTIC_TOKENS} />
             </div>
@@ -293,17 +288,17 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 };
 
 const TokenList: React.FC<{ title: string; tokens: Record<string, string> }> = ({ title, tokens }) => (
-  <div className="border border-slate-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950">
-    <div className="px-2.5 py-1.5 border-b border-slate-200 dark:border-zinc-800 font-semibold text-slate-700 dark:text-zinc-300">
+  <div className="border border-slate-200 rounded bg-white">
+    <div className="px-2.5 py-1.5 border-b border-slate-200 font-semibold text-slate-700">
       {title}
     </div>
-    <ul className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+    <div>
       {Object.entries(tokens).map(([key, label]) => (
-        <li key={key} className="px-2.5 py-1 flex items-center justify-between gap-2">
-          <span className="font-mono text-slate-800 dark:text-zinc-200">{`{{${key}}}`}</span>
-          <span className="text-right text-slate-500 dark:text-zinc-500">{label}</span>
-        </li>
+        <div key={key} className="px-2.5 py-1 flex items-center justify-between gap-2 border-b border-slate-100">
+          <span className="font-mono text-slate-800 whitespace-nowrap">{`{{${key}}}`}</span>
+          <span className="truncate text-slate-500" title={label}>{label}</span>
+        </div>
       ))}
-    </ul>
+    </div>
   </div>
 );

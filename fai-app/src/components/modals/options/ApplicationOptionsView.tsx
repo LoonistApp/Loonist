@@ -107,12 +107,12 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
   );
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-[#12161f] text-slate-900 dark:text-zinc-100 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 bg-white text-slate-900 overflow-hidden">
       {/* 2-COLUMN MAIN BODY */}
       <div className="flex-1 flex overflow-hidden min-h-0">
 
         {/* LEFT NAV PANEL */}
-        <div className="w-64 border-r border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-950 flex flex-col p-3 gap-3 shrink-0 min-h-0">
+        <div className="w-64 border-r border-slate-200 bg-slate-50 flex flex-col p-3 gap-3 shrink-0 min-h-0">
 
           {/* Quick Search */}
           <div className="relative flex items-center">
@@ -125,7 +125,7 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
               placeholder="Search preferences..."
               value={navSearch}
               onChange={(e) => setNavSearch(e.target.value)}
-              className="w-full pr-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 rounded text-xs text-slate-800 dark:text-zinc-200 outline-none focus:border-sky-500 placeholder-slate-400"
+              className="w-full pr-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-800 outline-none focus:border-blue-600"
               style={{ paddingLeft: '32px' }}
             />
           </div>
@@ -138,25 +138,25 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
                 type="button"
                 onClick={() => setActiveSection(item.id)}
                 className={`flex items-center justify-between px-3 py-2 rounded text-xs transition cursor-pointer text-left ${activeSection === item.id
-                    ? 'bg-sky-600 text-white font-semibold shadow-xs'
-                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-200/60 dark:hover:bg-zinc-850 hover:text-slate-900 dark:hover:text-zinc-200'
+                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900 '
                   }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={activeSection === item.id ? 'text-white' : 'text-slate-500 dark:text-zinc-400'}>
+                  <span className={activeSection === item.id ? 'text-white' : 'text-slate-500'}>
                     {item.icon}
                   </span>
                   <span className="truncate">{item.label}</span>
                 </div>
                 {activeSection === item.id && (
-                  <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0" />
+                  <ChevronRight className="w-3.5 h-3.5 text-white shrink-0" />
                 )}
               </button>
             ))}
           </div>
 
           {/* Profile Import / Export */}
-          <div className="pt-2.5 border-t border-slate-200 dark:border-zinc-800 flex flex-col gap-1.5">
+          <div className="pt-2.5 border-t border-slate-200 flex flex-col gap-1.5">
             <input
               type="file"
               ref={importInputRef}
@@ -167,7 +167,7 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
             <button
               type="button"
               onClick={() => importInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] rounded bg-white dark:bg-zinc-850 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-300 dark:border-zinc-750 text-slate-700 dark:text-zinc-300 transition cursor-pointer font-medium"
+              className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 transition cursor-pointer font-medium"
               title="Import company configuration profile (.json)"
             >
               <Upload className="w-3 h-3" /> Import Profile
@@ -175,7 +175,7 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
             <button
               type="button"
               onClick={actions.exportProfileJson}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] rounded bg-white dark:bg-zinc-850 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-300 dark:border-zinc-750 text-slate-700 dark:text-zinc-300 transition cursor-pointer font-medium"
+              className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 transition cursor-pointer font-medium"
               title="Export configuration profile (.json) to deploy across shop floor PCs"
             >
               <Download className="w-3 h-3" /> Export Profile
@@ -184,7 +184,7 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
         </div>
 
         {/* RIGHT MAIN CONTENT AREA */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-[#12161f] min-w-0">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white min-w-0">
           {/* Scrollable Tab Content View */}
           <div className="flex-1 min-h-0 overflow-y-auto p-5">
             {activeSection === 'workspace' && (
@@ -267,11 +267,11 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
 
       {/* BOTTOM ACTION BAR (Optional when rendered inside parent modal with its own action bar) */}
       {!hideFooter && (
-        <div className="px-5 py-2.5 border-t border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 flex items-center justify-between select-none shrink-0">
+        <div className="px-5 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between select-none shrink-0">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded border border-transparent hover:border-red-200 dark:hover:border-red-900/50 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 hover:text-red-600 hover:bg-slate-200 rounded border border-transparent transition cursor-pointer"
             title="Reset options to original factory settings"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -283,7 +283,7 @@ export const ApplicationOptionsView: React.FC<ApplicationOptionsViewProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-1.5 text-xs font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200/60 dark:hover:bg-zinc-800/80 rounded-md transition cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-md transition cursor-pointer"
               >
                 Cancel
               </button>

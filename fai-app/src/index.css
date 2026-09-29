@@ -2575,3 +2575,81 @@ td.sticky-left-cha {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Layout & state utilities used by the Application Options dialog */
+.flex-row {
+  flex-direction: row;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+
+.ml-1 {
+  margin-left: 0.25rem;
+}
+
+.ml-auto {
+  margin-left: auto;
+}
+
+.mb-0\.5 {
+  margin-bottom: 0.125rem;
+}
+
+.mb-1\.5 {
+  margin-bottom: 0.375rem;
+}
+
+.py-2\.5 {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.w-1\.5 {
+  width: 0.375rem;
+}
+
+.h-1\.5 {
+  height: 0.375rem;
+}
+
+.max-w-\[220px\] {
+  max-width: 220px;
+}
+
+.max-w-\[320px\] {
+  max-width: 320px;
+}
+
+.max-h-\[300px\] {
+  max-height: 300px;
+}
+
+.max-h-\[360px\] {
+  max-height: 360px;
+}
+
+.select-all {
+  user-select: all;
+}
+
+.hover\:text-red-600:hover {
+  color: #dc2626;
+}
+
+.disabled\:opacity-30:disabled {
+  opacity: 0.3;
+}
+
+.disabled\:opacity-40:disabled {
+  opacity: 0.4;
+}
+
+.disabled\:cursor-not-allowed:disabled {
+  cursor: not-allowed;
+}
