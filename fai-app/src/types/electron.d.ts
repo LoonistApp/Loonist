@@ -22,10 +22,17 @@ export interface LicensePayload {
   tenantId: string;
   expiresAt: string;
   features: string[];
+  devicePublicKey?: string;
+}
+
+export interface LicenseVerification {
+  verdict: 'ACTIVE' | 'EXPIRED' | 'NOT_ACTIVATED' | 'INVALID' | 'UNVERIFIABLE';
+  message: string;
+  expiresAt: string | null;
 }
 
 export type LicenseCallResult =
-  | { success: true; payload?: LicensePayload; signature?: string; expiresAt?: string; devicePublicKey: string; message: string }
+  | { success: true; payload?: LicensePayload; signature?: string; expiresAt?: string; devicePublicKey: string; verification?: LicenseVerification; message: string }
   | { success: false; message: string };
 
 export interface IElectronAPI {
@@ -45,6 +52,7 @@ export interface IElectronAPI {
   licenseActivate?: (apiUrl: string, token: string) => Promise<LicenseCallResult>;
   licenseRenew?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
   licenseRevoke?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
+  licenseVerify?: (payload: unknown, signature: string) => Promise<LicenseVerification>;
 }
 
 declare global {

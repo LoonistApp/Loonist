@@ -103,6 +103,7 @@ export interface CloudflareLicensePayload {
   tenantId: string;
   expiresAt: string;
   features: string[];
+  devicePublicKey?: string;
 }
 
 export interface LicensingSettings {
@@ -116,6 +117,10 @@ export interface LicensingSettings {
   expiresAt: string | null;
   features: string[];
   signature: string;
+  /** Exact payload signed by the licensing server (verified offline on start-up) */
+  licensePayload: CloudflareLicensePayload | null;
+  /** Result of the last offline verification, shown in Options → Licensing */
+  statusDetail: string;
   devicePublicKey: string;
   isAirGapped: boolean;
   lastValidatedAt: string | null;
@@ -248,6 +253,8 @@ export const DEFAULT_APPLICATION_OPTIONS: ApplicationOptions = {
     expiresAt: null,
     features: [],
     signature: '',
+    licensePayload: null,
+    statusDetail: '',
     devicePublicKey: '',
     isAirGapped: false,
     lastValidatedAt: null

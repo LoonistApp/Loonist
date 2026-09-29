@@ -7,9 +7,9 @@
  * bridge and keeps the offline checks that need no secrets.
  */
 
-import { ed25519 } from '@noble/curves/ed25519.js';
-import type { CloudflareLicensePayload } from '../../types/applicationOptions';
-import type { LicenseCallResult } from '../../types/electron';
+import type { CloudflareLicensePayload, LicensingSettings, LicenseStatus } from '../../types/applicationOptions';
+import type { LicenseCallResult, LicenseVerification } from '../../types/electron';
+import { applicationOptionsActions } from '../../stores/useApplicationOptionsStore';
 
 export interface LicenseValidationResult {
   isValid: boolean;
@@ -53,37 +53,34 @@ async function callMain(
 
 export class CloudflareLicenseClient {
   /**
-   * Verifies an Ed25519 license signature offline with zero network requests.
-   * Ensures absolute ITAR compliance in air-gapped defense cleanrooms.
+   * Verifies the stored license offline in the main process (trusted server key, this
+   * workstation's device key, expiry) and records the result. The saved status is never
+   * trusted on its own.
    */
-  public static verifySignatureOffline(
-    payload: CloudflareLicensePayload,
-    signatureHex: string,
-    publicKeyHex: string
-  ): boolean {
+  public static async refreshStatus(): Promise<LicenseVerification | null> {
+    const verify = window.api?.licenseVerify;
+    if (!verify) return null;
+
+    const current = applicationOptionsActions.get().licensing;
+    let verification: LicenseVerification;
     try {
-      if (!signatureHex || !publicKeyHex) return false;
-      
-      const payloadStr = JSON.stringify(payload);
-      const payloadBytes = new TextEncoder().encode(payloadStr);
-
-      const fromHex = (hex: string) => {
-        const cleanHex = hex.trim();
-        const matches = cleanHex.match(/.{1,2}/g) || [];
-        return new Uint8Array(matches.map(byte => parseInt(byte, 16)));
-      };
-
-      const sigBytes = fromHex(signatureHex);
-      const pubBytes = fromHex(publicKeyHex);
-
-      if (sigBytes.length !== 64 || pubBytes.length !== 32) {
-        return false;
-      }
-
-      return ed25519.verify(sigBytes, payloadBytes, pubBytes);
-    } catch {
-      return false;
+      verification = await verify(current.licensePayload, current.signature || '');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      verification = { verdict: 'INVALID', message: `License check failed: ${message}`, expiresAt: null };
     }
+
+    const status: LicenseStatus =
+      verification.verdict === 'ACTIVE' ? 'ACTIVE'
+      : verification.verdict === 'EXPIRED' ? 'EXPIRED'
+      : 'UNLICENSED';
+    const patch: Partial<LicensingSettings> = {
+      status,
+      statusDetail: verification.message,
+      lastValidatedAt: new Date().toISOString()
+    };
+    applicationOptionsActions.updateLicensing(patch);
+    return verification;
   }
 
   /**

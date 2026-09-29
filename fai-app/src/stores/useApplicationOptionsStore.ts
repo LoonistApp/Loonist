@@ -30,6 +30,20 @@ export function sanitizeLicensing(licensing: LicensingSettings & { devicePrivate
   if (rest.signature === DEMO_LICENSE_SIGNATURE) {
     return { ...DEFAULT_APPLICATION_OPTIONS.licensing, apiUrl: rest.apiUrl || DEFAULT_APPLICATION_OPTIONS.licensing.apiUrl };
   }
+  // Licenses saved before Sprint 8 kept only the individual fields; rebuild the signed payload
+  // in the Worker's field order so offline verification can report on it
+  if (!rest.licensePayload && rest.licenseId && rest.deviceId && rest.expiresAt) {
+    return {
+      ...rest,
+      licensePayload: {
+        licenseId: rest.licenseId,
+        deviceId: rest.deviceId,
+        tenantId: rest.tenantId,
+        expiresAt: rest.expiresAt,
+        features: rest.features
+      }
+    };
+  }
   return rest;
 }
 

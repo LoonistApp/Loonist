@@ -31,6 +31,7 @@ import type { BlueprintDocument, ViewportTool } from './types/blueprint';
 import { ExportModal } from './components/layout/ExportModal';
 import { showLoonistDialog } from './utils/dialog';
 import { useApplicationOptions } from './stores/useApplicationOptionsStore';
+import { CloudflareLicenseClient } from './services/license/licenseClient';
 
 interface DocumentCacheItem {
   id: string;
@@ -51,6 +52,11 @@ interface DocumentCacheItem {
 
 export function App() {
   const [appOptions] = useApplicationOptions();
+
+  // Verify the stored license offline on start-up (signature, device binding, expiry)
+  useEffect(() => {
+    CloudflareLicenseClient.refreshStatus().catch(err => console.warn('License verification failed:', err));
+  }, []);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [blueprintDoc, setBlueprintDoc] = useState<BlueprintDocument | null>(null);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);

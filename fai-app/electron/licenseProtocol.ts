@@ -34,6 +34,12 @@ export const licenseActivateSchema = z.object({
   token: z.string().trim().min(1).max(512)
 });
 
+/** Stored license to verify offline; the payload shape is checked by verifyLicense(). */
+export const licenseVerifySchema = z.object({
+  payload: z.unknown(),
+  signature: z.string().max(256)
+});
+
 export const licenseDeviceSchema = z.object({
   apiUrl: licenseApiUrlSchema,
   deviceId: z.string().trim().min(1).max(128)

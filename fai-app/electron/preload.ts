@@ -20,4 +20,5 @@ contextBridge.exposeInMainWorld('api', {
   licenseActivate: (apiUrl: string, token: string) => ipcRenderer.invoke('ipc-license-activate', { apiUrl, token }),
   licenseRenew: (apiUrl: string, deviceId: string) => ipcRenderer.invoke('ipc-license-renew', { apiUrl, deviceId }),
   licenseRevoke: (apiUrl: string, deviceId: string) => ipcRenderer.invoke('ipc-license-revoke', { apiUrl, deviceId }),
+  licenseVerify: (payload: unknown, signature: string) => ipcRenderer.invoke('ipc-license-verify', { payload, signature }),
 });

@@ -2,3 +2,6 @@ node_modules/
 .dev.vars
 .wrangler/
 dist/
+
+# Production license signing key (upload with wrangler secret put, never commit)
+.license-production-private-key

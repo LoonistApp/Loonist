@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { LicensingSettings } from '../../../../types/applicationOptions';
 import { applicationOptionsActions } from '../../../../stores/useApplicationOptionsStore';
 import { CloudflareLicenseClient } from '../../../../services/license/licenseClient';
@@ -31,6 +31,20 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
 
   // Validate expiration offline
   const expiryCheck = CloudflareLicenseClient.validateExpiry(settings.expiresAt);
+
+  // Re-verify the stored license (signature, device binding, expiry) whenever the tab opens
+  useEffect(() => {
+    let cancelled = false;
+    CloudflareLicenseClient.refreshStatus().then(verification => {
+      if (cancelled || !verification) return;
+      const { status, statusDetail, lastValidatedAt } = applicationOptionsActions.get().licensing;
+      onChange({ status, statusDetail, lastValidatedAt });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // License changes are saved immediately: the server has already consumed the token or
   // changed the seat, so the result must survive even if the Options dialog is cancelled.
@@ -65,6 +79,8 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
         expiresAt: res.payload.expiresAt,
         features: res.payload.features,
         signature: res.signature || '',
+        licensePayload: res.payload,
+        statusDetail: res.verification?.message || '',
         devicePublicKey: res.devicePublicKey,
         lastValidatedAt: new Date().toISOString()
       });
@@ -88,10 +104,13 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
 
     setIsRenewing(false);
 
-    if (res.success) {
+    if (res.success && res.payload) {
       applyLicense({
-        expiresAt: res.payload?.expiresAt || res.expiresAt || settings.expiresAt,
-        signature: res.signature || settings.signature,
+        expiresAt: res.payload.expiresAt,
+        signature: res.signature || '',
+        licensePayload: res.payload,
+        features: res.payload.features,
+        statusDetail: res.verification?.message || '',
         status: 'ACTIVE',
         lastValidatedAt: new Date().toISOString()
       });
@@ -103,18 +122,12 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
 
   // Export Offline Certificate (.lic) for USB Air-Gap Transfer
   const handleExportAirGapCert = () => {
-    if (!settings.deviceId) {
+    if (!settings.licensePayload || !settings.signature) {
       setFeedback({ type: 'error', text: 'No active device license to export.' });
       return;
     }
-    const payload = {
-      licenseId: settings.licenseId,
-      deviceId: settings.deviceId,
-      tenantId: settings.tenantId,
-      expiresAt: settings.expiresAt || new Date().toISOString(),
-      features: settings.features
-    };
-    CloudflareLicenseClient.exportOfflineCertificate(payload, settings.signature, settings.tenantName);
+    // Export the exact signed payload so the certificate verifies offline
+    CloudflareLicenseClient.exportOfflineCertificate(settings.licensePayload, settings.signature, settings.tenantName);
     setFeedback({ type: 'success', text: 'Offline certificate (.lic) exported for cleanroom USB installation.' });
   };
 
@@ -137,7 +150,9 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
       expiresAt: null,
       licenseId: '',
       deviceId: '',
-      signature: ''
+      signature: '',
+      licensePayload: null,
+      statusDetail: 'Seat released.'
     });
 
     setFeedback({ type: 'info', text: res.message });
@@ -165,12 +180,17 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
             {settings.status === 'ACTIVE' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                ACTIVE (Ed25519 Verified)
+                ACTIVE (Verified Offline)
               </span>
             ) : settings.status === 'OFFLINE_LEASE' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
                 <Clock className="w-3.5 h-3.5" />
                 OFFLINE LEASE (Cleanroom)
+              </span>
+            ) : settings.status === 'EXPIRED' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                <Clock className="w-3.5 h-3.5" />
+                EXPIRED
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800">
@@ -212,6 +232,12 @@ export const LicensingTab: React.FC<LicensingTabProps> = ({
             </span>
           </div>
         </div>
+
+        {settings.statusDetail && (
+          <p className={`mt-2 text-[11px] ${settings.status === 'ACTIVE' ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+            {settings.statusDetail}
+          </p>
+        )}
       </div>
 
       {/* FEEDBACK BANNER */}

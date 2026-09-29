@@ -16,6 +16,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { deviceRequestMessage, licenseApiUrlSchema, licenseActivateSchema } from '../electron/licenseProtocol';
+import { verifyLicense, trustedServerKeys, DEVELOPMENT_LICENSE_PUBLIC_KEY, PRODUCTION_LICENSE_PUBLIC_KEY } from '../electron/licenseTrust';
 import { verifyDeviceSignature } from '../../cloudflare-licensing-api/src/crypto';
 import { sanitizeLicensing } from '../src/stores/useApplicationOptionsStore';
 import { DEFAULT_APPLICATION_OPTIONS } from '../src/types/applicationOptions';
@@ -133,6 +134,56 @@ const registeredNames = new Set(registered.map(([, name]) => name));
 const missing = preloadChannels.filter(c => !registeredNames.has(c));
 assert(registered.length === preloadChannels.length, `Handler count matches the preload bridge (${registered.length})`);
 assert(missing.length === 0, `Every preload channel has a validated handler${missing.length ? ` (missing: ${missing.join(', ')})` : ''}`);
+
+// 6. Offline license verification
+console.log('\n► [6] Offline license verification');
+const serverSecret = ed25519.utils.randomSecretKey();
+const serverPub = toHex(ed25519.getPublicKey(serverSecret));
+const deviceSecret = ed25519.utils.randomSecretKey();
+const devicePub = toHex(ed25519.getPublicKey(deviceSecret));
+const now = Date.parse('2026-09-29T00:00:00Z');
+const sign = (payload: object, key = serverSecret) =>
+  toHex(ed25519.sign(new TextEncoder().encode(JSON.stringify(payload)), key));
+const goodPayload = {
+  licenseId: 'lic-1', deviceId: 'dev-1', tenantId: 'tenant-1',
+  expiresAt: '2030-01-01T00:00:00.000Z', features: ['ALL'], devicePublicKey: devicePub
+};
+const good = { payload: goodPayload, signature: sign(goodPayload) };
+
+assert(verifyLicense(good, [serverPub], devicePub, now).verdict === 'ACTIVE', 'Valid license bound to this device is ACTIVE');
+assert(
+  verifyLicense({ payload: { ...goodPayload, expiresAt: '2099-01-01T00:00:00.000Z' }, signature: good.signature }, [serverPub], devicePub, now).verdict === 'INVALID',
+  'Editing the expiry breaks the signature'
+);
+assert(
+  verifyLicense({ payload: { ...goodPayload, features: ['ALL', 'EXTRA'] }, signature: good.signature }, [serverPub], devicePub, now).verdict === 'INVALID',
+  'Adding features breaks the signature'
+);
+const forgedPayload = { ...goodPayload };
+assert(
+  verifyLicense({ payload: forgedPayload, signature: sign(forgedPayload, ed25519.utils.randomSecretKey()) }, [serverPub], devicePub, now).verdict === 'INVALID',
+  'License signed by an untrusted key is rejected'
+);
+const otherDevice = toHex(ed25519.getPublicKey(ed25519.utils.randomSecretKey()));
+const copied = verifyLicense(good, [serverPub], otherDevice, now);
+assert(copied.verdict === 'INVALID' && /different workstation/.test(copied.message), 'License copied to another workstation is rejected');
+const expiredPayload = { ...goodPayload, expiresAt: '2026-01-01T00:00:00.000Z' };
+assert(verifyLicense({ payload: expiredPayload, signature: sign(expiredPayload) }, [serverPub], devicePub, now).verdict === 'EXPIRED', 'Past expiry reports EXPIRED');
+const { devicePublicKey: _omit, ...legacyPayload } = goodPayload;
+const legacy2 = verifyLicense({ payload: legacyPayload, signature: sign(legacyPayload) }, [serverPub], devicePub, now);
+assert(legacy2.verdict === 'INVALID' && /Refresh License/.test(legacy2.message), 'License without device binding asks for a refresh');
+assert(verifyLicense({ payload: null, signature: '' }, [serverPub], devicePub, now).verdict === 'NOT_ACTIVATED', 'Nothing stored reports NOT_ACTIVATED');
+assert(verifyLicense({ payload: 'garbage', signature: 'zz' }, [serverPub], devicePub, now).verdict === 'INVALID', 'Malformed license is INVALID');
+assert(verifyLicense(good, [], devicePub, now).verdict === 'UNVERIFIABLE', 'No trusted key means UNVERIFIABLE, never ACTIVE');
+
+assert(!trustedServerKeys(true).includes(DEVELOPMENT_LICENSE_PUBLIC_KEY), 'Packaged builds never trust the development key');
+assert(trustedServerKeys(false).includes(DEVELOPMENT_LICENSE_PUBLIC_KEY), 'Development builds trust the development key');
+assert(
+  PRODUCTION_LICENSE_PUBLIC_KEY === '' ? trustedServerKeys(true).length === 0 : trustedServerKeys(true).length === 1,
+  'Packaged builds trust exactly the production key (none while unset)'
+);
+const licensingMainSrc = read('electron/licensing.ts');
+assert(/trustedKeys\(\)\.length === 0/.test(licensingMainSrc.slice(licensingMainSrc.indexOf('activateLicense'))), 'Activation is refused before the token is spent when no key is configured');
 
 console.log(`\n${passed}/${total} checks passed`);
 if (passed !== total) {

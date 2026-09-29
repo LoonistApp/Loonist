@@ -17,6 +17,9 @@ app.post('/activate', async (c) => {
   if (!token || !publicKey) {
     return c.json({ error: 'Missing token or publicKey' }, 400);
   }
+  if (typeof publicKey !== 'string' || !/^[0-9a-f]{64}$/i.test(publicKey)) {
+    return c.json({ error: 'publicKey must be a 64-character hex Ed25519 key' }, 400);
+  }
 
   // 1. Verify token exists and is pending
   const stmt = c.env.DB.prepare('SELECT * FROM Licenses WHERE token = ? AND status = "PENDING"').bind(token);
@@ -49,7 +52,9 @@ app.post('/activate', async (c) => {
     deviceId: deviceId,
     tenantId: license.tenant_id,
     expiresAt: license.expires_at,
-    features: ['ALL']
+    features: ['ALL'],
+    // Binds the license to this workstation's key; the desktop app checks it offline
+    devicePublicKey: publicKey
   };
 
   // Ensure we have a private key in the environment
@@ -128,7 +133,8 @@ app.post('/renew', async (c) => {
     deviceId: check.device.id,
     tenantId: license.tenant_id,
     expiresAt: license.expires_at,
-    features: ['ALL']
+    features: ['ALL'],
+    devicePublicKey: check.device.public_key
   };
   const signature = await signLicensePayload(payload, privateKey);
 

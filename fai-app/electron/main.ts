@@ -5,8 +5,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { DBManager } from './database';
-import { activateLicense, renewLicense, revokeLicense } from './licensing';
-import { licenseActivateSchema, licenseDeviceSchema } from './licenseProtocol';
+import { activateLicense, renewLicense, revokeLicense, verifyStoredLicense } from './licensing';
+import { licenseActivateSchema, licenseDeviceSchema, licenseVerifySchema } from './licenseProtocol';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -391,3 +391,4 @@ handleIpc('ipc-window-close', noPayload, () => {
 handleIpc('ipc-license-activate', licenseActivateSchema, ({ apiUrl, token }) => activateLicense(apiUrl, token));
 handleIpc('ipc-license-renew', licenseDeviceSchema, ({ apiUrl, deviceId }) => renewLicense(apiUrl, deviceId));
 handleIpc('ipc-license-revoke', licenseDeviceSchema, ({ apiUrl, deviceId }) => revokeLicense(apiUrl, deviceId));
+handleIpc('ipc-license-verify', licenseVerifySchema, ({ payload, signature }) => verifyStoredLicense(payload, signature));

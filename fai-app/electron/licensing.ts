@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { deviceRequestMessage } from './licenseProtocol';
+import { verifyLicense, trustedServerKeys, type SignedLicensePayload, type LicenseVerification } from './licenseTrust';
 
 /**
  * Main-process licensing client.
@@ -16,16 +17,10 @@ import { deviceRequestMessage } from './licenseProtocol';
  *   against the public key registered at activation.
  */
 
-export interface LicensePayload {
-  licenseId: string;
-  deviceId: string;
-  tenantId: string;
-  expiresAt: string;
-  features: string[];
-}
+export type LicensePayload = SignedLicensePayload;
 
 export type LicenseCallResult =
-  | { success: true; payload?: LicensePayload; signature?: string; expiresAt?: string; devicePublicKey: string; message: string }
+  | { success: true; payload?: LicensePayload; signature?: string; expiresAt?: string; devicePublicKey: string; verification?: LicenseVerification; message: string }
   | { success: false; message: string };
 
 const REQUEST_TIMEOUT_MS = 15000;
@@ -88,27 +83,52 @@ function serverError(data: Record<string, unknown>, status: number, fallback: st
   return { success: false, message: error || `${fallback} (HTTP ${status})` };
 }
 
-function isPayload(value: unknown): value is LicensePayload {
-  const v = value as LicensePayload;
-  return !!v && typeof v.licenseId === 'string' && typeof v.deviceId === 'string' &&
-    typeof v.tenantId === 'string' && typeof v.expiresAt === 'string' && Array.isArray(v.features);
+function trustedKeys(): string[] {
+  return trustedServerKeys(app.isPackaged);
+}
+
+/**
+ * Verifies a license stored by the renderer: signature by a trusted licensing server,
+ * bound to this workstation's key, and not expired. Works fully offline.
+ */
+export function verifyStoredLicense(payload: unknown, signature: unknown): LicenseVerification {
+  const { publicKeyHex } = getOrCreateDeviceKey();
+  return verifyLicense({ payload, signature }, trustedKeys(), publicKeyHex);
+}
+
+/**
+ * Checks a license freshly returned by the server before the app accepts it.
+ */
+function acceptServerLicense(
+  data: Record<string, unknown>,
+  publicKeyHex: string,
+  message: string
+): LicenseCallResult {
+  const verification = verifyLicense({ payload: data.payload, signature: data.signature }, trustedKeys(), publicKeyHex);
+  if (verification.verdict !== 'ACTIVE') {
+    return { success: false, message: `The license returned by the server was rejected: ${verification.message}` };
+  }
+  return {
+    success: true,
+    payload: data.payload as LicensePayload,
+    signature: data.signature as string,
+    expiresAt: verification.expiresAt ?? undefined,
+    devicePublicKey: publicKeyHex,
+    verification,
+    message
+  };
 }
 
 export async function activateLicense(apiUrl: string, token: string): Promise<LicenseCallResult> {
+  // Refuse before the server consumes the single-use token if this build could never accept the result
+  if (trustedKeys().length === 0) {
+    return { success: false, message: 'This build has no licensing server key configured, so it cannot accept a license.' };
+  }
   const { publicKeyHex } = getOrCreateDeviceKey();
   try {
     const { ok, status, data } = await postJson(`${apiUrl}/activate`, { token, publicKey: publicKeyHex });
     if (!ok) return serverError(data, status, 'Activation failed');
-    if (!isPayload(data.payload) || typeof data.signature !== 'string') {
-      return { success: false, message: 'The licensing server returned an unexpected response.' };
-    }
-    return {
-      success: true,
-      payload: data.payload,
-      signature: data.signature,
-      devicePublicKey: publicKeyHex,
-      message: 'License activated and bound to this workstation.'
-    };
+    return acceptServerLicense(data, publicKeyHex, 'License activated, verified and bound to this workstation.');
   } catch (err) {
     return networkError(apiUrl, err);
   }
@@ -126,14 +146,7 @@ export async function renewLicense(apiUrl: string, deviceId: string): Promise<Li
   try {
     const { ok, status, data, publicKeyHex } = await signedDeviceRequest('renew', apiUrl, deviceId);
     if (!ok) return serverError(data, status, 'Renewal failed');
-    return {
-      success: true,
-      payload: isPayload(data.payload) ? data.payload : undefined,
-      signature: typeof data.signature === 'string' ? data.signature : undefined,
-      expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : undefined,
-      devicePublicKey: publicKeyHex,
-      message: 'License refreshed from the server.'
-    };
+    return acceptServerLicense(data, publicKeyHex, 'License refreshed and verified.');
   } catch (err) {
     return networkError(apiUrl, err);
   }
