@@ -104,7 +104,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * `sandbox` is enabled at the OS level.
 * All IPC communication passes through explicit allowlisted channels validated with runtime **Zod schemas**.
 * Generic filesystem execution or arbitrary shell commands from the renderer are strictly forbidden.
-* **Sprint 7 window-control channels** (`ipc-window-minimize/maximize/restore/is-maximized/close`, `ipc-show-message-box`, `ipc-exit-app`) are allowlisted and sender-validated; adding Zod payload schemas to them is scheduled for Sprint 8.
+* **Single validated entry point (Sprint 8):** every channel is registered through `handleIpc(channel, zodSchema, handler)`, which checks the sender and validates the payload; `ipcMain.handle` is not used anywhere else.
 
 ### 3.2 Local Database (SQLite) & Undo/Redo Engine
 * **Engine:** `better-sqlite3` (Synchronous, ultra-fast C/C++ native bindings).
@@ -154,7 +154,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * **Edge API:** Cloudflare Workers built with Hono.js.
 * **Database:** Cloudflare D1 serverless ledger mapping Tenants, Devices, and Licenses.
 * **Cryptography:** Issues Ed25519 signed license certificates. The desktop app verifies the mathematical signature locally against an embedded public key. Supports 30-day offline grace periods and completely air-gapped USB activations.
-* **Desktop Client (Sprint 7):** `CloudflareLicenseClient` in the renderer generates the device Ed25519 keypair (`@noble/curves`), calls `/activate`, `/renew` and `/revoke`, verifies signed payloads offline, and exports offline certificates. Surfaced in **Options → Licensing**. Sprint 8 hardening: allow the licensing origin in the CSP `connect-src` and move the device private key from `localStorage` to OS-protected storage.
+* **Desktop Client (Sprint 8):** licensing runs in the Electron main process (`electron/licensing.ts`). The device Ed25519 key is created there and stored encrypted with `safeStorage`; it never reaches the renderer. `/renew` and `/revoke` requests are signed with it and verified by the Worker against the public key registered at activation. The renderer reaches it only through Zod-validated IPC, so its CSP stays closed to external hosts. Surfaced in **Options → Licensing**.
 
 ### 3.8 Industrial CAD User Interface & Theme Architecture
 * **Authentic CAD Monochromatic Palette:**
@@ -169,7 +169,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
   - Keeps active sheet rasterized in GPU memory while offloading inactive pages to maintain a strict $<1.5\text{GB}$ memory envelope.
 
 ### 3.9 Unified Verification & Test Harness
-* **Master Test Suite:** 24 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, prose sentence exclusion, AS9102 Form 1 validation, project settings, help content, chamfer and compound callouts, metric unit detection, sheet scope, double-click-to-pan, and manual marquee rejection, and custom Excel templates.
+* **Master Test Suite:** 25 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, prose sentence exclusion, AS9102 Form 1 validation, project settings, help content, chamfer and compound callouts, metric unit detection, sheet scope, double-click-to-pan, and manual marquee rejection, custom Excel templates, and licensing security.
 * **Execution:** Run via `npm test` (`scripts/run_all_feature_tests.ts`) with 100% pass rate requirement across all release branches.
 
 ### 3.10 Configuration & Knowledge Layer (Sprint 7)

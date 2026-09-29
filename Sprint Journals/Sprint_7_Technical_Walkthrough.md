@@ -219,4 +219,4 @@ Execution Time:        68.03s
 | **6** | ISO 2768-m helper applies ±0.8 mm to every size above 400 mm; the standard specifies ±1.2 mm for 1000–2000 mm and ±2 mm for 2000–4000 mm. | [`toleranceEngine.ts`](../fai-app/src/services/ai/toleranceEngine.ts) | Only affects very large metric parts. |
 | **7** | 10 oxlint warnings. | see §5 | Cleanup. |
 
-Sprint 8 (Enterprise Release, Security & CI/CD) picks up items 1–3 alongside the signed installer pipeline.
+Items 1–3 were resolved in Sprint 8 — see the [Sprint 8 journal](./Sprint_8_Technical_Walkthrough.md).

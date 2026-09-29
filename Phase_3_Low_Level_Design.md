@@ -932,7 +932,7 @@ The 35 Low-Level Design subsystems are organized into an 8-sprint iterative engi
 | **Sprint 5** | **Measurement Compliance, High-Density CAD Table & Multi-Artifact Export** | §20.3, §20.4, §22.1, §22.2, §37 | • Real-time physical measurement calculation engine with bilateral/unilateral/limit tolerance bands (`MeasurementEngine`)<br>• High-density CAD Characteristics Table with frozen sticky `#ID` and `#Cha` columns (`TableManager`)<br>• Neutral dark mode palette (`#121212`, `#1e1e1e`, `#2a2a2a`) compliant with professional CAD workstations (`theme.css`)<br>• High-resolution marked blueprint vector PDF exporter burning vector badges & leader lines (`MarkedPdfExporter`)<br>• Zero-dependency programmatic AS9102 Rev B/C multi-sheet Excel exporter for Forms 1, 2, 3 (`As9102ExcelExporter`)<br>• Cryptographic SHA-256 tamper-evident audit ledger with sequential hash verification (`AuditLedgerService`)<br>• Master automated test suite (12 suites, 33 tests, 100% clean pass) | ✅ **Complete** |
 | **Sprint 6** | **Hybrid Vision OCR Pipeline, Canvas Pre-Processing & Prose Exclusion** | §17.5, §38 | • 100% offline Tesseract.js WebAssembly OCR worker pool with engineering character whitelist<br>• Canvas image pre-processing engine with Otsu's adaptive binarization ($\sigma_B^2(t)$ variance maximization)<br>• Deskewing angle detection ($-4^\circ$ to $+4^\circ$) via projection profile variance and dark blueprint auto-inversion<br>• Dual-orientation passes ($0^\circ$ & $90^\circ$) for vertical blueprint leader dimensions<br>• Domain-specific CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`) with confidence telemetry<br>• Prose & Tutorial Sentence Exclusion Engine preventing book disclaimer and tutorial sentence ballooning<br>• Step 14 residual word validation and chamfer priority resolution<br>• Interactive optical marquee snip-to-capture tool (`box-capture`) and HUD provenance badges<br>• Unified master test suite expanded to 14 feature test suites with 100% pass rate | ✅ **Complete** |
 | **Sprint 7** | **Settings, Help Center, Licensing Client & Industrial Inspection Standards** | §39 | • Per-project `ProjectSettings` (tolerance presets, units, skip rules, numbering, AS9102 revision, sampling, watermark) persisted in `.loonist`<br>• `ApplicationOptions` store (Workspace, Master Data, Templates, Net-Inspect, ITAR/Privacy, Licensing)<br>• In-app `CloudflareLicenseClient` (Ed25519 keypair, offline verification, activate/renew/revoke, offline certificate)<br>• Help Center (Quick Start, 14-symbol GD&T library, AS9102 guide, hotkeys, diagnostics)<br>• ASME Y14.5 § 1.8.16 chamfer parsing & compound callout deconstruction (Algorithm 13)<br>• Drawing-unit detection & ISO 2768-m size bands (Algorithm 14)<br>• Manual marquee boilerplate rejection, balloon action popover, sheet scope, double-click-to-pan, window-control IPC<br>• Custom Excel FAIR templates with `{{placeholder}}` filling (§39.7)<br>• Unified master test suite expanded to 24 feature test suites with 100% pass rate | ✅ **Complete** |
-| **Sprint 8** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• Licensing hardening: CSP `connect-src` for the licensing API, device private key in `safeStorage`, Zod validation on Sprint 7 IPC channels<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
+| **Sprint 8** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• ✅ Licensing hardening (§40): main-process licensing, `safeStorage` device key, signed renew/revoke, Zod validation on every IPC channel<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
 
 ---
 
@@ -1044,7 +1044,7 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
 - **Offline verification:** `verifySignatureOffline()` with zero network access; drives `LicenseStatus` (`ACTIVE`, `OFFLINE_LEASE`, `UNLICENSED`, `REVOKED`, `EXPIRED`) and days remaining.
 - **Online calls:** `POST {apiUrl}/activate`, `/renew`, `/revoke` — matching the Sprint 1 Hono Worker routes in `cloudflare-licensing-api/src/index.ts`. Default `apiUrl = https://licensing.loonist.com`.
 - **Air-gapped:** `exportOfflineCertificate()` emits a portable certificate with an `exportedAt` timestamp.
-- **Open defects (Sprint 8):** (1) the Electron CSP `connect-src` does not include the licensing origin, so renderer `fetch` is blocked in the packaged app; (2) `devicePrivateKeyHex` is persisted in plain text in `localStorage` and should move behind the main process using `safeStorage`.
+- **Superseded in Sprint 8 (§40):** network calls and the device key moved to the main process; see §40.
 
 ### 39.4 Electron IPC Additions (`electron/main.ts`, `electron/preload.ts`)
 | Channel | Payload | Returns | Guard |
@@ -1057,7 +1057,7 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
 | `ipc-window-is-maximized` | — | `{ isMaximized }` | `validateSender` |
 | `ipc-window-close` | — | `{ success }` | `validateSender` |
 
-These channels are allowlisted but do not yet use Zod payload schemas as required by §24 IPC Security; `ipc-show-message-box` is the only one that takes a payload. Tracked for Sprint 8.
+Since Sprint 8 these channels, like all others, are registered through `handleIpc()` with Zod schemas (§40.3).
 
 ### 39.5 Parser & Tolerance Changes
 - **Evaluation order in `GdtParser.parseCallout()`:** prose rejection → **chamfer (early)** → quantity multipliers → **compound deconstruction** → GD&T / hole / thread rules → chamfer fallback → untoleranced fallback + residual word check. Full specification: `Algorithms/13_Chamfer_And_Compound_Callout_Deconstruction.md`.
@@ -1080,6 +1080,39 @@ These channels are allowlisted but do not yet use Zod payload schemas as require
 - **`inspectTemplate(bytes)`:** unzip → resolve sheets via `workbook.xml` + rels → read shared strings (rich-text runs concatenated) → collect tokens per row → `{ isValid, projectTokens, characteristicTokens, unknownTokens, repeatRowSheets, error? }`.
 - **`fillExcelTemplate(bytes, projectValues, characteristicRows)`:** per sheet, first row containing `{{char.` is cloned once per characteristic (n = 0 removes it); cloned and following rows get new `r` attributes on `<row>` and `<c>`; token cells become `inlineStr` (style `s` kept) or a numeric `<v>` when the cell is a single numeric placeholder; `mergeCells` (row-local merges duplicated), `dimension`, `conditionalFormatting` and `dataValidation` ranges shifted; `.xltx` content type rewritten to workbook; `calcPr fullCalcOnLoad="1"` set and `calcChain.xml` removed.
 - **Not handled:** formula text and defined names referencing rows below the repeat row; shared-formula masters inside the repeat row.
+
+---
+
+## 40. Licensing Security Hardening (Sprint 8)
+
+### 40.1 Device key (`electron/licensing.ts`)
+- `getOrCreateDeviceKey()`: requires `safeStorage.isEncryptionAvailable()`; reads `<userData>/license/device-key.bin`, decrypts with `safeStorage.decryptString()`, or generates `ed25519.utils.randomSecretKey()` and writes `safeStorage.encryptString(hex)` (mode `0600`). Returns the public key hex and the secret key bytes to main-process callers only.
+- The key is never sent over IPC. `LicensingSettings.devicePrivateKeyHex` was removed; `sanitizeLicensing()` drops it from stored options and rewrites `localStorage` immediately.
+
+### 40.2 Protocol (`electron/licenseProtocol.ts`, Worker `src/index.ts`)
+| Endpoint | Request body | Authentication | Response |
+| :--- | :--- | :--- | :--- |
+| `POST /activate` | `{ token, publicKey }` | single-use token | `{ payload, signature }` |
+| `POST /renew` | `{ deviceId, timestamp, signature }` | Ed25519 over `LOONIST:renew:<deviceId>:<timestamp>` with the registered device key; `|now − timestamp| ≤ 5 min` | `{ payload, signature, expiresAt }` re-signed from `Licenses.expires_at`; `RENEW` audit entry |
+| `POST /revoke` | `{ deviceId, timestamp, signature }` | as above with `revoke` | `{ message }`; device and licenses set `REVOKED` |
+
+Errors: 400 missing fields, 401 bad/stale signature, 403 inactive device, expired or missing license.
+URL rule (`licenseApiUrlSchema`): `https://`, or `http://localhost` / `127.0.0.1`; trailing slashes stripped. Requests time out after 15 s.
+
+### 40.3 IPC (`electron/main.ts`)
+- `handleIpc(channel, schema, handler)` = `validateSender()` → `schema.safeParse(payload)` → handler. It is the only caller of `ipcMain.handle`.
+- Schemas: `noPayload` (`z.undefined()`) for dialogs and window controls; `getProjectSchema`; `loadBlueprintPathSchema`; `saveProjectFileSchema`; `messageBoxSchema`; `licenseActivateSchema`; `licenseDeviceSchema`.
+- New channels: `ipc-license-activate`, `ipc-license-renew`, `ipc-license-revoke`.
+
+### 40.4 Renderer & persistence
+- `CloudflareLicenseClient` keeps `validateExpiry()`, `verifySignatureOffline()` and `exportOfflineCertificate()`; activate/renew/revoke forward over IPC.
+- `LicensingTab` writes results through `applicationOptionsActions.updateLicensing()` immediately, independent of the Options dialog's Save/Cancel.
+- Default licensing state is `UNLICENSED`; the pre-Sprint 8 demo license (placeholder signature) is cleared on load.
+- Configuration profile export contains only `licensing.apiUrl`; import keeps this workstation's license.
+
+### 40.5 Open items
+- Embed the Worker's Ed25519 public key and call `verifySignatureOffline()` on start-up.
+- Feature gating by license state is not implemented.
 
 ---
 

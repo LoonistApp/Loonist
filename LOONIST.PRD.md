@@ -71,7 +71,7 @@
 1. **Activation (One-Time / Air-Gapped):**
    * *Connected Mode:* User enters token $\to$ Electron queries Cloudflare Edge API $\to$ receives Ed25519 signed license bound to device public key.
    * *Air-Gapped Mode:* User exports offline activation file via USB $\to$ activates via web portal $\to$ imports cryptographic license certificate.
-   * *In-App (Sprint 7):* Activation, renewal, revocation, and offline certificate export live in **Options → Licensing**.
+   * *In-App (Sprint 7):* Activation, refresh, release, and offline certificate export live in **Options → Licensing**. Since Sprint 8 the requests run in the Electron main process and renew/release are signed with the device key.
 2. **Document Ingestion (Multi-Tab Workspace):**
    * User opens local PDF blueprints. Multi-document session manager isolates viewports, zoom levels, rotation, and characteristics across active tabs.
 3. **Dual-Engine Characteristic Extraction ("Auto Balloon"):**
@@ -199,9 +199,11 @@
 - [x] (Sprint 7) Manual marquee rejection of non-inspectable prose and administrative notes.
 - [x] (Sprint 7) Balloon action popover (shape, colour, split, reset, delete), current/all-sheet scope, quick delete, double-click-to-pan, unified Export dialog (PDF + XLSX/CSV).
 - [x] (Sprint 7) Custom Excel FAIR templates: upload a customer `.xlsx` with `{{placeholders}}`; export fills it while preserving formatting.
-- [x] (Sprint 7) Unified master test suite expanded to 24 feature test suites with 100% clean pass rate.
-- [ ] (Sprint 8) Allow the licensing API origin in the Electron CSP `connect-src` so in-app activation works in the packaged app.
-- [ ] (Sprint 8) Move the device Ed25519 private key from `localStorage` to OS-protected storage (Electron `safeStorage` / keychain).
-- [ ] (Sprint 8) Zod payload validation on all Sprint 7 IPC channels (window controls, message box, exit) to restore the 100% IPC validation guardrail.
+- [x] (Sprint 7) Unified master test suite expanded to 24 feature test suites with 100% clean pass rate (25 with the Sprint 8 licensing suite).
+- [x] (Sprint 8) In-app activation works in the packaged app: licensing calls run in the Electron main process, so the renderer CSP stays closed to external hosts.
+- [x] (Sprint 8) Device Ed25519 private key held only in the main process, encrypted with Electron `safeStorage`; legacy plain-text keys removed on load.
+- [x] (Sprint 8) Zod payload validation on every IPC channel through a single validated handler (100% IPC validation guardrail restored).
+- [x] (Sprint 8) Renew and revoke requests signed with the device key and verified by the Worker; renew re-signs the license from D1.
+- [ ] (Sprint 8) Embed the licensing server public key and verify stored licenses offline on start-up.
 - [ ] (Sprint 8) Wire remaining Project Settings into engines (balloon prefix, leading zeros, multiplier behaviour, OCR review floor, auto-balloon notes, auto zones, AS9102 revision) and implement the Net-Inspect CSV exporter.
 - [ ] (Sprint 8) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.

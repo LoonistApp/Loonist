@@ -45,14 +45,14 @@
 | **Sprint 5** | 📄 [`Sprint_5_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_5_Technical_Walkthrough.md) | ✅ Complete | Physical measurement engine (Bilateral/Unilateral/Limit), high-density frozen sticky CAD table, Vector PDF exporter (`pdf-lib`), certified AS9102 Excel exporter, SHA-256 audit ledger, neutral dark theme. |
 | **Sprint 6** | 📄 [`Sprint_6_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_6_Technical_Walkthrough.md) | ✅ Complete | Hybrid dual-path vision pipeline, Canvas pre-processing (Otsu adaptive binarization, deskewing, blueprint inversion), offline Tesseract WASM OCR, CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`), and Prose & Tutorial Sentence Exclusion Engine. |
 | **Sprint 7** | 📄 [`Sprint_7_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_7_Technical_Walkthrough.md) | ✅ Complete | Per-project Settings, Application Options (Master Data, Templates, Net-Inspect, ITAR, Licensing), in-app Ed25519 licensing client, Help Center, ASME Y14.5 chamfer & compound callout deconstruction, drawing-unit detection + ISO 2768-m, marquee boilerplate rejection, balloon action popover, sheet scope. |
-| **Sprint 8** | — | 📋 Planned | Signed Windows installer CI/CD, EV code signing, licensing CSP + key storage hardening, IPC Zod coverage for Sprint 7 channels. |
+| **Sprint 8** | 📄 [`Sprint_8_Technical_Walkthrough.md`](./Sprint%20Journals/Sprint_8_Technical_Walkthrough.md) | 🚧 In Progress | ✅ Licensing hardening: main-process licensing, `safeStorage` device key, signed renew/revoke, Zod on every IPC channel. Open: signed Windows installer CI/CD, EV code signing. |
 
 ---
 
 ## 📊 Codebase & Verification Metrics
 
 - **Total Production Codebase:** **28,000+ Lines of Code** across 98 TypeScript/TSX/CSS files in `src/`, `scripts/`, and `electron/`.
-- **Automated Verification Harness:** **24 Test Suites** running via `scripts/run_all_feature_tests.ts` (`npm test`) with **100% clean pass rate**, zero TypeScript compilation errors (`tsc -b`), and zero `oxlint` errors.
+- **Automated Verification Harness:** **25 Test Suites** running via `scripts/run_all_feature_tests.ts` (`npm test`) with **100% clean pass rate**, zero TypeScript compilation errors (`tsc -b`), and zero `oxlint` errors.
 - **Core Engine Modules:**
   - `src/services/ai/ocrEngineService.ts` (100% offline WebAssembly deep learning OCR & CAD symbol restoration)
   - `src/services/ai/imagePreprocessingService.ts` (Otsu adaptive binarization, deskewing, dark blueprint inversion)
