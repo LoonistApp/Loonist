@@ -104,6 +104,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * `sandbox` is enabled at the OS level.
 * All IPC communication passes through explicit allowlisted channels validated with runtime **Zod schemas**.
 * Generic filesystem execution or arbitrary shell commands from the renderer are strictly forbidden.
+* **Sprint 7 window-control channels** (`ipc-window-minimize/maximize/restore/is-maximized/close`, `ipc-show-message-box`, `ipc-exit-app`) are allowlisted and sender-validated; adding Zod payload schemas to them is scheduled for Sprint 8.
 
 ### 3.2 Local Database (SQLite) & Undo/Redo Engine
 * **Engine:** `better-sqlite3` (Synchronous, ultra-fast C/C++ native bindings).
@@ -153,6 +154,7 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
 * **Edge API:** Cloudflare Workers built with Hono.js.
 * **Database:** Cloudflare D1 serverless ledger mapping Tenants, Devices, and Licenses.
 * **Cryptography:** Issues Ed25519 signed license certificates. The desktop app verifies the mathematical signature locally against an embedded public key. Supports 30-day offline grace periods and completely air-gapped USB activations.
+* **Desktop Client (Sprint 7):** `CloudflareLicenseClient` in the renderer generates the device Ed25519 keypair (`@noble/curves`), calls `/activate`, `/renew` and `/revoke`, verifies signed payloads offline, and exports offline certificates. Surfaced in **Options → Licensing**. Sprint 8 hardening: allow the licensing origin in the CSP `connect-src` and move the device private key from `localStorage` to OS-protected storage.
 
 ### 3.8 Industrial CAD User Interface & Theme Architecture
 * **Authentic CAD Monochromatic Palette:**
@@ -167,8 +169,14 @@ To protect against malicious PDF injection attacks or XSS in the renderer:
   - Keeps active sheet rasterized in GPU memory while offloading inactive pages to maintain a strict $<1.5\text{GB}$ memory envelope.
 
 ### 3.9 Unified Verification & Test Harness
-* **Master Test Suite:** 14 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, and prose sentence exclusion.
+* **Master Test Suite:** 23 automated end-to-end feature test suites covering AI extraction, spatial placement, PDF rendering, audit ledger, theme persistence, Otsu adaptive binarization, deskewing, CAD OCR normalization, prose sentence exclusion, AS9102 Form 1 validation, project settings, help content, chamfer and compound callouts, metric unit detection, sheet scope, double-click-to-pan, and manual marquee rejection.
 * **Execution:** Run via `npm test` (`scripts/run_all_feature_tests.ts`) with 100% pass rate requirement across all release branches.
+
+### 3.10 Configuration & Knowledge Layer (Sprint 7)
+* **Project Settings (per `.loonist` project):** Tolerance preset, units, skip rules for reference/basic dimensions, balloon numbering, AS9102 revision, ANSI/ASQ Z1.4 sampling, and security watermark. Consumed by the extraction engine, viewport, and marked PDF exporter.
+* **Application Options (per installation):** Workspace ergonomics, factory Master Data, AS9102 templates, Net-Inspect field mapping, ITAR/Privacy, and Licensing — held in a reactive store persisted locally (`loonist_app_options_v1`).
+* **Help Center:** Static, offline knowledge base (`helpData.ts`) powering Quick Start, the 14-symbol ASME Y14.5 GD&T library, the AS9102 Form 1/2/3 guide, hotkeys, diagnostics, and About — no network access required.
+* **Drafting-Standards Engine Additions:** ASME Y14.5 § 1.8.16 chamfers and compound callout deconstruction ([Algorithm 13](./Algorithms/13_Chamfer_And_Compound_Callout_Deconstruction.md)); note-driven unit detection with ISO 2768-m size bands ([Algorithm 14](./Algorithms/14_Drawing_Unit_Detection_And_ISO_2768.md)).
 
 ---
 

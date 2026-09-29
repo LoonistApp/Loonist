@@ -919,9 +919,9 @@ If a customer encounters a fatal error, they can generate a Diagnostic Bundle fo
 
 ---
 
-## 36. 6-Sprint Engineering Roadmap & LLD Section Mapping
+## 36. 8-Sprint Engineering Roadmap & LLD Section Mapping
 
-The 35 Low-Level Design subsystems are organized into a strict 6-sprint iterative engineering execution plan:
+The 35 Low-Level Design subsystems are organized into an 8-sprint iterative engineering execution plan (Sprint 7 was inserted for configuration, licensing client and drafting-standards work; release engineering moved to Sprint 8):
 
 | Sprint | Engineering Focus | Primary LLD Sections Covered | Target Deliverables | Status |
 | :---: | :--- | :--- | :--- | :---: |
@@ -931,7 +931,8 @@ The 35 Low-Level Design subsystems are organized into a strict 6-sprint iterativ
 | **Sprint 4** | **Dual-Layer Blueprint Editor & Spatial Markup** | §17.6, §17.7, §20.2 | • Spatial R-Tree collision-avoidance auto-balloon placement (`RTreePlacementEngine`)<br>• Dynamic vector leader line calculation with perimeter anchoring & arrowheads (`LeaderLineCalculator`)<br>• MultiDocumentSessionManager supporting cross-sheet tab state and memory isolation<br>• Antigravity dual-axis draggable splitters with smooth horizontal/vertical panel resizing<br>• Self-contained `.loonist` package save, auto-save, and recovery pipeline | ✅ **Complete** |
 | **Sprint 5** | **Measurement Compliance, High-Density CAD Table & Multi-Artifact Export** | §20.3, §20.4, §22.1, §22.2, §37 | • Real-time physical measurement calculation engine with bilateral/unilateral/limit tolerance bands (`MeasurementEngine`)<br>• High-density CAD Characteristics Table with frozen sticky `#ID` and `#Cha` columns (`TableManager`)<br>• Neutral dark mode palette (`#121212`, `#1e1e1e`, `#2a2a2a`) compliant with professional CAD workstations (`theme.css`)<br>• High-resolution marked blueprint vector PDF exporter burning vector badges & leader lines (`MarkedPdfExporter`)<br>• Zero-dependency programmatic AS9102 Rev B/C multi-sheet Excel exporter for Forms 1, 2, 3 (`As9102ExcelExporter`)<br>• Cryptographic SHA-256 tamper-evident audit ledger with sequential hash verification (`AuditLedgerService`)<br>• Master automated test suite (12 suites, 33 tests, 100% clean pass) | ✅ **Complete** |
 | **Sprint 6** | **Hybrid Vision OCR Pipeline, Canvas Pre-Processing & Prose Exclusion** | §17.5, §38 | • 100% offline Tesseract.js WebAssembly OCR worker pool with engineering character whitelist<br>• Canvas image pre-processing engine with Otsu's adaptive binarization ($\sigma_B^2(t)$ variance maximization)<br>• Deskewing angle detection ($-4^\circ$ to $+4^\circ$) via projection profile variance and dark blueprint auto-inversion<br>• Dual-orientation passes ($0^\circ$ & $90^\circ$) for vertical blueprint leader dimensions<br>• Domain-specific CAD symbol normalizer (`Ø`, `±`, `°`, `↧`, `⌴`, `⌵`) with confidence telemetry<br>• Prose & Tutorial Sentence Exclusion Engine preventing book disclaimer and tutorial sentence ballooning<br>• Step 14 residual word validation and chamfer priority resolution<br>• Interactive optical marquee snip-to-capture tool (`box-capture`) and HUD provenance badges<br>• Unified master test suite expanded to 14 feature test suites with 100% pass rate | ✅ **Complete** |
-| **Sprint 7** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
+| **Sprint 7** | **Settings, Help Center, Licensing Client & Industrial Inspection Standards** | §39 | • Per-project `ProjectSettings` (tolerance presets, units, skip rules, numbering, AS9102 revision, sampling, watermark) persisted in `.loonist`<br>• `ApplicationOptions` store (Workspace, Master Data, Templates, Net-Inspect, ITAR/Privacy, Licensing)<br>• In-app `CloudflareLicenseClient` (Ed25519 keypair, offline verification, activate/renew/revoke, offline certificate)<br>• Help Center (Quick Start, 14-symbol GD&T library, AS9102 guide, hotkeys, diagnostics)<br>• ASME Y14.5 § 1.8.16 chamfer parsing & compound callout deconstruction (Algorithm 13)<br>• Drawing-unit detection & ISO 2768-m size bands (Algorithm 14)<br>• Manual marquee boilerplate rejection, balloon action popover, sheet scope, double-click-to-pan, window-control IPC<br>• Unified master test suite expanded to 23 feature test suites with 100% pass rate | ✅ **Complete** |
+| **Sprint 8** | **Enterprise Release, Security & CI/CD** | §4, §10, §11, §26, §27, §28, §31, §32 | • Automated GitHub Actions build pipeline for Windows installer (`.exe`)<br>• Sectigo EV Code Signing with RFC 3161 timestamping<br>• 4-Factor multi-clock rollback detection and air-gapped USB licensing<br>• Staged auto-updater with Ed25519 manifest verification and rollback policy<br>• Licensing hardening: CSP `connect-src` for the licensing API, device private key in `safeStorage`, Zod validation on Sprint 7 IPC channels<br>• Diagnostic bundle packager and customer-data redacted structured logging | 📋 *Planned* |
 
 ---
 
@@ -1021,6 +1022,57 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
   After stripping numbers, decimals, fractions, drafting symbols, and whitelisted CAD modifiers (`TYP`, `MAX`, `MIN`, `REF`, `THRU`, `DP`, `BORE`, `CBORE`, `CSINK`, `CHAMFER`, `PLCS`, `STOCK`, `WALL`, `FLAT`, `OD`, `ID`), any residual English words $\ge 3$ characters cause immediate rejection (`nominal: null`).
 - **Pre/Post-Clustering Filter Integration:**
   Excludes prose in `candidateStrings` and skips prose clusters prior to characteristic generation.
+
+---
+
+## 39. Configuration, Licensing Client & Industrial Standards Subsystem Specification (Sprint 7)
+
+### 39.1 Project Settings (`types/settings.ts`, `ProjectSettingsModal.tsx`)
+- **Schema groups:** Blueprint & Tolerances (`units`, `tolerancePreset`, `tolerances`), Extraction Behaviour (`multiplierBehavior`, `autoBalloonNotes`, `autoDetectZones`, `skipReferenceDimensions`, `skipBasicDimensions`, `ocrConfidenceThreshold`), Numbering (`startingNumber`, `incrementStep`, `balloonPrefix`, `leadingZeros`, `subDelimiter`), Compliance & Export (`as9102Revision`, `exportFormat`, `watermark`, `highResPdfExport`, `samplingStandard`, `aqlLevel`, `inspectionLevel`).
+- **Presets:** `asme-precision` (default), `asme-commercial`, `sheet-metal-inch`, `iso-fine`, `iso-medium`, `sheet-metal-metric`, `custom`.
+- **Consumers:** `AiExtractionService.extractCharacteristics(doc, sheet, settings)` reads `units`, `tolerances`, `startingNumber`, `incrementStep`, `subDelimiter`, `skipReferenceDimensions`, `skipBasicDimensions`. `ViewportCanvas` and `MarkedPdfExporter` read `watermark`.
+- **Persistence:** `ProjectArchiveService` serialises `settings?: ProjectSettings` inside the `.loonist` package.
+- **Not yet consumed (Sprint 8):** `balloonPrefix`, `leadingZeros`, `multiplierBehavior`, `ocrConfidenceThreshold`, `autoBalloonNotes`, `autoDetectZones`, `as9102Revision`, `exportFormat = 'NET_INSPECT'`, `highResPdfExport`.
+
+### 39.2 Application Options Store (`types/applicationOptions.ts`, `stores/useApplicationOptionsStore.ts`)
+- Module-level reactive state exposed through `useApplicationOptions()`; persisted to `localStorage` key `loonist_app_options_v1`, falling back to `DEFAULT_APPLICATION_OPTIONS` when storage is empty or unreadable.
+- **Sections:** `workspace` (wheel zoom inversion, middle-click pan, canvas background, decimal separator, table columns & preset views), `masterData` (inspection methods, manufacturing operations, classifications, custom fields), `templates`, `netInspect` (field mappings), `licensing`, `itarPrivacy`.
+- **Consumers:** `App.tsx` (canvas background), `ViewportCanvas.tsx`, `TableManager.tsx` (columns), `LeftPropertiesDock.tsx` (inspection methods, decimal formatting via `utils/numberFormat.ts`).
+
+### 39.3 Licensing Client (`services/license/licenseClient.ts`)
+- **Keys:** `ed25519.utils.randomSecretKey()` → `getPublicKey()`; hex-encoded device keypair.
+- **Offline verification:** `verifySignatureOffline()` with zero network access; drives `LicenseStatus` (`ACTIVE`, `OFFLINE_LEASE`, `UNLICENSED`, `REVOKED`, `EXPIRED`) and days remaining.
+- **Online calls:** `POST {apiUrl}/activate`, `/renew`, `/revoke` — matching the Sprint 1 Hono Worker routes in `cloudflare-licensing-api/src/index.ts`. Default `apiUrl = https://licensing.loonist.com`.
+- **Air-gapped:** `exportOfflineCertificate()` emits a portable certificate with an `exportedAt` timestamp.
+- **Open defects (Sprint 8):** (1) the Electron CSP `connect-src` does not include the licensing origin, so renderer `fetch` is blocked in the packaged app; (2) `devicePrivateKeyHex` is persisted in plain text in `localStorage` and should move behind the main process using `safeStorage`.
+
+### 39.4 Electron IPC Additions (`electron/main.ts`, `electron/preload.ts`)
+| Channel | Payload | Returns | Guard |
+| :--- | :--- | :--- | :--- |
+| `ipc-show-message-box` | `{ message, title? }` | `{ success }` | `validateSender` |
+| `ipc-exit-app` | — | `{ success }` | `validateSender` |
+| `ipc-window-minimize` | — | `{ success }` | `validateSender` |
+| `ipc-window-maximize` | — (toggles) | `{ isMaximized }` | `validateSender` |
+| `ipc-window-restore` | — | `{ isMaximized: false }` | `validateSender` |
+| `ipc-window-is-maximized` | — | `{ isMaximized }` | `validateSender` |
+| `ipc-window-close` | — | `{ success }` | `validateSender` |
+
+These channels are allowlisted but do not yet use Zod payload schemas as required by §24 IPC Security; `ipc-show-message-box` is the only one that takes a payload. Tracked for Sprint 8.
+
+### 39.5 Parser & Tolerance Changes
+- **Evaluation order in `GdtParser.parseCallout()`:** prose rejection → **chamfer (early)** → quantity multipliers → **compound deconstruction** → GD&T / hole / thread rules → chamfer fallback → untoleranced fallback + residual word check. Full specification: `Algorithms/13_Chamfer_And_Compound_Callout_Deconstruction.md`.
+- **`isPrimaryNumberAngular()`** prevents trailing countersink angles from converting a primary diameter to degrees.
+- **Sub-features:** `DeconstructedSubFeature[]` with `isSecondarySub`; secondaries get `skipBalloonRender = true` so only one balloon renders per leader while all rows remain in Form 3 and exports.
+- **Units:** `ToleranceEngine.detectDrawingUnits()` now returns `'in' | 'mm' | null`; precedence notes → project units → settings → `'in'`. **ISO 2768-m** size bands apply to integer mm nominals via `resolveMetricIso2768Tolerance()` (bands above 1000 mm not yet implemented). Full specification: `Algorithms/14_Drawing_Unit_Detection_And_ISO_2768.md`.
+- **Extraction:** `isCoverOrIntroductorySheet()` skips cover/prose-only sheets; fused standalone numbers (`65 35`) are split; single-sheet re-extraction preserves characteristics on other sheets and re-sorts by `(sheetNumber, itemNumber)`.
+- **Manual capture:** `AiExtractionService.captureBox()` throws a descriptive ASME Y14.5 / AS9102 error when the captured text is prose or boilerplate; blank geometry captures remain allowed.
+
+### 39.6 Placement, Rendering & Export
+- **`SpatialPlacementService`:** orientation-aware candidate generation — horizontal dimensions prefer NW/N/NE/SW/S/SE; vertical dimensions prefer W/NW/SW/E/NE/SE; in-line positions heavily penalised; a second, extended pull-out ring (×1.6 margin) for crowded regions; all dimension boxes on the sheet act as obstacles.
+- **Balloon appearance:** `EngineeringCharacteristic.customBalloonShape` / `customBalloonColor`; `BalloonShape` gains `'balloon'`.
+- **`MarkedPdfExporter`:** optional diagonal `watermark` on every page; skips secondary sub-features and general notes (Clean Canvas).
+- **`As9102ExcelExporter.exportToCsv()`:** flat Form 3 CSV, selectable in `ExportModal` alongside `.xlsx`.
+- **Form 1:** `validateForm1Record()` (Sprint 6) drives live field flags in `FileBackstageModal`.
 
 ---
 
