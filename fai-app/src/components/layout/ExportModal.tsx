@@ -18,6 +18,7 @@ interface ExportModalProps {
   hasDrawing: boolean;
   selectedTemplate: string;
   onSelectTemplate: (template: string) => void;
+  defaultFormat?: 'xlsx' | 'csv';
 }
 
 const TEMPLATE_OPTIONS = [
@@ -34,7 +35,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   characteristicsCount,
   hasDrawing,
   selectedTemplate,
-  onSelectTemplate
+  onSelectTemplate,
+  defaultFormat = 'xlsx'
 }) => {
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
   // Selection state for deliverables: none selected by default
@@ -47,12 +49,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   // Cleanly reset selections when modal transitions from closed to open
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
-      setSelectedWorkbook(null);
+      // Pre-select the workbook format per the project's configured default
+      // (Settings > Numbering & Compliance > Primary Export Format Template)
+      setSelectedWorkbook(defaultFormat);
       setIsPdfSelected(false);
       setIsTemplateOpen(false);
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen]);
+  }, [isOpen, defaultFormat]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -113,7 +117,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       }}
     >
       <div 
-        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-none"
+        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-lg"
         style={{ width: '500px', maxWidth: '95vw' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -128,7 +132,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-none hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition cursor-pointer"
+            className="p-1 rounded-md hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition cursor-pointer"
             title="Close [ESC]"
           >
             <X className="w-4 h-4" />
@@ -151,7 +155,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsTemplateOpen(!isTemplateOpen)}
-                className="w-full h-9 flex items-center justify-between px-3 text-xs border rounded-none transition cursor-pointer export-card-unselected"
+                className="w-full h-9 flex items-center justify-between px-3 text-xs border rounded-lg transition cursor-pointer export-card-unselected"
               >
                 <div className="flex items-center gap-2.5">
                   <FileSpreadsheet className="w-4 h-4 text-slate-500" />
@@ -163,7 +167,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </button>
 
               {isTemplateOpen && (
-                <div className="absolute top-[calc(100%+2px)] left-0 right-0 bg-white border border-slate-300 shadow-xl py-1 z-50">
+                <div className="absolute top-[calc(100%+2px)] left-0 right-0 bg-white border border-slate-300 shadow-xl py-1 rounded-lg overflow-hidden z-50">
                   {TEMPLATE_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
@@ -198,7 +202,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }
                 }}
                 disabled={characteristicsCount === 0}
-                className={`flex-1 h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-none border transition ${
+                className={`flex-1 h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-lg border transition ${
                   characteristicsCount === 0
                     ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
                     : selectedWorkbook === 'xlsx'
@@ -219,7 +223,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }
                 }}
                 disabled={characteristicsCount === 0}
-                className={`flex-1 h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-none border transition ${
+                className={`flex-1 h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-lg border transition ${
                   characteristicsCount === 0
                     ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
                     : selectedWorkbook === 'csv'
@@ -251,7 +255,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }
                 }}
                 disabled={!hasDrawing || characteristicsCount === 0}
-                className={`w-full h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-none border transition ${
+                className={`w-full h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-lg border transition ${
                   (!hasDrawing || characteristicsCount === 0)
                     ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
                     : isPdfSelected
@@ -271,7 +275,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="h-8 px-4 inline-flex items-center justify-center text-xs font-medium rounded-none border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 transition cursor-pointer"
+              className="h-8 px-4 inline-flex items-center justify-center text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 transition cursor-pointer"
             >
               Cancel
             </button>
@@ -280,7 +284,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               type="button"
               onClick={handleExport}
               disabled={!hasSelection}
-              className={`h-8 px-5 inline-flex items-center justify-center text-xs font-semibold tracking-wide rounded-none transition ${
+              className={`h-8 px-5 inline-flex items-center justify-center text-xs font-semibold tracking-wide rounded-md transition ${
                 hasSelection
                   ? 'bg-slate-800 hover:bg-slate-900 border border-slate-700 text-white cursor-pointer shadow-2xs'
                   : 'bg-slate-200 border border-slate-300 text-slate-400 cursor-not-allowed opacity-60 shadow-none'

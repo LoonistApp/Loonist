@@ -32,7 +32,7 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
   onToggleCollapse
 }) => {
   return (
-    <div className="h-7 bg-slate-200 px-2 flex items-center justify-between border-b border-slate-300 select-none">
+    <div className="h-7 bg-slate-200 px-2 flex items-center justify-between select-none">
       {/* Ribbon Workspace Navigation Tabs */}
       <div className="flex items-center h-full gap-0.5">
         {/* FILE Tab (In front of HOME) */}
@@ -41,7 +41,7 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
           onClick={onOpenFileMenu}
           className={`relative h-6 px-3 flex items-center gap-1.5 text-[11px] tracking-wide transition cursor-pointer rounded-t-xs ${
             isFileMenuOpen
-              ? 'bg-white font-bold border-t-2 border-t-slate-800 border-x border-x-slate-300 shadow-2xs'
+              ? 'bg-white font-bold border-t-2 border-t-slate-800 border-l border-l-slate-300 shadow-2xs'
               : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 border-t-2 border-t-transparent'
           }`}
           title="File Operations & Backstage Menu [Alt+F]"
@@ -66,7 +66,7 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
               }}
               className={`relative h-6 px-3 flex items-center text-[11px] tracking-wide transition cursor-pointer rounded-t-xs ${
                 isActive
-                  ? 'bg-white font-bold border-t-2 border-t-slate-800 border-x border-x-slate-300 shadow-2xs'
+                  ? 'bg-white font-bold border-t-2 border-t-slate-800 border-l border-l-slate-300 shadow-2xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 border-t-2 border-t-transparent'
               }`}
             >

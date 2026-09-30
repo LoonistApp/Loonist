@@ -1238,6 +1238,10 @@ body {
   border-right-color: #cbd5e1;
 }
 
+.border-l-slate-300 {
+  border-left-color: #cbd5e1;
+}
+
 .rounded-t {
   border-top-left-radius: 0.25rem;
   border-top-right-radius: 0.25rem;
@@ -2190,6 +2194,10 @@ html.dark,
   background-color: rgba(30, 30, 30, 0.95) !important;
 }
 
+.dark .bg-slate-950\/75 {
+  background-color: rgba(18, 18, 18, 0.75) !important;
+}
+
 .dark .bg-slate-50 {
   background-color: #141414 !important;
 }
@@ -2314,6 +2322,10 @@ html.dark,
 
 .dark .border-slate-300 {
   border-color: #333333 !important;
+}
+
+.dark .border-l-slate-300 {
+  border-left-color: #333333 !important;
 }
 
 .dark .border-slate-400 {

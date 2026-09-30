@@ -104,7 +104,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
   const modalContent = (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none p-4">
       <div
-        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-none"
+        className="relative bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden text-slate-800 rounded-lg"
         style={{ width: '840px', maxWidth: '95vw', maxHeight: '90vh' }}
       >
 
@@ -115,7 +115,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded-none border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition cursor-pointer text-xs font-medium"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition cursor-pointer text-xs font-medium"
               title="Back [ESC]"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -136,7 +136,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
               type="button"
               disabled={!isRecordValid}
               onClick={handleSaveAndClose}
-              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-none text-xs font-semibold tracking-wide transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold tracking-wide transition ${
                 isRecordValid
                   ? 'bg-slate-800 hover:bg-slate-900 border border-slate-700 text-white cursor-pointer shadow-2xs'
                   : 'bg-slate-200 border border-slate-300 text-slate-400 cursor-not-allowed opacity-60 shadow-none'
@@ -154,7 +154,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
 
           {/* Left Navigation Rail (Sharp & Clean - 140px) */}
           <div
-            className="bg-slate-50 border-r border-slate-200 flex flex-col justify-between shrink-0 select-none rounded-none"
+            className="bg-slate-50 border-r border-slate-200 flex flex-col justify-between shrink-0 select-none"
             style={{ width: '140px', padding: '12px 8px' }}
           >
             <div className="flex flex-col gap-3">
@@ -175,7 +175,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                         }
                         onClose();
                       }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-none text-left text-xs font-medium text-slate-700 hover:bg-slate-200 transition cursor-pointer border border-transparent hover:border-slate-300"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs font-medium text-slate-700 hover:bg-slate-200 transition cursor-pointer border border-transparent hover:border-slate-300"
                     >
                       <FilePlus2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                       <span className="truncate">New Project</span>
@@ -197,7 +197,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                   }
                   onClose();
                 }}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-none text-left text-xs font-medium transition border border-transparent ${
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs font-medium transition border border-transparent ${
                   document
                     ? 'text-slate-700 hover:bg-slate-200 hover:text-red-600 cursor-pointer '
                     : 'text-slate-400 cursor-not-allowed opacity-50'
@@ -256,7 +256,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                         invalidFields.partNumber
                           ? 'border-red-500 focus:border-red-500'
                           : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                      } rounded-none px-2 text-xs font-mono font-medium text-slate-900 outline-none transition`}
+                      } rounded px-2 text-xs font-mono font-medium text-slate-900 outline-none transition`}
                     />
                   </div>
 
@@ -274,7 +274,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                         invalidFields.partRevision
                           ? 'border-red-500 focus:border-red-500'
                           : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                      } rounded-none px-2 text-xs font-mono font-bold text-slate-800 outline-none transition`}
+                      } rounded px-2 text-xs font-mono font-bold text-slate-800 outline-none transition`}
                     />
                   </div>
 
@@ -292,7 +292,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                         invalidFields.cageCode
                           ? 'border-red-500 focus:border-red-500'
                           : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                      } rounded-none px-2 text-xs font-mono font-medium text-slate-800 outline-none transition`}
+                      } rounded px-2 text-xs font-mono font-medium text-slate-800 outline-none transition`}
                     />
                   </div>
 
@@ -310,7 +310,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                         invalidFields.drawingNumber
                           ? 'border-red-500 focus:border-red-500'
                           : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                      } rounded-none px-2 text-xs font-mono font-medium text-slate-800 outline-none transition`}
+                      } rounded px-2 text-xs font-mono font-medium text-slate-800 outline-none transition`}
                     />
                   </div>
 
@@ -328,7 +328,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                         invalidFields.drawingRevision
                           ? 'border-red-500 focus:border-red-500'
                           : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                      } rounded-none px-2 text-xs font-mono font-bold text-slate-800 outline-none transition`}
+                      } rounded px-2 text-xs font-mono font-bold text-slate-800 outline-none transition`}
                     />
                   </div>
                 </div>
@@ -348,7 +348,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       invalidFields.partName
                         ? 'border-red-500 focus:border-red-500'
                         : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                    } rounded-none px-2 text-xs font-mono font-medium text-slate-900 outline-none transition`}
+                    } rounded px-2 text-xs font-mono font-medium text-slate-900 outline-none transition`}
                   />
                 </div>
 
@@ -369,7 +369,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       invalidFields.lotSize
                         ? 'border-red-500 focus-within:border-red-500'
                         : 'border-slate-300 hover:border-slate-400 focus-within:border-slate-800 '
-                    } rounded-none transition`}>
+                    } rounded transition`}>
                       <span className="pl-2 pr-1.5 text-[10px] text-slate-400 font-mono select-none shrink-0 pointer-events-none">
                         pcs
                       </span>
@@ -401,7 +401,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                           invalidFields.samplingLevel
                             ? 'border-red-500 focus:border-red-500'
                             : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                        } rounded-none px-2 text-xs font-mono font-medium text-slate-800 outline-none transition cursor-pointer`}
+                        } rounded px-2 text-xs font-mono font-medium text-slate-800 outline-none transition cursor-pointer`}
                       >
                         <option value="I">Level I</option>
                         <option value="II">Level II</option>
@@ -421,7 +421,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                           invalidFields.samplingType
                             ? 'border-red-500 focus:border-red-500'
                             : 'border-slate-300 hover:border-slate-400 focus:border-slate-800 '
-                        } rounded-none px-2 text-xs font-mono font-medium text-slate-800 outline-none transition cursor-pointer`}
+                        } rounded px-2 text-xs font-mono font-medium text-slate-800 outline-none transition cursor-pointer`}
                       >
                         <option value="NORMAL">Normal</option>
                         <option value="TIGHTENED">Tightened</option>
@@ -439,7 +439,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       invalidFields.aql
                         ? 'border-red-500 focus-within:border-red-500'
                         : 'border-slate-300 hover:border-slate-400 focus-within:border-slate-800 '
-                    } rounded-none transition`}>
+                    } rounded transition`}>
                       <input
                         id="field-aql"
                         type="text"
@@ -468,7 +468,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
 
-              <div className="border border-slate-200 rounded-none bg-slate-50 px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs min-w-0">
+              <div className="border border-slate-200 rounded-lg bg-slate-50 px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs min-w-0">
                 {/* Left: Document Name & Format Badge */}
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <FileText className="w-4 h-4 text-slate-700 shrink-0" />

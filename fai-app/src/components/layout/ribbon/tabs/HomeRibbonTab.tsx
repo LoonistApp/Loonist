@@ -177,7 +177,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
             </div>
 
             {/* Colors */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded border border-slate-200">
+            <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded border border-slate-200">
               {BALLOON_COLORS.map((c) => (
                 <button
                   key={c.name}
@@ -198,7 +198,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           </div>
 
           {/* Fit & Leader Line */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-5">
             <div className="flex items-center gap-1 text-[10px]">
               <span className="text-slate-400 font-semibold">Fit:</span>
               <select
@@ -213,13 +213,13 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
             </div>
 
             <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 select-none">
+              <span>Leader Line</span>
               <input
                 type="checkbox"
                 checked={balloonAppearance.showLeaderLine}
                 onChange={(e) => onUpdateBalloonAppearance({ ...balloonAppearance, showLeaderLine: e.target.checked })}
                 className="rounded border-slate-300 accent-slate-700 text-slate-700 w-3 h-3 cursor-pointer"
               />
-              <span>Leader Line</span>
             </label>
           </div>
         </div>

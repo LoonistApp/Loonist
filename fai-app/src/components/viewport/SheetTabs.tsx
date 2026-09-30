@@ -139,7 +139,7 @@ export const SheetTabs: React.FC<SheetTabsProps> = ({
         <div
           ref={scrollContainerRef}
           onWheel={handleWheel}
-          className="h-full flex-1 flex items-center gap-1.5 overflow-x-auto py-1 sheet-tabs-scroll"
+          className="h-full flex-1 flex items-center gap-1.5 overflow-x-auto overflow-y-hidden py-1 sheet-tabs-scroll"
         >
           {sheets.map((sheet, index) => {
             const isActive = index === activeSheetIndex;
