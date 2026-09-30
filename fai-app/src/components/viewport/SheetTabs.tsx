@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from 'react';
-import { 
-  Layers, 
-  CheckCircle2, 
-  ChevronLeft, 
-  ChevronRight, 
-  ChevronsLeft, 
+import {
+  Layers,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
   ChevronsRight
 } from 'lucide-react';
 import type { SheetMetadata } from '../../types/blueprint';
@@ -59,14 +59,6 @@ export const SheetTabs: React.FC<SheetTabsProps> = ({
 
   const handleLastSheet = () => {
     if (canGoNext) onSelectSheet(sheets.length - 1);
-  };
-
-  const handleScrollLeft = () => {
-    scrollContainerRef.current?.scrollBy({ left: -240, behavior: 'smooth' });
-  };
-
-  const handleScrollRight = () => {
-    scrollContainerRef.current?.scrollBy({ left: 240, behavior: 'smooth' });
   };
 
   // Convert vertical mouse wheel into horizontal scroll along sheet cards
@@ -141,18 +133,8 @@ export const SheetTabs: React.FC<SheetTabsProps> = ({
       {/* Vertical separator */}
       <div className="h-5 w-[1px] bg-slate-200 shrink-0" />
 
-      {/* 2. Scroll Strip Arrows & Sheet Cards */}
+      {/* 2. Scrollable Sheet Cards */}
       <div className="relative flex-1 flex items-center min-w-0 h-full">
-        {/* Scroll Left Button */}
-        <button
-          type="button"
-          onClick={handleScrollLeft}
-          title="Scroll tabs left"
-          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition shrink-0 mr-1 cursor-pointer"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
-
         {/* Scrollable Sheet Cards Container with sleek scrollbar */}
         <div
           ref={scrollContainerRef}
@@ -182,16 +164,6 @@ export const SheetTabs: React.FC<SheetTabsProps> = ({
             );
           })}
         </div>
-
-        {/* Scroll Right Button */}
-        <button
-          type="button"
-          onClick={handleScrollRight}
-          title="Scroll tabs right"
-          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition shrink-0 ml-1 cursor-pointer"
-        >
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
       </div>
     </nav>
   );

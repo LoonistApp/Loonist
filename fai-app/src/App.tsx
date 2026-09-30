@@ -1274,7 +1274,7 @@ export function App() {
   const currentSheet = blueprintDoc?.sheets[activeSheetIndex] || null;
 
   return (
-    <div className={`flex flex-col w-screen h-screen ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} overflow-hidden font-sans select-none relative transition-colors duration-200`}>
+    <div className={`flex flex-col w-screen h-screen ${isDarkMode ? 'dark text-slate-100' : 'bg-slate-100 text-slate-900'} overflow-hidden font-sans select-none relative transition-colors duration-200`}>
       {isLoading && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-slate-900 animate-pulse z-50" />
       )}
