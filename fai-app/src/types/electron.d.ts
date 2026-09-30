@@ -44,6 +44,19 @@ export interface AppInfo {
   packaged: boolean;
 }
 
+export interface PersistedAuditLedgerEntry {
+  id: string;
+  seq: number;
+  timestamp: string;
+  action: string;
+  charId?: string;
+  itemNumber?: string | number;
+  details: Record<string, any>;
+  inspector: string;
+  previousHash: string;
+  hash: string;
+}
+
 export interface IElectronAPI {
   getProject: (projectId: string) => Promise<{ id: string; name: string; status: string }>;
   openBlueprintDialog: () => Promise<BlueprintFileResult>;
@@ -65,6 +78,15 @@ export interface IElectronAPI {
   licenseVerify?: (payload: unknown, signature: string) => Promise<LicenseVerification>;
   getStoredSetting?: (key: string) => Promise<{ value: string | null }>;
   setStoredSetting?: (key: string, value: string) => Promise<{ success: boolean }>;
+  auditAppend?: (entry: {
+    action: string;
+    details: Record<string, any>;
+    charId?: string;
+    itemNumber?: string | number;
+    inspector: string;
+  }) => Promise<PersistedAuditLedgerEntry>;
+  auditGetAll?: () => Promise<PersistedAuditLedgerEntry[]>;
+  auditVerify?: () => Promise<{ isValid: boolean; brokenSequence?: number }>;
 }
 
 declare global {

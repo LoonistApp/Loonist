@@ -12,12 +12,26 @@ export interface AuditLedgerEntry {
   hash: string;
 }
 
+/**
+ * No real per-user login exists in this app. Rather than defaulting to a
+ * plausible-looking fake inspector ID (which would make every entry look
+ * equally "signed" whether or not a real inspector was actually provided),
+ * unattributed entries get an explicit sentinel so a ledger review can
+ * immediately see which entries lack real attribution.
+ */
+export const UNSPECIFIED_INSPECTOR = 'UNSPECIFIED';
+
 export class AuditLedgerService {
   private static readonly GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
   private static inMemoryLedger: AuditLedgerEntry[] = [];
+  private static hydrated = false;
 
   /**
-   * Fast synchronous SHA-256 implementation ensuring 100% offline air-gapped cryptographic integrity
+   * Fast synchronous SHA-256 implementation ensuring 100% offline air-gapped cryptographic integrity.
+   * Used for the renderer's local mirror (synchronous UI reads, browser/test fallback when Electron's
+   * window.api is unavailable). The authoritative, tamper-evident, disk-persisted chain lives in the
+   * main process (electron/database.ts), which computes its own hashes with Node's real crypto module
+   * over this exact same payload shape — the renderer is never trusted to assert a hash on its own.
    */
   public static computeSha256(input: string): string {
     // SHA-256 Constants
@@ -92,7 +106,9 @@ export class AuditLedgerService {
   }
 
   /**
-   * Appends an action entry to the audit ledger, cryptographically chained to the previous entry
+   * Appends an action entry to the audit ledger, cryptographically chained to the previous entry.
+   * Payload shape intentionally matches the main process's appendAuditEvent exactly (id, not a local
+   * index) so entries computed on either side hash identically and hydrate() can merge them safely.
    */
   public static appendEntry(
     ledger: AuditLedgerEntry[],
@@ -100,14 +116,14 @@ export class AuditLedgerService {
     details: Record<string, any>,
     charId?: string,
     itemNumber?: string | number,
-    inspector: string = 'QA-INSP'
+    inspector: string = UNSPECIFIED_INSPECTOR
   ): AuditLedgerEntry[] {
     const previousHash = ledger.length > 0 ? ledger[ledger.length - 1].hash : AuditLedgerService.GENESIS_HASH;
     const index = ledger.length + 1;
     const timestamp = new Date().toISOString();
     const id = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-    const payload = `${index}|${timestamp}|${action}|${charId || ''}|${JSON.stringify(details)}|${inspector}|${previousHash}`;
+    const payload = `${id}|${timestamp}|${action}|${charId || ''}|${JSON.stringify(details)}|${inspector}|${previousHash}`;
     const hash = AuditLedgerService.computeSha256(payload);
 
     const newEntry: AuditLedgerEntry = {
@@ -140,7 +156,7 @@ export class AuditLedgerService {
         return { isValid: false, brokenIndex: i + 1 };
       }
 
-      const payload = `${entry.index}|${entry.timestamp}|${entry.action}|${entry.charId || ''}|${JSON.stringify(entry.details)}|${entry.inspector}|${entry.previousHash}`;
+      const payload = `${entry.id}|${entry.timestamp}|${entry.action}|${entry.charId || ''}|${JSON.stringify(entry.details)}|${entry.inspector}|${entry.previousHash}`;
       const recomputed = AuditLedgerService.computeSha256(payload);
 
       if (recomputed !== entry.hash) {
@@ -154,7 +170,10 @@ export class AuditLedgerService {
   }
 
   /**
-   * Appends an entry to the singleton in-memory ledger
+   * Appends an entry to the singleton in-memory ledger (synchronous — existing call sites and the
+   * test suite depend on an immediate return value), and fires a best-effort, fire-and-forget
+   * persistence call to the main process so the entry survives restarts. The main process recomputes
+   * its own hash independently rather than trusting one asserted by the renderer.
    */
   public static recordEntry(params: {
     characteristicId?: string;
@@ -167,35 +186,87 @@ export class AuditLedgerService {
     conformanceStatus?: string;
     details?: string;
   }): AuditLedgerEntry {
-    const actionKey: AuditLedgerEntry['action'] = 
+    const actionKey: AuditLedgerEntry['action'] =
       params.action === 'MEASUREMENT_RECORDED' ? 'MEASUREMENT_LOGGED' :
       params.action === 'LIMITS_MODIFIED' ? 'TOLERANCE_MODIFIED' :
       params.action === 'BALLOON_REPOSITIONED' ? 'BALLOON_REPOSITIONED' :
       params.action === 'CHARACTERISTIC_DELETED' ? 'CHARACTERISTIC_DELETED' :
+      params.action === 'REPORT_EXPORTED' ? 'REPORT_EXPORTED' :
       'MEASUREMENT_LOGGED';
+
+    const details = {
+      previousValue: params.previousValue,
+      newValue: params.newValue,
+      conformanceStatus: params.conformanceStatus,
+      details: params.details,
+      subNumber: params.subNumber
+    };
+    const inspector = params.inspectorInitials || UNSPECIFIED_INSPECTOR;
 
     AuditLedgerService.inMemoryLedger = AuditLedgerService.appendEntry(
       AuditLedgerService.inMemoryLedger,
       actionKey,
-      {
-        previousValue: params.previousValue,
-        newValue: params.newValue,
-        conformanceStatus: params.conformanceStatus,
-        details: params.details,
-        subNumber: params.subNumber
-      },
+      details,
       params.characteristicId,
       params.itemNumber,
-      params.inspectorInitials || 'QA-INSP'
+      inspector
     );
 
-    return AuditLedgerService.inMemoryLedger[AuditLedgerService.inMemoryLedger.length - 1];
+    const newEntry = AuditLedgerService.inMemoryLedger[AuditLedgerService.inMemoryLedger.length - 1];
+
+    // Best-effort, non-blocking persistence. The renderer's local entry above is the source of
+    // truth for this session's synchronous UI reads; the main process's independently-computed
+    // and disk-persisted chain (fetched back via hydrate()) is the durable, authoritative record.
+    const api = AuditLedgerService.getApi();
+    if (api?.auditAppend) {
+      api.auditAppend({
+        action: actionKey,
+        details,
+        charId: params.characteristicId,
+        itemNumber: params.itemNumber,
+        inspector
+      }).catch((err) => {
+        console.error('Failed to persist audit entry to disk — it only exists in this session:', err);
+      });
+    }
+
+    return newEntry;
+  }
+
+  /**
+   * Loads the persisted chain from prior sessions into the in-memory mirror. Call once on app
+   * startup. No-op outside Electron (browser dev fallback, test scripts) — the in-memory-only
+   * behavior from before this hardening pass is preserved there.
+   */
+  public static async hydrate(): Promise<void> {
+    const api = AuditLedgerService.getApi();
+    if (AuditLedgerService.hydrated || !api?.auditGetAll) return;
+    try {
+      const persisted = await api.auditGetAll();
+      AuditLedgerService.inMemoryLedger = persisted.map((p) => ({
+        id: p.id,
+        index: p.seq,
+        sequence: p.seq,
+        timestamp: p.timestamp,
+        action: p.action as AuditLedgerEntry['action'],
+        charId: p.charId,
+        itemNumber: p.itemNumber,
+        details: p.details,
+        inspector: p.inspector,
+        previousHash: p.previousHash,
+        hash: p.hash
+      }));
+      AuditLedgerService.hydrated = true;
+    } catch (err) {
+      console.error('Failed to load audit ledger history from disk:', err);
+    }
   }
 
   public static getEntries(): AuditLedgerEntry[] {
     return AuditLedgerService.inMemoryLedger;
   }
 
+  /** Fast, synchronous check of the local in-memory mirror. */
   public static verifyIntegrity(): { isValid: boolean; brokenSequence?: number } {
     const res = AuditLedgerService.verifyChain(AuditLedgerService.inMemoryLedger);
     return {
@@ -204,7 +275,22 @@ export class AuditLedgerService {
     };
   }
 
+  /** Authoritative check against the disk-persisted chain in the main process. */
+  public static async verifyAuthoritative(): Promise<{ isValid: boolean; brokenSequence?: number }> {
+    const api = AuditLedgerService.getApi();
+    if (!api?.auditVerify) {
+      return AuditLedgerService.verifyIntegrity();
+    }
+    return api.auditVerify();
+  }
+
   public static clearLedger(): void {
     AuditLedgerService.inMemoryLedger = [];
+    AuditLedgerService.hydrated = false;
+  }
+
+  /** Safe in any environment: plain Node test scripts have no `window` global at all. */
+  private static getApi(): Window['api'] | undefined {
+    return typeof window !== 'undefined' ? window.api : undefined;
   }
 }

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { AiExtractionService } from '../src/services/ai/aiExtractionService.ts';
+import { DrawingExtractionService } from '../src/services/ai/drawingExtractionService.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +13,7 @@ async function runExtractionTest() {
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
 
   console.log(`Document loaded with ${doc.numPages} pages.`);
-  const { characteristics, projectProps } = await AiExtractionService.extractCharacteristics(doc);
+  const { characteristics, projectProps } = await DrawingExtractionService.extractCharacteristics(doc);
 
   console.log(`Extracted ${characteristics.length} characteristics:`);
   for (const c of characteristics) {

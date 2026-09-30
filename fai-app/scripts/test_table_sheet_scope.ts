@@ -154,7 +154,7 @@ function runTests() {
   assert(sheetTabsSource.includes('shrink-0'), 'Sheet cards have shrink-0 to prevent horizontal card squishing');
   assert(!sheetTabsSource.includes('Active Sheet In-Memory'), 'Memory offload status indicator removed from sheet tab bar');
   assert(sheetTabsSource.includes('handlePrevSheet') && sheetTabsSource.includes('handleNextSheet'), 'Previous and Next sheet navigation arrow buttons implemented');
-  assert(sheetTabsSource.includes('handleScrollLeft') && sheetTabsSource.includes('handleScrollRight'), 'Tab strip horizontal scroll buttons implemented');
+  assert(!sheetTabsSource.includes('handleScrollLeft') && !sheetTabsSource.includes('handleScrollRight'), 'Redundant tab-strip scroll buttons removed (wheel-scroll + auto-scroll-into-view cover this; the stepper is the one navigation control, not two look-alike chevron pairs)');
   assert(sheetTabsSource.includes('scrollIntoView'), 'Active sheet card automatically centers into view upon sheet transition');
   assert(sheetTabsSource.includes('handleWheel'), 'Mouse wheel smoothly scrolls sheet cards horizontally');
 

@@ -31,6 +31,7 @@ export function resolveSecurePath(baseDir: string, targetPath: string): string {
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 let mainWindowRef: BrowserWindow | null = null;
+let db: DBManager | null = null;
 
 // Prevent Windows disk cache permission conflicts in multi-process dev
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
@@ -99,7 +100,7 @@ function createWindow() {
 app.whenReady().then(() => {
   // Initialize Database in the user data directory
   const dbPath = path.join(app.getPath('userData'), 'fai_local.db');
-  const _db = new DBManager(dbPath);
+  db = new DBManager(dbPath);
 
   // Enforce Strict Content Security Policy (CSP) allowing inline workers for PDF.js
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -445,3 +446,30 @@ handleIpc('ipc-license-activate', licenseActivateSchema, ({ apiUrl, token }) => 
 handleIpc('ipc-license-renew', licenseDeviceSchema, ({ apiUrl, deviceId }) => renewLicense(apiUrl, deviceId));
 handleIpc('ipc-license-revoke', licenseDeviceSchema, ({ apiUrl, deviceId }) => revokeLicense(apiUrl, deviceId));
 handleIpc('ipc-license-verify', licenseVerifySchema, ({ payload, signature }) => verifyStoredLicense(payload, signature));
+
+// ==========================================
+// TAMPER-EVIDENT AUDIT LEDGER (SQLITE-PERSISTED, MAIN-PROCESS HASH AUTHORITY)
+// ==========================================
+
+function requireDb(): DBManager {
+  if (!db) {
+    throw new Error('Database is not ready yet');
+  }
+  return db;
+}
+
+const auditAppendSchema = z.object({
+  action: z.string().min(1),
+  details: z.record(z.string(), z.any()).default({}),
+  charId: z.string().optional(),
+  itemNumber: z.union([z.string(), z.number()]).optional(),
+  inspector: z.string().min(1)
+});
+
+handleIpc('ipc-audit-append', auditAppendSchema, ({ action, details, charId, itemNumber, inspector }) =>
+  requireDb().appendAuditEvent(action, details, charId, itemNumber, inspector)
+);
+
+handleIpc('ipc-audit-get-all', noPayload, () => requireDb().getAuditEvents());
+
+handleIpc('ipc-audit-verify', noPayload, () => requireDb().verifyAuditChain());

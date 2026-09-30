@@ -1,6 +1,20 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+
+export interface AuditLedgerEntry {
+  id: string;
+  seq: number;
+  timestamp: string;
+  action: string;
+  charId?: string;
+  itemNumber?: string | number;
+  details: Record<string, any>;
+  inspector: string;
+  previousHash: string;
+  hash: string;
+}
 
 export class DBManager {
   private db: Database.Database;
@@ -53,12 +67,16 @@ export class DBManager {
       );
 
       CREATE TABLE IF NOT EXISTS AuditEvent (
-        id TEXT PRIMARY KEY,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE,
+        timestamp TEXT NOT NULL,
         action TEXT NOT NULL,
-        payload TEXT,
-        previous_hash TEXT,
-        hash TEXT
+        char_id TEXT,
+        item_number TEXT,
+        details TEXT,
+        inspector TEXT NOT NULL,
+        previous_hash TEXT NOT NULL,
+        hash TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS TransactionHistory (
@@ -173,6 +191,97 @@ export class DBManager {
 
       return true;
     });
+  }
+
+  private static readonly AUDIT_GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
+
+  /**
+   * Appends a tamper-evident audit entry, chained to the previous entry's hash.
+   * The main process is the sole authority for this chain: hashes are computed
+   * here (trusted, using Node's real crypto module) and persisted immediately,
+   * never trusted from the renderer.
+   */
+  public appendAuditEvent(
+    action: string,
+    details: Record<string, any>,
+    charId: string | undefined,
+    itemNumber: string | number | undefined,
+    inspector: string
+  ): AuditLedgerEntry {
+    return this.executeTransaction(() => {
+      const last = this.db.prepare(
+        `SELECT hash FROM AuditEvent ORDER BY seq DESC LIMIT 1`
+      ).get() as { hash: string } | undefined;
+      const previousHash = last?.hash || DBManager.AUDIT_GENESIS_HASH;
+
+      const id = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const timestamp = new Date().toISOString();
+      const detailsJson = JSON.stringify(details ?? {});
+
+      // Payload/hash format intentionally mirrors the prior renderer-side implementation
+      // so historical verification logic and tests stay meaningful.
+      const payload = `${id}|${timestamp}|${action}|${charId || ''}|${detailsJson}|${inspector}|${previousHash}`;
+      const hash = crypto.createHash('sha256').update(payload, 'utf-8').digest('hex');
+
+      this.db.prepare(`
+        INSERT INTO AuditEvent (id, timestamp, action, char_id, item_number, details, inspector, previous_hash, hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, timestamp, action, charId ?? null, itemNumber !== undefined ? String(itemNumber) : null, detailsJson, inspector, previousHash, hash);
+
+      const row = this.db.prepare(`SELECT seq FROM AuditEvent WHERE id = ?`).get(id) as { seq: number };
+
+      return {
+        id,
+        seq: row.seq,
+        timestamp,
+        action,
+        charId,
+        itemNumber,
+        details,
+        inspector,
+        previousHash,
+        hash
+      };
+    });
+  }
+
+  public getAuditEvents(): AuditLedgerEntry[] {
+    const rows = this.db.prepare(`SELECT * FROM AuditEvent ORDER BY seq ASC`).all() as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      seq: r.seq,
+      timestamp: r.timestamp,
+      action: r.action,
+      charId: r.char_id ?? undefined,
+      itemNumber: r.item_number ?? undefined,
+      details: r.details ? JSON.parse(r.details) : {},
+      inspector: r.inspector,
+      previousHash: r.previous_hash,
+      hash: r.hash
+    }));
+  }
+
+  /**
+   * Re-walks the persisted chain and recomputes every hash to detect tampering
+   * (e.g. a row edited directly in the SQLite file, bypassing appendAuditEvent).
+   */
+  public verifyAuditChain(): { isValid: boolean; brokenSequence?: number } {
+    const entries = this.getAuditEvents();
+    let prev = DBManager.AUDIT_GENESIS_HASH;
+
+    for (const entry of entries) {
+      if (entry.previousHash !== prev) {
+        return { isValid: false, brokenSequence: entry.seq };
+      }
+      const payload = `${entry.id}|${entry.timestamp}|${entry.action}|${entry.charId || ''}|${JSON.stringify(entry.details)}|${entry.inspector}|${entry.previousHash}`;
+      const recomputed = crypto.createHash('sha256').update(payload, 'utf-8').digest('hex');
+      if (recomputed !== entry.hash) {
+        return { isValid: false, brokenSequence: entry.seq };
+      }
+      prev = entry.hash;
+    }
+
+    return { isValid: true };
   }
 
   public close() {

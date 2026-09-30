@@ -112,8 +112,27 @@ function runTests() {
   console.log('Test 3: Rejection of invalid format');
   assert.throws(() => {
     ProjectArchiveService.deserialize(JSON.stringify({ format: 'UNKNOWN_FORMAT', characteristics: [] }));
-  }, /Invalid project file format/);
+  }, /Corrupted or incompatible project package/);
   console.log('  [PASS] Correctly rejected incompatible project schema.\n');
+
+  // Test 4: Rejection of a structurally malformed characteristic (schema validation, not just format check)
+  console.log('Test 4: Rejection of a structurally corrupted characteristic');
+  assert.throws(() => {
+    ProjectArchiveService.deserialize(JSON.stringify({
+      format: 'LOONIST_PROJECT_V1',
+      version: '2.1.0',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      projectProps: {},
+      blueprintDoc: null,
+      activeSheetIndex: 0,
+      scale: 1,
+      rotation: 0,
+      // cleanNominal should be a number (or null), not a string — simulates a hand-edited/corrupted file
+      characteristics: [{ id: 'c1', itemNumber: 1, sheetNumber: 1, type: 'linear', enclosure: 'standard', rawText: '1.000', cleanNominal: 'NOT_A_NUMBER', upperTol: 0, lowerTol: 0, minLimit: null, maxLimit: null, units: 'in', upperLimit: null, lowerLimit: null, quantity: 1, confidenceScore: 1, verificationStatus: 'verified', boundingBox: { x: 0, y: 0, width: 1, height: 1 } }]
+    }));
+  }, /Corrupted or incompatible project package/);
+  console.log('  [PASS] Structurally malformed characteristic data rejected before entering app state.\n');
 
   console.log('=== All .loonist Project Archiver Tests PASSED Successfully! ===');
 }

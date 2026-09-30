@@ -39,6 +39,26 @@ const detectedAmbiguous = ToleranceEngine.detectDrawingUnits(ambiguousText);
 assert(detectedAmbiguous === null, `Expected null for drawing without unit declarations, got "${detectedAmbiguous}"`);
 console.log('✓ Drawing unit detection strictly prioritizes explicit blueprint notes');
 
+// Regression: a stray weak metric mention (e.g. a reference conversion note or standard
+// citation) must NOT override an explicit, unambiguous imperial declaration on the same sheet.
+const strongImperialWithStrayMetricNote =
+  'DRAWING NO: 200-118 REV A DIMENSIONS ARE IN INCHES NOTE 5: SEE ISO 2768 CONVERSION REFERENCE TABLE FOR EXPORT DOCUMENTATION';
+const detectedWithStrayNote = ToleranceEngine.detectDrawingUnits(strongImperialWithStrayMetricNote);
+assert(detectedWithStrayNote === 'in', `A stray "ISO 2768" reference note must not override an explicit "DIMENSIONS ARE IN INCHES" declaration, got "${detectedWithStrayNote}"`);
+console.log('✓ Strong explicit unit declarations are not overridden by stray weak-signal mentions elsewhere on the sheet');
+
+// Weak-tier fallback: no strong phrase anywhere, but a single unambiguous weak signal exists.
+const weakOnlyMetricText = 'PART NAME: FLANGE REVISION: A NOTE: MATERIAL PER METRIC SPEC 1.4301';
+const detectedWeakOnly = ToleranceEngine.detectDrawingUnits(weakOnlyMetricText);
+assert(detectedWeakOnly === 'mm', `Expected weak-tier fallback to 'mm' when only a metric signal is present, got "${detectedWeakOnly}"`);
+
+// Weak-tier conflict: weak signals on both sides with no strong phrase must resolve to unknown,
+// not silently pick a side.
+const weakConflictText = 'NOTE: FASTENER THREAD PITCH REFERENCE INCH/METRIC CONVERSION TABLE ATTACHED';
+const detectedWeakConflict = ToleranceEngine.detectDrawingUnits(weakConflictText);
+assert(detectedWeakConflict === null, `Expected null when weak signals conflict on both sides, got "${detectedWeakConflict}"`);
+console.log('✓ Weak-tier fallback only fires when unambiguous, and returns null on conflict rather than guessing');
+
 // ============================================================================
 // 2. Metric ISO 2768-m Tolerances for Integer Millimeters
 // ============================================================================

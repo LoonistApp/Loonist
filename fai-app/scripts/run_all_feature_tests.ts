@@ -20,6 +20,12 @@ const testSuites: TestSuite[] = [
     description: 'Verifies OCR text extraction, regex tolerance parsing, and characteristic generation'
   },
   {
+    name: 'Golden-File Sample Blueprint Extraction',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_golden_sample_extraction.ts',
+    description: 'Runs the full extraction pipeline end to end against the bundled sample PDF and asserts against hand-verified expected output, to catch silent regressions in the regex/heuristic parsing rules'
+  },
+  {
     name: 'Multi-Document Switching & Cache',
     sprint: 'Sprint 3',
     script: 'scripts/test_multidoc_switching.ts',
@@ -60,6 +66,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 5',
     script: 'scripts/test_audit_ledger.ts',
     description: 'Verifies cryptographic hash chaining, genesis root verification, and detection of data tampering'
+  },
+  {
+    name: 'Audit Ledger SQLite Persistence (Restart Survival)',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_audit_ledger_persistence.ts',
+    description: 'Verifies audit entries survive a simulated app restart (DB close + reopen) and the hash chain continues correctly rather than resetting'
   },
   {
     name: 'Vector Marked Blueprint PDF Exporter (pdf-lib)',

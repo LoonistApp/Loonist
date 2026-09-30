@@ -9,7 +9,7 @@
  * 3. Blank geometry features (no text / 'Manual Capture') remain permissible for manual entry.
  */
 
-import { AiExtractionService } from '../src/services/ai/aiExtractionService';
+import { DrawingExtractionService } from '../src/services/ai/drawingExtractionService';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -54,7 +54,7 @@ async function runTests() {
 
     let errorThrown = false;
     try {
-      await AiExtractionService.captureBox(mockPdfDoc, dummyBox, 1, 1);
+      await DrawingExtractionService.captureBox(mockPdfDoc, dummyBox, 1, 1);
     } catch (err: any) {
       errorThrown = true;
       assert(
@@ -94,7 +94,7 @@ async function runTests() {
       })
     };
 
-    const char = await AiExtractionService.captureBox(mockPdfDoc, dummyBox, 1, 10);
+    const char = await DrawingExtractionService.captureBox(mockPdfDoc, dummyBox, 1, 10);
     assert(char !== null, `Expected characteristic to be created for "${text}"`);
     assert(char.itemNumber === 10, `Expected itemNumber 10, got ${char.itemNumber}`);
     assert(char.rawText === text, `Expected rawText "${text}", got "${char.rawText}"`);
@@ -110,7 +110,7 @@ async function runTests() {
     })
   };
 
-  const manualChar = await AiExtractionService.captureBox(emptyPdfDoc, dummyBox, 1, 20);
+  const manualChar = await DrawingExtractionService.captureBox(emptyPdfDoc, dummyBox, 1, 20);
   assert(manualChar.extractionSource === 'manual', 'Expected extractionSource manual');
   assert(manualChar.rawText === 'Manual Capture', 'Expected rawText Manual Capture');
   console.log('✓ Successfully permitted intentional manual geometry capture');

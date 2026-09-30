@@ -18,6 +18,9 @@ export interface LotComplianceStatistics {
 
 export class MeasurementEngine {
   private static readonly MARGINAL_RATIO = 0.10; // 10% of tolerance band threshold
+  // Guards boundary-exact PASS/FAIL decisions against floating-point drift at 4-5 decimal
+  // aerospace tolerances (e.g. a value computed as 1.2549999999999999 instead of 1.255).
+  private static readonly EPSILON = 1e-9;
 
   /**
    * Evaluates a physical measured actual value against ASME Y14.5 / AS9102 characteristic limits.
@@ -50,7 +53,7 @@ export class MeasurementEngine {
 
     // 1. Bilateral tolerance limits (Lower & Upper limit defined)
     if (lower !== null && upper !== null) {
-      if (actual < lower || actual > upper) {
+      if (actual < lower - MeasurementEngine.EPSILON || actual > upper + MeasurementEngine.EPSILON) {
         return { status: 'FAIL', deviation };
       }
 
@@ -66,7 +69,7 @@ export class MeasurementEngine {
 
     // 2. Unilateral Upper limit only (e.g. .030 MAX or Flatness/Runout spec)
     if (upper !== null && lower === null) {
-      if (actual > upper) {
+      if (actual > upper + MeasurementEngine.EPSILON) {
         return { status: 'FAIL', deviation };
       }
       return { status: 'PASS', deviation };
@@ -74,7 +77,7 @@ export class MeasurementEngine {
 
     // 3. Unilateral Lower limit only (e.g. .015 MIN)
     if (lower !== null && upper === null) {
-      if (actual < lower) {
+      if (actual < lower - MeasurementEngine.EPSILON) {
         return { status: 'FAIL', deviation };
       }
       return { status: 'PASS', deviation };

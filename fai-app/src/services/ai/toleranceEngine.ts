@@ -15,41 +15,60 @@ export class ToleranceEngine {
    * Automatically detects whether a blueprint is configured in Inches or Millimeters
    * by analyzing general drawing notes, title block tags, and standard headers.
    */
+  // Strong signals: full-sentence, unambiguous unit declarations. Safe to trust on their own.
+  private static readonly STRONG_METRIC_PHRASES = [
+    'DIMENSIONS ARE IN MILLIMETERS',
+    'DIMENSIONS IN MILLIMETERS',
+    'DIMENSIONS ARE MILLIMETERS',
+    'ALL DIMENSIONS ARE IN MILLIMETERS',
+    'ALL DIMENSIONS IN MILLIMETERS',
+    'ALL DIMENSIONS ARE MILLIMETERS',
+    'DIMENSIONS IN MM',
+    'UNLESS OTHERWISE SPECIFIED: MM',
+    'UNITS: MM'
+  ];
+  private static readonly STRONG_IMPERIAL_PHRASES = [
+    'DIMENSIONS ARE IN INCHES',
+    'DIMENSIONS IN INCHES',
+    'ALL DIMENSIONS ARE IN INCHES',
+    'ALL DIMENSIONS IN INCHES',
+    'UNLESS OTHERWISE SPECIFIED: IN',
+    'UNITS: IN'
+  ];
+
+  // Weak signals: a single word/short phrase that could just as easily appear in an unrelated
+  // note (a reference conversion, a standard citation) without describing this sheet's own units.
+  // Only trusted when they're the *only* signal present — see detectDrawingUnits below.
+  private static readonly WEAK_METRIC_SIGNALS = ['MILLIMETERS', 'MILLIMETER', 'ISO 2768', 'METRIC'];
+  private static readonly WEAK_IMPERIAL_SIGNALS = ['INCHES', 'INCH'];
+
+  /**
+   * Automatically detects whether a blueprint is configured in Inches or Millimeters
+   * by analyzing general drawing notes, title block tags, and standard headers.
+   *
+   * Two-tier: an unscoped `.includes()` scan of the whole page text is prone to false
+   * positives (e.g. a stray "see ISO 2768 conversion table" note on an otherwise-inch
+   * drawing would previously flip the entire sheet to metric). Strong, full-sentence
+   * phrases are trusted immediately. Weak single-word signals are only used as a
+   * fallback, and only when they point one way — if both sides have weak signals, or
+   * neither strong nor weak signals point anywhere, the result is null (unknown)
+   * rather than a guess.
+   */
   public static detectDrawingUnits(drawingText: string): 'in' | 'mm' | null {
     const textUpper = drawingText.replace(/\s+/g, ' ').toUpperCase();
-    
-    // Explicit metric indicators (notes, standard headers, drawing tags)
-    if (
-      textUpper.includes('DIMENSIONS ARE IN MILLIMETERS') ||
-      textUpper.includes('DIMENSIONS IN MILLIMETERS') ||
-      textUpper.includes('DIMENSIONS ARE MILLIMETERS') ||
-      textUpper.includes('ALL DIMENSIONS ARE IN MILLIMETERS') ||
-      textUpper.includes('ALL DIMENSIONS IN MILLIMETERS') ||
-      textUpper.includes('ALL DIMENSIONS ARE MILLIMETERS') ||
-      textUpper.includes('DIMENSIONS IN MM') ||
-      textUpper.includes('UNLESS OTHERWISE SPECIFIED: MM') ||
-      textUpper.includes('UNITS: MM') ||
-      textUpper.includes('MILLIMETERS') ||
-      textUpper.includes('MILLIMETER') ||
-      textUpper.includes('ISO 2768') ||
-      textUpper.includes('METRIC')
-    ) {
-      return 'mm';
-    }
 
-    // Explicit imperial indicators
-    if (
-      textUpper.includes('DIMENSIONS ARE IN INCHES') ||
-      textUpper.includes('DIMENSIONS IN INCHES') ||
-      textUpper.includes('ALL DIMENSIONS ARE IN INCHES') ||
-      textUpper.includes('ALL DIMENSIONS IN INCHES') ||
-      textUpper.includes('UNLESS OTHERWISE SPECIFIED: IN') ||
-      textUpper.includes('UNITS: IN') ||
-      textUpper.includes('INCHES') ||
-      textUpper.includes('INCH')
-    ) {
-      return 'in';
-    }
+    const hasStrongMetric = ToleranceEngine.STRONG_METRIC_PHRASES.some((p) => textUpper.includes(p));
+    const hasStrongImperial = ToleranceEngine.STRONG_IMPERIAL_PHRASES.some((p) => textUpper.includes(p));
+
+    if (hasStrongMetric && !hasStrongImperial) return 'mm';
+    if (hasStrongImperial && !hasStrongMetric) return 'in';
+    if (hasStrongMetric && hasStrongImperial) return null; // Conflicting explicit declarations
+
+    const hasWeakMetric = ToleranceEngine.WEAK_METRIC_SIGNALS.some((p) => textUpper.includes(p));
+    const hasWeakImperial = ToleranceEngine.WEAK_IMPERIAL_SIGNALS.some((p) => textUpper.includes(p));
+
+    if (hasWeakMetric && !hasWeakImperial) return 'mm';
+    if (hasWeakImperial && !hasWeakMetric) return 'in';
 
     return null;
   }

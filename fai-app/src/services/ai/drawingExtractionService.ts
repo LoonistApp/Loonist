@@ -30,7 +30,7 @@ export interface ExtractionProgress {
   totalFound: number;
 }
 
-export class AiExtractionService {
+export class DrawingExtractionService {
   /**
    * Primary extraction pipeline: extracts all dimensions, GD&T, notes and specs
    * from the active PDF document across all sheets with strict exclusion of
@@ -118,9 +118,9 @@ export class AiExtractionService {
 
         // Cover / Introductory Sheet Check:
         // Exclude overview sheets, practice book covers, or pure prose text sheets from ballooning
-        const isCoverSheet = AiExtractionService.isCoverOrIntroductorySheet(rawStrings, viewport.width, viewport.height);
+        const isCoverSheet = DrawingExtractionService.isCoverOrIntroductorySheet(rawStrings, viewport.width, viewport.height);
         if (isCoverSheet) {
-          console.info(`[AiExtractionService] Sheet ${pageNum} identified as cover/introductory page — skipping characteristic extraction.`);
+          console.info(`[DrawingExtractionService] Sheet ${pageNum} identified as cover/introductory page — skipping characteristic extraction.`);
           page.cleanup();
           continue;
         }
@@ -190,7 +190,7 @@ export class AiExtractionService {
         }
 
         // 4. Identify drawing border grid coordinates using sequence & alignment analysis (ASME Y14.1 / ISO 5457)
-        const borderGridKeySet = AiExtractionService.findBorderGridLabels(normalizedStrings, viewport.width, viewport.height);
+        const borderGridKeySet = DrawingExtractionService.findBorderGridLabels(normalizedStrings, viewport.width, viewport.height);
 
         // Filter candidates: Exclude only outer borders, true title block metadata, and view headers
         const candidateStrings = normalizedStrings.filter(s => {

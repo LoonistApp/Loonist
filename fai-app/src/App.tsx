@@ -8,13 +8,14 @@ import { ViewportCanvas } from './components/viewport/ViewportCanvas';
 import { ViewportToolbar } from './components/viewport/ViewportToolbar';
 import { SheetTabs } from './components/viewport/SheetTabs';
 import { HorizontalSplitter, VerticalSplitter } from './components/layout/Splitter';
-import { AiExtractionService } from './services/ai/aiExtractionService';
+import { DrawingExtractionService } from './services/ai/drawingExtractionService';
 import { As9102ExcelExporter } from './services/export/as9102ExcelExporter';
 import { fillExcelTemplate, buildProjectValues, buildCharacteristicValues } from './services/export/excelTemplateFiller';
 import { templateFileStore } from './services/export/templateFileStore';
 import { BUILT_IN_TEMPLATE_ID } from './types/applicationOptions';
 import { MarkedPdfExporter } from './services/export/markedPdfExporter';
 import { AuditLedgerService } from './services/compliance/auditLedgerService';
+import { evaluateExportReadiness } from './services/validation/characteristicExportGate';
 import { MeasurementEngine } from './services/compliance/measurementEngine';
 import { RenumberingService } from './services/ballooning/renumberingService';
 import { ProjectArchiveService, type LoonistProjectPackage } from './services/project/projectArchiveService';
@@ -57,6 +58,11 @@ export function App() {
   // Verify the stored license offline on start-up (signature, device binding, expiry)
   useEffect(() => {
     CloudflareLicenseClient.refreshStatus().catch(err => console.warn('License verification failed:', err));
+  }, []);
+
+  // Load the persisted audit ledger so prior-session history is visible, not just this session's entries
+  useEffect(() => {
+    void AuditLedgerService.hydrate();
   }, []);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [blueprintDoc, setBlueprintDoc] = useState<BlueprintDocument | null>(null);
@@ -515,7 +521,7 @@ export function App() {
       // Auto-extract characteristics for the sample blueprint so balloons and table are immediately populated
       if (fileName.includes('Sample') || fileName.includes('AS9102')) {
         try {
-          const result = await AiExtractionService.extractCharacteristics(loadedDoc, undefined, projectSettings);
+          const result = await DrawingExtractionService.extractCharacteristics(loadedDoc, undefined, projectSettings);
           setCharacteristics(result.characteristics);
           setProjectProps(result.projectProps);
           if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
@@ -698,7 +704,7 @@ export function App() {
     try {
       setIsExtracting(true);
       const targetSheet = scope === 'active' ? (activeSheetIndex + 1) : undefined;
-      const result = await AiExtractionService.extractCharacteristics(
+      const result = await DrawingExtractionService.extractCharacteristics(
         pdfDoc,
         undefined,
         projectSettings,
@@ -776,7 +782,6 @@ export function App() {
         itemNumber: 0,
         subNumber: '0',
         action: 'INSPECTION_RUN',
-        inspectorInitials: 'QA_LEAD',
         details: `Inspection analysis executed on ${analyzed.length} characteristics.`
       });
     } catch (err) {
@@ -788,9 +793,36 @@ export function App() {
   }, [blueprintDoc, pdfDoc, characteristics]);
 
   // Export to AS9102 Excel / CSV Handler
+  // Blocks a customer-facing export unless every characteristic is either reviewed or exempt
+  // (reference/basic dimensions are informational-only and never physically measured). A user
+  // who explicitly overrides is recorded in the audit ledger — an override is part of the
+  // permanent record, never a silent bypass.
+  const confirmExportReadiness = useCallback((exportLabel: string): boolean => {
+    const { blockers } = evaluateExportReadiness(characteristics);
+    if (blockers.length === 0) return true;
+
+    const proceed = window.confirm(
+      `${blockers.length} characteristic${blockers.length === 1 ? '' : 's'} still need${blockers.length === 1 ? 's' : ''} review or measurement before this ${exportLabel} reflects verified inspection data.\n\n` +
+      `Exporting now will include unverified/unmeasured values in a customer-facing document.\n\n` +
+      `Export anyway?`
+    );
+
+    if (proceed) {
+      AuditLedgerService.recordEntry({
+        action: 'REPORT_EXPORTED',
+        details: `${exportLabel} exported with ${blockers.length} unresolved characteristic(s) (needs_review or unmeasured), overridden by explicit user acknowledgment.`
+      });
+    }
+
+    return proceed;
+  }, [characteristics]);
+
   const handleExportExcel = useCallback(async (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (characteristics.length === 0) {
       showLoonistDialog('Please run Smart Extract or add characteristics before exporting.');
+      return;
+    }
+    if (!confirmExportReadiness('AS9102 report')) {
       return;
     }
     if (format === 'csv') {
@@ -831,12 +863,15 @@ export function App() {
         `Could not fill the template "${customTemplate.name}". Check that it opens in Excel, or switch back to the built-in template in Options → Templates.`
       );
     }
-  }, [characteristics, projectProps, appOptions.templates]);
+  }, [characteristics, projectProps, appOptions.templates, confirmExportReadiness]);
 
   // Vector Marked Blueprint PDF Exporter (pdf-lib)
   const handleExportMarkedPdf = useCallback(async () => {
     if (!blueprintDoc || characteristics.length === 0) {
       await showLoonistDialog('Please load a blueprint and characteristics before exporting marked PDF.');
+      return;
+    }
+    if (!confirmExportReadiness('marked-up PDF')) {
       return;
     }
     try {
@@ -875,7 +910,7 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps]);
+  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, confirmExportReadiness]);
 
   // When a characteristic or balloon is selected
   const handleSelectCharacteristic = useCallback((char: EngineeringCharacteristic) => {
@@ -895,23 +930,32 @@ export function App() {
       deviation: evalRes.deviation
     };
 
+    // Captured via an object property (not a reassigned `let`) outside the updater so the updater
+    // itself stays pure (React may invoke it more than once, e.g. under StrictMode) — the audit
+    // side effect fires exactly once, after commit.
+    const captured: { changed: { oldValue: number | null | undefined } | null } = { changed: null };
+
     setCharacteristics((prev) => {
       const oldChar = prev.find(c => c.id === updated.id);
       if (oldChar && oldChar.measuredValue !== evaluated.measuredValue) {
-        AuditLedgerService.recordEntry({
-          characteristicId: evaluated.id,
-          itemNumber: evaluated.itemNumber,
-          subNumber: evaluated.subNumber,
-          action: 'MEASUREMENT_RECORDED',
-          inspectorInitials: evaluated.inspectorInitials || 'INSP',
-          previousValue: oldChar.measuredValue,
-          newValue: evaluated.measuredValue,
-          conformanceStatus: evaluated.conformanceStatus,
-          details: `Measurement updated to ${evaluated.measuredValue ?? 'null'} (${evaluated.conformanceStatus})`
-        });
+        captured.changed = { oldValue: oldChar.measuredValue };
       }
       return prev.map((c) => (c.id === evaluated.id ? evaluated : c));
     });
+
+    if (captured.changed) {
+      AuditLedgerService.recordEntry({
+        characteristicId: evaluated.id,
+        itemNumber: evaluated.itemNumber,
+        subNumber: evaluated.subNumber,
+        action: 'MEASUREMENT_RECORDED',
+        inspectorInitials: evaluated.inspectorInitials,
+        previousValue: captured.changed.oldValue,
+        newValue: evaluated.measuredValue,
+        conformanceStatus: evaluated.conformanceStatus,
+        details: `Measurement updated to ${evaluated.measuredValue ?? 'null'} (${evaluated.conformanceStatus})`
+      });
+    }
   }, []);
 
   // Delete characteristic with automatic AS9102 cascade renumbering
@@ -943,7 +987,7 @@ export function App() {
     try {
       const maxItemNumber = characteristics.reduce((max, c) => Math.max(max, c.itemNumber), 0);
       const nextItemNumber = maxItemNumber + 1;
-      const newChar = await AiExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber, cropCanvas, projectSettings);
+      const newChar = await DrawingExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber, cropCanvas, projectSettings);
       setUndoStack((u) => [...u.slice(-30), characteristics]);
       setRedoStack([]);
       setCharacteristics((prev) => [...prev, newChar]);

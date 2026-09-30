@@ -25,4 +25,14 @@ contextBridge.exposeInMainWorld('api', {
   // Durable key/value settings (survives restarts; window.localStorage does not for file:// origins)
   getStoredSetting: (key: string) => ipcRenderer.invoke('ipc-settings-get', { key }),
   setStoredSetting: (key: string, value: string) => ipcRenderer.invoke('ipc-settings-set', { key, value }),
+  // Tamper-evident audit ledger: hash-chain authority and persistence live in the main process
+  auditAppend: (entry: {
+    action: string;
+    details: Record<string, any>;
+    charId?: string;
+    itemNumber?: string | number;
+    inspector: string;
+  }) => ipcRenderer.invoke('ipc-audit-append', entry),
+  auditGetAll: () => ipcRenderer.invoke('ipc-audit-get-all'),
+  auditVerify: () => ipcRenderer.invoke('ipc-audit-verify'),
 });

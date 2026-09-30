@@ -1,6 +1,54 @@
+import { z } from 'zod';
 import type { EngineeringCharacteristic, ProjectProperties } from '../../types/characteristics';
 import type { BlueprintDocument } from '../../types/blueprint';
 import type { ProjectSettings } from '../../types/settings';
+
+// Validates a *.loonist project file at the point it crosses the trust boundary (a user-supplied
+// file on disk, potentially hand-edited, corrupted, or from an older/incompatible app version).
+// Deliberately permissive (.passthrough()) on anything beyond the fields the extraction/tolerance/
+// measurement pipeline actually depends on, so it stays forward-compatible with new optional
+// metadata rather than becoming a brittle mirror of the full TypeScript type.
+const engineeringCharacteristicSchema = z.object({
+  id: z.string().min(1),
+  itemNumber: z.number(),
+  sheetNumber: z.number(),
+  type: z.string().min(1),
+  enclosure: z.string().min(1),
+  rawText: z.string(),
+  cleanNominal: z.number().nullable(),
+  upperTol: z.number(),
+  lowerTol: z.number(),
+  minLimit: z.number().nullable(),
+  maxLimit: z.number().nullable(),
+  units: z.enum(['in', 'mm', 'deg']),
+  upperLimit: z.number().nullable(),
+  lowerLimit: z.number().nullable(),
+  quantity: z.number(),
+  confidenceScore: z.number(),
+  verificationStatus: z.enum(['auto_accepted', 'needs_review', 'verified']),
+  boundingBox: z.object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number()
+  })
+}).passthrough();
+
+const loonistProjectPackageSchema = z.object({
+  format: z.literal('LOONIST_PROJECT_V1'),
+  version: z.string().min(1),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  projectProps: z.record(z.string(), z.any()),
+  blueprintDoc: z.record(z.string(), z.any()).nullable(),
+  characteristics: z.array(engineeringCharacteristicSchema),
+  settings: z.record(z.string(), z.any()).optional(),
+  pdfBase64: z.string().optional(),
+  pdfFileName: z.string().optional(),
+  activeSheetIndex: z.number(),
+  scale: z.number(),
+  rotation: z.number()
+}).passthrough();
 
 export interface LoonistProjectPackage {
   format: 'LOONIST_PROJECT_V1';
@@ -84,17 +132,27 @@ export class ProjectArchiveService {
   }
 
   /**
-   * Parses and validates a project package from JSON string
+   * Parses and structurally validates a project package from a JSON string. This is a trust
+   * boundary — the file comes from disk, may have been hand-edited, corrupted, or produced by
+   * an older/incompatible app version — so a malformed file is rejected here with a specific
+   * error rather than silently corrupting in-memory state or crashing deeper in the pipeline.
    */
   public static deserialize(jsonString: string): LoonistProjectPackage {
-    const parsed = JSON.parse(jsonString) as Partial<LoonistProjectPackage>;
-    if (parsed.format !== 'LOONIST_PROJECT_V1') {
-      throw new Error('Invalid project file format. Expected LOONIST_PROJECT_V1');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch {
+      throw new Error('Corrupted project package: not valid JSON');
     }
-    if (!Array.isArray(parsed.characteristics)) {
-      throw new Error('Corrupted project package: characteristics array is missing');
+
+    const result = loonistProjectPackageSchema.safeParse(parsed);
+    if (!result.success) {
+      const firstIssue = result.error.issues[0];
+      const path = firstIssue.path.length > 0 ? firstIssue.path.join('.') : '(root)';
+      throw new Error(`Corrupted or incompatible project package: ${path} — ${firstIssue.message}`);
     }
-    return parsed as LoonistProjectPackage;
+
+    return result.data as unknown as LoonistProjectPackage;
   }
 
   /**
