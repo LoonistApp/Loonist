@@ -320,6 +320,9 @@ export class AiExtractionService {
           // Check if it's a general engineering note
           const noteMatch = t.match(/^(\d+)\.\s+(.*)/);
           if (noteMatch) {
+            if (settings?.autoBalloonNotes === false) {
+              continue;
+            }
             const noteNum = noteMatch[1];
             const noteContent = noteMatch[2].trim();
 
@@ -380,12 +383,14 @@ export class AiExtractionService {
 
           // GD&T Feature Control Frame
           if (parsed.type === 'gdt' && parsed.gdtFrame) {
-            const zone = GridZoneCalculator.calculateZone(
-              cluster.boundingBox.x + cluster.boundingBox.width / 2, 
-              cluster.boundingBox.y + cluster.boundingBox.height / 2, 
-              viewport.width, 
-              viewport.height
-            );
+            const zone = settings?.autoDetectZones === false
+              ? ''
+              : GridZoneCalculator.calculateZone(
+                cluster.boundingBox.x + cluster.boundingBox.width / 2,
+                cluster.boundingBox.y + cluster.boundingBox.height / 2,
+                viewport.width,
+                viewport.height
+              );
 
             // Determine specific GD&T subType label
             const gdtType = parsed.gdtFrame.characteristic;
@@ -414,42 +419,92 @@ export class AiExtractionService {
               method = 'Optical Comparator';
             }
 
-            characteristics.push({
-              id: `char-sheet-${pageNum}-${currentItemNumber}`,
-              itemNumber: currentItemNumber,
-              sheetNumber: pageNum,
-              drawingZone: zone,
-              type: 'gdt',
-              displayType: 'GEOMETRIC TOLERANCE',
-              subType: subTypeLabel,
-              classification: 'Critical',
-              enclosure: parsed.enclosure,
-              rawText: cluster.combinedText,
-              cleanNominal: parsed.nominal,
-              upperTol: parsed.upperTol,
-              lowerTol: parsed.lowerTol,
-              minLimit: parsed.minLimit,
-              maxLimit: parsed.maxLimit,
-              plusTol: parsed.upperTol,
-              minusTol: 0,
-              upperLimit: parsed.maxLimit,
-              lowerLimit: parsed.minLimit,
-              units: parsed.units,
-              isToleranceInherited: false,
-              toleranceSource: parsed.toleranceSource,
-              gdtFrame: parsed.gdtFrame,
-              holeCallout: parsed.holeCallout,
-              quantity: parsed.multiplier || 1,
-              inspectionMethod: method,
-              confidenceScore: isScannedSheet ? 0.88 : 0.98,
-              verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
-              extractionSource: isScannedSheet ? 'ocr' : 'vector',
-              extractionConfidence: isScannedSheet ? 0.88 : 0.98,
-              isBasic: false,
-              forReference: false,
-              sourceCaptureOrSheet: `Sheet ${pageNum}`,
-              boundingBox: cluster.boundingBox
-            });
+            const gdtMultiplier = parsed.multiplier || 1;
+            const gdtShouldSplit = gdtMultiplier > 1 &&
+              (settings?.multiplierBehavior ?? 'single_balloon') === 'split_sub_balloons';
+            const gdtParentId = `char-sheet-${pageNum}-${currentItemNumber}`;
+
+            if (gdtShouldSplit) {
+              for (let m = 1; m <= gdtMultiplier; m++) {
+                characteristics.push({
+                  id: `${gdtParentId}-${m}`,
+                  itemNumber: currentItemNumber,
+                  subNumber: `${currentItemNumber}${subDelim}${m}`,
+                  sheetNumber: pageNum,
+                  drawingZone: zone,
+                  type: 'gdt',
+                  displayType: 'GEOMETRIC TOLERANCE',
+                  subType: subTypeLabel,
+                  classification: 'Critical',
+                  enclosure: parsed.enclosure,
+                  rawText: cluster.combinedText,
+                  cleanNominal: parsed.nominal,
+                  upperTol: parsed.upperTol,
+                  lowerTol: parsed.lowerTol,
+                  minLimit: parsed.minLimit,
+                  maxLimit: parsed.maxLimit,
+                  plusTol: parsed.upperTol,
+                  minusTol: 0,
+                  upperLimit: parsed.maxLimit,
+                  lowerLimit: parsed.minLimit,
+                  units: parsed.units,
+                  isToleranceInherited: false,
+                  toleranceSource: parsed.toleranceSource,
+                  gdtFrame: parsed.gdtFrame,
+                  holeCallout: parsed.holeCallout,
+                  quantity: 1,
+                  isExpandedMultiplier: true,
+                  parentCharacteristicId: gdtParentId,
+                  inspectionMethod: method,
+                  confidenceScore: isScannedSheet ? 0.88 : 0.98,
+                  verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+                  extractionSource: isScannedSheet ? 'ocr' : 'vector',
+                  extractionConfidence: isScannedSheet ? 0.88 : 0.98,
+                  isBasic: false,
+                  forReference: false,
+                  sourceCaptureOrSheet: `Sheet ${pageNum}`,
+                  boundingBox: cluster.boundingBox,
+                  skipBalloonRender: m > 1
+                });
+              }
+            } else {
+              characteristics.push({
+                id: gdtParentId,
+                itemNumber: currentItemNumber,
+                sheetNumber: pageNum,
+                drawingZone: zone,
+                type: 'gdt',
+                displayType: 'GEOMETRIC TOLERANCE',
+                subType: subTypeLabel,
+                classification: 'Critical',
+                enclosure: parsed.enclosure,
+                rawText: cluster.combinedText,
+                cleanNominal: parsed.nominal,
+                upperTol: parsed.upperTol,
+                lowerTol: parsed.lowerTol,
+                minLimit: parsed.minLimit,
+                maxLimit: parsed.maxLimit,
+                plusTol: parsed.upperTol,
+                minusTol: 0,
+                upperLimit: parsed.maxLimit,
+                lowerLimit: parsed.minLimit,
+                units: parsed.units,
+                isToleranceInherited: false,
+                toleranceSource: parsed.toleranceSource,
+                gdtFrame: parsed.gdtFrame,
+                holeCallout: parsed.holeCallout,
+                quantity: gdtMultiplier,
+                inspectionMethod: method,
+                confidenceScore: isScannedSheet ? 0.88 : 0.98,
+                verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+                extractionSource: isScannedSheet ? 'ocr' : 'vector',
+                extractionConfidence: isScannedSheet ? 0.88 : 0.98,
+                isBasic: false,
+                forReference: false,
+                sourceCaptureOrSheet: `Sheet ${pageNum}`,
+                boundingBox: cluster.boundingBox
+              });
+            }
             currentItemNumber += step;
             continue;
           }
@@ -464,12 +519,14 @@ export class AiExtractionService {
 
           // Standard Dimensions (Diameter, Radius, Angular, Thread, Chamfer, Linear)
           if (parsed.nominal !== null) {
-            const zone = GridZoneCalculator.calculateZone(
-              cluster.boundingBox.x + cluster.boundingBox.width / 2, 
-              cluster.boundingBox.y + cluster.boundingBox.height / 2, 
-              viewport.width, 
-              viewport.height
-            );
+            const zone = settings?.autoDetectZones === false
+              ? ''
+              : GridZoneCalculator.calculateZone(
+                cluster.boundingBox.x + cluster.boundingBox.width / 2,
+                cluster.boundingBox.y + cluster.boundingBox.height / 2,
+                viewport.width,
+                viewport.height
+              );
 
             const isRef = parsed.enclosure === 'reference';
             const isDiameter = parsed.type === 'diameter';
@@ -568,7 +625,7 @@ export class AiExtractionService {
                   skipBalloonRender: isSecondary // Clean CAD Canvas: Only the primary balloon renders on the blueprint canvas
                 });
               });
-            } else if (multiplier > 1) {
+            } else if (multiplier > 1 && (settings?.multiplierBehavior ?? 'single_balloon') === 'split_sub_balloons') {
               for (let m = 1; m <= multiplier; m++) {
                 characteristics.push({
                   id: `char-sheet-${pageNum}-${currentItemNumber}-${m}`,
@@ -637,7 +694,7 @@ export class AiExtractionService {
                 units: parsed.units,
                 isToleranceInherited: parsed.isToleranceInherited,
                 toleranceSource: isRef ? 'ASME Y14.5 Reference Dimension (No Tolerance)' : parsed.toleranceSource,
-                quantity: 1,
+                quantity: multiplier,
                 inspectionMethod: method,
                 confidenceScore: isScannedSheet ? Math.min(confidence, 0.88) : confidence,
                 verificationStatus: isScannedSheet ? 'needs_review' : verificationStatus,
