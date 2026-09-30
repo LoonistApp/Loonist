@@ -251,7 +251,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       type="text"
                       value={draftProps.partNumber || ''}
                       onChange={(e) => handleUpdateField('partNumber', e.target.value)}
-                      placeholder="—"
+                      placeholder="e.g. AS9102-001"
                       className={`w-full min-w-0 h-7 bg-white border ${
                         invalidFields.partNumber
                           ? 'border-red-500 focus:border-red-500'
@@ -269,7 +269,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       type="text"
                       value={draftProps.partRevision || ''}
                       onChange={(e) => handleUpdateField('partRevision', e.target.value)}
-                      placeholder="—"
+                      placeholder="e.g. A"
                       className={`w-full min-w-0 h-7 bg-white border ${
                         invalidFields.partRevision
                           ? 'border-red-500 focus:border-red-500'
@@ -287,7 +287,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       type="text"
                       value={draftProps.cageCode || ''}
                       onChange={(e) => handleUpdateField('cageCode', e.target.value)}
-                      placeholder="—"
+                      placeholder="e.g. 1A2B3"
                       className={`w-full min-w-0 h-7 bg-white border ${
                         invalidFields.cageCode
                           ? 'border-red-500 focus:border-red-500'
@@ -305,7 +305,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       type="text"
                       value={draftProps.drawingNumber || ''}
                       onChange={(e) => handleUpdateField('drawingNumber', e.target.value)}
-                      placeholder="—"
+                      placeholder="e.g. DWG-001"
                       className={`w-full min-w-0 h-7 bg-white border ${
                         invalidFields.drawingNumber
                           ? 'border-red-500 focus:border-red-500'
@@ -323,7 +323,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                       type="text"
                       value={draftProps.drawingRevision || ''}
                       onChange={(e) => handleUpdateField('drawingRevision', e.target.value)}
-                      placeholder="—"
+                      placeholder="e.g. A"
                       className={`w-full min-w-0 h-7 bg-white border ${
                         invalidFields.drawingRevision
                           ? 'border-red-500 focus:border-red-500'
@@ -343,7 +343,7 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
                     type="text"
                     value={draftProps.partName || ''}
                     onChange={(e) => handleUpdateField('partName', e.target.value)}
-                    placeholder="—"
+                    placeholder="e.g. Turbine Mount Bracket"
                     className={`w-full min-w-0 h-7 bg-white border ${
                       invalidFields.partName
                         ? 'border-red-500 focus:border-red-500'

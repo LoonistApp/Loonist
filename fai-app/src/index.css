@@ -702,6 +702,10 @@ body {
   border-spacing: 0;
 }
 
+.shadow-none {
+  box-shadow: none;
+}
+
 .shadow-2xs {
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
@@ -2396,6 +2400,15 @@ td.sticky-left-cha {
   background-color: #242424 !important;
   border-color: #555555 !important;
   outline: none !important;
+}
+
+/* Required-field validation state must survive the dark-mode input override above,
+   which otherwise forces every input border to grey regardless of validity. */
+.dark input[type="text"].border-red-500,
+.dark input[type="number"].border-red-500,
+.dark input[type="text"].border-red-500:focus,
+.dark input[type="number"].border-red-500:focus {
+  border-color: #ef4444 !important;
 }
 
 .dark select option {
