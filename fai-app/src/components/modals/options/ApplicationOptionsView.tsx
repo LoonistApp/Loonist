@@ -19,7 +19,6 @@ import { DEFAULT_APPLICATION_OPTIONS } from '../../../types/applicationOptions';
 import { WorkspaceTab } from './tabs/WorkspaceTab';
 import { MasterDataTab } from './tabs/MasterDataTab';
 import { TemplatesTab } from './tabs/TemplatesTab';
-import { NetInspectTab } from './tabs/NetInspectTab';
 import { LicensingTab } from './tabs/LicensingTab';
 import { ItarPrivacyTab } from './tabs/ItarPrivacyTab';
 import { templateFileStore } from '../../../services/export/templateFileStore';
@@ -112,11 +111,11 @@ export const ApplicationOptionsView = forwardRef<ApplicationOptionsHandle, Appli
     e.target.value = '';
   };
 
-  const navItems: Array<{ id: OptionsSectionId; label: string; icon: React.ReactNode; group: string; desc: string }> = [
+  const navItems: Array<{ id: OptionsSectionId; label: string; icon: React.ReactNode; group: string; desc: string; disabled?: boolean }> = [
     { id: 'workspace', label: 'Workspace & Ergonomics', icon: <Sliders className="w-4 h-4" />, group: 'Application Options', desc: 'CAD mouse zoom polarity, canvas background, table column customizer' },
     { id: 'masterData', label: 'Factory Master Data', icon: <Wrench className="w-4 h-4" />, group: 'Application Options', desc: 'Inspection tools, manufacturing operations, severity classifications' },
     { id: 'templates', label: 'Templates', icon: <Folder className="w-4 h-4" />, group: 'Application Options', desc: 'AS9102 Form 1/2/3 and custom Excel export templates' },
-    { id: 'netInspect', label: 'Net-Inspect Gateway', icon: <Cloud className="w-4 h-4" />, group: 'Application Options', desc: 'Aerospace upload limits, basic/ref flags, custom field mapping' },
+    { id: 'netInspect', label: 'Net-Inspect Gateway', icon: <Cloud className="w-4 h-4" />, group: 'Application Options', desc: 'Not built yet — aerospace upload gateway for Net-Inspect', disabled: true },
     { id: 'licensing', label: 'Licensing', icon: <ShieldCheck className="w-4 h-4" />, group: 'Application Options', desc: 'Activate, refresh or release this workstation license; offline license file' },
     { id: 'itarPrivacy', label: 'Privacy & About', icon: <Lock className="w-4 h-4" />, group: 'Security & System', desc: 'How LOONIST handles your data, version and system information' },
   ];
@@ -156,19 +155,28 @@ export const ApplicationOptionsView = forwardRef<ApplicationOptionsHandle, Appli
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveSection(item.id)}
-                className={`flex items-center justify-between px-3 py-2 rounded text-xs transition cursor-pointer text-left ${activeSection === item.id
-                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900 '
+                disabled={item.disabled}
+                onClick={() => !item.disabled && setActiveSection(item.id)}
+                title={item.disabled ? 'Coming soon' : undefined}
+                className={`flex items-center justify-between px-3 py-2 rounded text-xs transition text-left ${
+                  item.disabled
+                    ? 'text-slate-400 cursor-not-allowed opacity-60'
+                    : activeSection === item.id
+                    ? 'bg-blue-600 text-white font-semibold shadow-xs cursor-pointer'
+                    : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900 cursor-pointer'
                   }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={activeSection === item.id ? 'text-white' : 'text-slate-500'}>
+                  <span className={item.disabled ? 'text-slate-400' : activeSection === item.id ? 'text-white' : 'text-slate-500'}>
                     {item.icon}
                   </span>
                   <span className="truncate">{item.label}</span>
                 </div>
-                {activeSection === item.id && (
+                {item.disabled ? (
+                  <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 shrink-0">
+                    Soon
+                  </span>
+                ) : activeSection === item.id && (
                   <ChevronRight className="w-3.5 h-3.5 text-white shrink-0" />
                 )}
               </button>
@@ -247,16 +255,6 @@ export const ApplicationOptionsView = forwardRef<ApplicationOptionsHandle, Appli
                 onChange={(patch) => setDraftOptions(prev => ({
                   ...prev,
                   templates: { ...prev.templates, ...patch }
-                }))}
-              />
-            )}
-
-            {activeSection === 'netInspect' && (
-              <NetInspectTab
-                settings={draftOptions.netInspect}
-                onChange={(patch) => setDraftOptions(prev => ({
-                  ...prev,
-                  netInspect: { ...prev.netInspect, ...patch }
                 }))}
               />
             )}

@@ -115,9 +115,6 @@ export interface RibbonBarProps {
   // CAD Dark Mode Theme
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
-
-  // In-App Help Tab (LOONIST is fully offline)
-  onOpenHelp?: () => void;
 }
 
 export const RibbonBar: React.FC<RibbonBarProps> = ({
@@ -137,7 +134,6 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onRepositionBalloons,
   onLoadSample,
   onNewProject,
-  onOpenHelp,
   onRotateClockwise,
   onRotateCounterClockwise,
   balloonAppearance,
@@ -212,14 +208,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const logoMenuRef = useRef<HTMLDivElement>(null);
 
-  // Opens the in-app Help modal (LOONIST is fully offline; no external site is used)
-  const handleOpenHelp = useCallback(() => {
-    if (onOpenHelp) {
-      onOpenHelp();
-      return;
-    }
-    setIsHelpModalOpen(true);
-  }, [onOpenHelp]);
+  // Disabled for now: no-op until the help/website destination is built
+  const handleOpenHelp = useCallback(() => {}, []);
 
   // Close Logo System Menu on outside click
   useEffect(() => {
