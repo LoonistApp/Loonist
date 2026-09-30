@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Save,
-  FilePlus2,
   FileText,
   LogOut,
   ArrowLeft
@@ -19,10 +18,8 @@ interface FileBackstageModalProps {
   projectProps: ProjectProperties;
   characteristicsCount: number;
   onUpdateProjectProps?: (props: ProjectProperties) => void;
-  onNewProject?: () => void;
   onOpenProject?: () => void;
   onSaveProject?: () => void;
-  onAddFile?: () => void;
   onLoadSample?: () => void;
   onExportExcel?: () => void;
   onExportPdf?: () => void;
@@ -36,8 +33,6 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
   projectProps,
   characteristicsCount,
   onUpdateProjectProps,
-  onNewProject,
-  onAddFile,
   onCloseFile
 }) => {
   // Local draft state for enterprise desktop save/cancel workflow
@@ -154,40 +149,11 @@ export const FileBackstageModal: React.FC<FileBackstageModalProps> = ({
 
           {/* Left Navigation Rail (Sharp & Clean - 140px) */}
           <div
-            className="bg-slate-50 border-r border-slate-200 flex flex-col justify-between shrink-0 select-none"
+            className="bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 select-none"
             style={{ width: '140px', padding: '12px 8px' }}
           >
-            <div className="flex flex-col gap-3">
-              {/* Workspace Actions */}
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1.5 block mb-1">
-                  Workspace
-                </span>
-                <div className="flex flex-col gap-0.5">
-                  {(onNewProject || onAddFile) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onNewProject) {
-                          onNewProject();
-                        } else if (onAddFile) {
-                          onAddFile();
-                        }
-                        onClose();
-                      }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs font-medium text-slate-700 hover:bg-slate-200 transition cursor-pointer border border-transparent hover:border-slate-300"
-                    >
-                      <FilePlus2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="truncate">New Project</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Rail Actions: Exit Drawing */}
-            <div className="pt-2 border-t border-slate-200 flex flex-col gap-1">
-
+            {/* Rail Actions: Exit Drawing */}
+            <div className="flex flex-col gap-1">
               <button
                 type="button"
                 disabled={!document}

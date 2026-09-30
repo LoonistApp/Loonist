@@ -1328,7 +1328,6 @@ export function App() {
         isExtracting={isExtracting}
         extractScope={extractScope}
         onSetExtractScope={setExtractScope}
-        onAddFile={handleOpenBlueprint}
         onSaveProject={handleSaveProject}
         onOpenProject={handleOpenProject}
         onExportExcel={handleExportExcel}

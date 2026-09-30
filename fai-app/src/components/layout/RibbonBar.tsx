@@ -34,7 +34,6 @@ export interface RibbonBarProps {
   isExtracting: boolean;
   extractScope?: 'active' | 'all';
   onSetExtractScope?: (scope: 'active' | 'all') => void;
-  onAddFile: () => void;
   onSaveProject?: () => void;
   onOpenProject?: () => void;
   onExportExcel?: () => void;
@@ -125,7 +124,6 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onRunInspection,
   isInspecting = false,
   hasInspectionResults = false,
-  onAddFile,
   onSaveProject,
   onOpenProject,
   onExportExcel,
@@ -659,10 +657,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         projectProps={projectProps}
         onUpdateProjectProps={onUpdateProjectProps}
         characteristicsCount={effectiveCharCount}
-        onNewProject={onNewProject}
         onOpenProject={onOpenProject}
         onSaveProject={onSaveProject}
-        onAddFile={onAddFile}
         onLoadSample={onLoadSample}
         onExportExcel={onExportExcel}
         onExportPdf={onExportPdf}
