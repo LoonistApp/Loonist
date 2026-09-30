@@ -2164,6 +2164,13 @@ html.dark,
   color-scheme: dark;
 }
 
+/* Chromium sometimes ignores inherited color-scheme for the native <select>
+   popup listbox; declare it directly on the control so dropdown options
+   render dark instead of the OS-default light popup. */
+.dark select {
+  color-scheme: dark;
+}
+
 .dark html,
 .dark body {
   background-color: #121212;
@@ -2448,6 +2455,14 @@ td.sticky-left-cha {
 /* In-table highlights and selection in Dark Mode */
 .dark .bg-amber-50\/70 {
   background-color: rgba(180, 83, 9, 0.22) !important;
+}
+
+.dark .bg-amber-50\/40 {
+  background-color: rgba(180, 83, 9, 0.16) !important;
+}
+
+.dark .bg-slate-100\/60 {
+  background-color: rgba(64, 64, 64, 0.6) !important;
 }
 
 .dark .hover\:bg-amber-100\/80:hover {

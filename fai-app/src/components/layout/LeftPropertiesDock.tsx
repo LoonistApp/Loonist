@@ -458,7 +458,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                 />
               </div>
             ) : (
-              <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 text-center select-none bg-slate-50/50">
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 text-center select-none bg-slate-50">
                 <h3 className="text-sm font-bold text-slate-800 mb-1.5">
                   No inspection results
                 </h3>
