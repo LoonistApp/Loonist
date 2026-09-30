@@ -102,7 +102,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
         <RibbonButton
           variant="large"
           icon={
-            <Sparkles className="w-5 h-5 text-slate-700 dark:text-zinc-200" />
+            <Sparkles className="w-5 h-5 text-slate-700" />
           }
           label={isExtracting ? 'Extracting...' : 'Auto Extract'}
           disabled={!hasDrawing || isExtracting}
@@ -119,7 +119,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           <RibbonButton
             variant="large"
             icon={
-              <Search className="w-5 h-5 text-slate-700 dark:text-zinc-200" />
+              <Search className="w-5 h-5 text-slate-700" />
             }
             label={isInspecting ? 'Inspecting...' : 'Inspect'}
             disabled={!hasDrawing || isInspecting}
@@ -140,7 +140,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           {/* Shape & Colors */}
           <div className="flex items-center gap-1.5">
             {/* Shapes */}
-            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded border border-slate-200 dark:border-zinc-700">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded border border-slate-200">
               {BALLOON_SHAPES.map((s) => {
                 const isSelected = balloonAppearance.shape === s.id;
                 return (
@@ -150,14 +150,14 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
                     onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: s.id })}
                     title={s.label}
                     className={`p-1 rounded cursor-pointer transition flex items-center justify-center ${isSelected
-                        ? 'bg-white dark:bg-zinc-700 shadow-2xs'
-                        : 'hover:bg-slate-200/60 dark:hover:bg-zinc-700/50'
+                        ? 'bg-white shadow-2xs'
+                        : 'hover:bg-slate-200/60'
                       }`}
                   >
                     <s.Icon
                       className={`w-3.5 h-3.5 transition-all ${isSelected
-                          ? `scale-105 ${isBlack ? 'text-slate-900 dark:text-zinc-200' : ''}`
-                          : 'text-slate-600 dark:text-white opacity-80 hover:opacity-100'
+                          ? `scale-105 ${isBlack ? 'text-slate-900' : ''}`
+                          : 'text-slate-600 opacity-80 hover:opacity-100'
                         }`}
                       fill={isSelected ? (isBlack ? 'currentColor' : activeColorHex) : 'none'}
                       fillOpacity={isSelected ? 0.25 : 0}
@@ -177,7 +177,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
             </div>
 
             {/* Colors */}
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 p-1 rounded border border-slate-200 dark:border-zinc-700">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded border border-slate-200">
               {BALLOON_COLORS.map((c) => (
                 <button
                   key={c.name}
@@ -186,10 +186,10 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
                   title={c.label}
                   style={{ backgroundColor: c.hex }}
                   className={`w-3.5 h-3.5 rounded-full transition-transform cursor-pointer border ${c.name === 'black'
-                      ? 'border-slate-400 dark:border-zinc-300 shadow-2xs'
-                      : 'border-black/15 dark:border-white/25'
+                      ? 'border-slate-400 shadow-2xs'
+                      : 'border-black/15'
                     } ${balloonAppearance.color === c.name
-                      ? 'ring-2 ring-offset-1 ring-slate-700 dark:ring-white scale-110'
+                      ? 'ring-2 ring-offset-1 ring-slate-700 scale-110'
                       : 'opacity-90 hover:opacity-100 hover:scale-105'
                     }`}
                 />
@@ -200,11 +200,11 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           {/* Fit & Leader Line */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1 text-[10px]">
-              <span className="text-slate-400 dark:text-zinc-400 font-semibold">Fit:</span>
+              <span className="text-slate-400 font-semibold">Fit:</span>
               <select
                 value={balloonAppearance.fit}
                 onChange={(e) => onUpdateBalloonAppearance({ ...balloonAppearance, fit: Number(e.target.value) })}
-                className="text-[10px] bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-slate-700 dark:text-slate-200 cursor-pointer"
+                className="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 cursor-pointer"
               >
                 <option value={1}>Tight</option>
                 <option value={2}>Standard</option>
@@ -212,7 +212,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
               </select>
             </div>
 
-            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 dark:text-zinc-300 select-none">
+            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 select-none">
               <input
                 type="checkbox"
                 checked={balloonAppearance.showLeaderLine}
@@ -230,7 +230,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
         <div className="flex flex-col gap-0.5 justify-center">
           <RibbonButton
             variant="small"
-            icon={<RotateCw className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+            icon={<RotateCw className="w-3.5 h-3.5 text-slate-700" />}
             label="Rotate 90° CW"
             hotkey="R"
             disabled={!hasDrawing}
@@ -240,7 +240,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           {onRotateCounterClockwise && (
             <RibbonButton
               variant="small"
-              icon={<RotateCcw className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+              icon={<RotateCcw className="w-3.5 h-3.5 text-slate-700" />}
               label="Rotate 90° CCW"
               disabled={!hasDrawing}
               title="Rotate Drawing 90° Counter-Clockwise"
@@ -255,7 +255,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
         {onRenumberAll && (
           <RibbonButton
             variant="large"
-            icon={<ListOrdered className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
+            icon={<ListOrdered className="w-5 h-5 text-slate-700" />}
             label="Renumber"
             subLabel="Sequential"
             disabled={characteristicsCount === 0}
@@ -271,7 +271,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           {onRepositionBalloons && (
             <RibbonButton
               variant="small"
-              icon={<RefreshCw className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />}
+              icon={<RefreshCw className="w-3.5 h-3.5 text-slate-500" />}
               label="Auto Reposition"
               disabled={characteristicsCount === 0}
               title="Recalculate balloon coordinates avoiding callouts"
@@ -282,7 +282,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
           {onToggleLockBalloons && (
             <RibbonButton
               variant="small"
-              icon={balloonsLocked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />}
+              icon={balloonsLocked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-500" />}
               label={balloonsLocked ? 'Locked' : 'Lock Drag'}
               active={balloonsLocked}
               accent="amber"

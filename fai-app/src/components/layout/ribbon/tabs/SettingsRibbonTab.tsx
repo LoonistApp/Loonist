@@ -60,14 +60,14 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
         <div className="flex flex-col gap-1.5 justify-center py-0.5">
           {/* Unit Toggle & Standard Badge */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-slate-200/80 dark:bg-zinc-800 p-0.5 rounded border border-slate-300 dark:border-zinc-700 text-[10px]">
+            <div className="flex items-center bg-slate-200/80 p-0.5 rounded border border-slate-300 text-[10px]">
               <button
                 type="button"
                 onClick={() => handleUnitToggle('in')}
                 className={`px-2 py-0.5 rounded font-mono font-bold cursor-pointer transition ${
                   settings.units === 'in'
-                    ? 'bg-slate-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-xs'
-                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
                 title="Imperial Units (Inches) - ASME Y14.5 Aerospace Default"
               >
@@ -78,8 +78,8 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                 onClick={() => handleUnitToggle('mm')}
                 className={`px-2 py-0.5 rounded font-mono font-bold cursor-pointer transition ${
                   settings.units === 'mm'
-                    ? 'bg-slate-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-xs'
-                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
                 title="Metric Units (Millimeters) - ISO 2768-m Standard"
               >
@@ -87,16 +87,16 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
               </button>
             </div>
 
-            <span className="px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-zinc-800 border border-slate-300/80 dark:border-zinc-700 text-[9.5px] text-slate-600 dark:text-zinc-400 font-mono font-medium">
+            <span className="px-1.5 py-0.5 rounded bg-slate-200/60 border border-slate-300 text-[9.5px] text-slate-600 font-mono font-medium">
               {settings.units === 'in' ? 'ASME Y14.5' : 'ISO 2768'}
             </span>
           </div>
 
           {/* Precision Step Matrix Inputs */}
           <div className="flex items-center gap-2 text-[10px]">
-            <span className="text-slate-400 dark:text-zinc-500 font-mono font-bold">±</span>
+            <span className="text-slate-400 font-mono font-bold">±</span>
             
-            <label className="flex items-center gap-1 text-slate-600 dark:text-zinc-400 font-mono" title=".X One-Decimal Tolerance">
+            <label className="flex items-center gap-1 text-slate-600 font-mono" title=".X One-Decimal Tolerance">
               <span>.X:</span>
               <input
                 type="number"
@@ -104,11 +104,11 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                 value={settings.tolerances.oneDecimal}
                 onChange={(e) => handleToleranceChange('oneDecimal', parseFloat(e.target.value) || 0)}
                 style={{ width: '42px', textAlign: 'center' }}
-                className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 dark:text-zinc-200 outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+                className="bg-white border border-slate-300 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 outline-none focus:border-slate-500"
               />
             </label>
 
-            <label className="flex items-center gap-1 text-slate-600 dark:text-zinc-400 font-mono" title=".XX Two-Decimal Tolerance">
+            <label className="flex items-center gap-1 text-slate-600 font-mono" title=".XX Two-Decimal Tolerance">
               <span>.XX:</span>
               <input
                 type="number"
@@ -116,11 +116,11 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                 value={settings.tolerances.twoDecimals}
                 onChange={(e) => handleToleranceChange('twoDecimals', parseFloat(e.target.value) || 0)}
                 style={{ width: '46px', textAlign: 'center' }}
-                className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 dark:text-zinc-200 outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+                className="bg-white border border-slate-300 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 outline-none focus:border-slate-500"
               />
             </label>
 
-            <label className="flex items-center gap-1 text-slate-600 dark:text-zinc-400 font-mono" title=".XXX Three-Decimal Tolerance">
+            <label className="flex items-center gap-1 text-slate-600 font-mono" title=".XXX Three-Decimal Tolerance">
               <span>.XXX:</span>
               <input
                 type="number"
@@ -128,7 +128,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                 value={settings.tolerances.threeDecimals}
                 onChange={(e) => handleToleranceChange('threeDecimals', parseFloat(e.target.value) || 0)}
                 style={{ width: '48px', textAlign: 'center' }}
-                className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 dark:text-zinc-200 outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+                className="bg-white border border-slate-300 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 outline-none focus:border-slate-500"
               />
             </label>
           </div>
@@ -141,7 +141,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
           {/* Skip Reference and Basic Dimension Checkboxes */}
           <div className="flex items-center gap-2.5 text-[10.5px]">
             <label 
-              className="flex items-center gap-1 cursor-pointer text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white select-none"
+              className="flex items-center gap-1 cursor-pointer text-slate-700 hover:text-slate-900 select-none"
               title="Do not balloon ASME Y14.5 parenthetical reference dimensions (1.500) into AS9102 Form 3"
             >
               <input
@@ -154,7 +154,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
             </label>
 
             <label 
-              className="flex items-center gap-1 cursor-pointer text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white select-none"
+              className="flex items-center gap-1 cursor-pointer text-slate-700 hover:text-slate-900 select-none"
               title="Do not balloon boxed basic dimensions [1.500] (governed by GD&T feature control frames)"
             >
               <input
@@ -169,12 +169,12 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
 
           {/* OCR Match Review Floor */}
           <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="text-slate-500 dark:text-zinc-400">OCR Review Floor:</span>
+            <span className="text-slate-500">OCR Review Floor:</span>
             <select
               value={settings.ocrConfidenceThreshold}
               onChange={(e) => update({ ocrConfidenceThreshold: parseFloat(e.target.value) })}
               style={{ width: '135px' }}
-              className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 dark:text-zinc-200 cursor-pointer outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+              className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 cursor-pointer outline-none focus:border-slate-500"
               title="Characteristics extracted via PaddleOCR with match rate below this threshold will be flagged for mandatory inspection review"
             >
               <option value={0.75}>75% (Lenient)</option>
@@ -191,7 +191,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
         <div className="flex flex-col gap-1.5 justify-center py-0.5">
           {/* Starting Number & Delimiter */}
           <div className="flex items-center gap-2.5 text-[10.5px]">
-            <label className="flex items-center gap-1 text-slate-600 dark:text-zinc-400">
+            <label className="flex items-center gap-1 text-slate-600">
               <span className="text-[10px]">Start:</span>
               <input
                 type="number"
@@ -200,18 +200,18 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                 value={settings.startingNumber}
                 onChange={(e) => update({ startingNumber: Math.max(1, parseInt(e.target.value, 10) || 1) })}
                 style={{ width: '44px', textAlign: 'center' }}
-                className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 dark:text-zinc-200 outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+                className="bg-white border border-slate-300 rounded px-1 py-0.5 text-[10px] font-mono font-bold text-slate-800 outline-none focus:border-slate-500"
                 title="First characteristic balloon index (e.g. 1 for main drawings, 100 or 1000 for sub-assemblies)"
               />
             </label>
 
-            <label className="flex items-center gap-1 text-slate-600 dark:text-zinc-400">
+            <label className="flex items-center gap-1 text-slate-600">
               <span className="text-[10px]">Sub-delim:</span>
               <select
                 value={settings.subDelimiter}
                 onChange={(e) => update({ subDelimiter: e.target.value as DelimiterStyle })}
                 style={{ width: '100px' }}
-                className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 dark:text-zinc-200 cursor-pointer outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+                className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 cursor-pointer outline-none focus:border-slate-500"
                 title="Format style for sub-divided characteristic multiples (e.g. 4X hole callouts)"
               >
                 <option value=".">. (1.1, 1.2)</option>
@@ -223,8 +223,8 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
 
           {/* Increment Step */}
           <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="text-slate-500 dark:text-zinc-400">Step:</span>
-            <div className="flex items-center bg-slate-200/80 dark:bg-zinc-800 p-0.5 rounded border border-slate-300 dark:border-zinc-700">
+            <span className="text-slate-500">Step:</span>
+            <div className="flex items-center bg-slate-200/80 p-0.5 rounded border border-slate-300">
               {[1, 5, 10].map((stepVal) => (
                 <button
                   key={stepVal}
@@ -232,8 +232,8 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                   onClick={() => update({ incrementStep: stepVal })}
                   className={`px-2 py-0.5 rounded font-mono font-bold cursor-pointer transition ${
                     settings.incrementStep === stepVal
-                      ? 'bg-slate-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                   title={`Increment balloon numbers by +${stepVal}`}
                 >
@@ -250,8 +250,8 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
         <div className="flex flex-col gap-1.5 justify-center py-0.5">
           {/* AS9102 Standard Revision */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 dark:text-zinc-400">Standard:</span>
-            <div className="flex items-center bg-slate-200/80 dark:bg-zinc-800 p-0.5 rounded border border-slate-300 dark:border-zinc-700 text-[10px]">
+            <span className="text-[10px] text-slate-500">Standard:</span>
+            <div className="flex items-center bg-slate-200/80 p-0.5 rounded border border-slate-300 text-[10px]">
               {(['Rev B', 'Rev C'] as As9102StandardRevision[]).map((rev) => (
                 <button
                   key={rev}
@@ -259,8 +259,8 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
                   onClick={() => update({ as9102Revision: rev })}
                   className={`px-2 py-0.5 rounded font-sans font-bold cursor-pointer transition ${
                     settings.as9102Revision === rev
-                      ? 'bg-slate-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-xs'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                   title={`SAE AS9102 Aerospace First Article Inspection ${rev}`}
                 >
@@ -272,12 +272,12 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
 
           {/* Sampling Plan AQL & Level */}
           <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="text-slate-500 dark:text-zinc-400">AQL:</span>
+            <span className="text-slate-500">AQL:</span>
             <select
               value={settings.aqlLevel}
               onChange={(e) => update({ aqlLevel: e.target.value as AqlLevel })}
               style={{ width: '135px' }}
-              className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 dark:text-zinc-200 cursor-pointer outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+              className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 cursor-pointer outline-none focus:border-slate-500"
               title="ANSI/ASQ Z1.4 / ISO 2859-1 Sampling Plan Acceptance Quality Limit"
             >
               <option value="0.65">0.65 (Tightened)</option>
@@ -290,7 +290,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
               value={settings.inspectionLevel}
               onChange={(e) => update({ inspectionLevel: e.target.value as InspectionLevel })}
               style={{ width: '75px' }}
-              className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1 py-0.5 text-[10px] text-slate-800 dark:text-zinc-200 cursor-pointer outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+              className="bg-white border border-slate-300 rounded px-1 py-0.5 text-[10px] text-slate-800 cursor-pointer outline-none focus:border-slate-500"
             >
               <option value="Level I">Level I</option>
               <option value="Level II">Level II</option>
@@ -305,12 +305,12 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
         <div className="flex flex-col gap-1.5 justify-center py-0.5">
           {/* Security Watermark Dropdown */}
           <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="text-slate-500 dark:text-zinc-400">Watermark:</span>
+            <span className="text-slate-500">Watermark:</span>
             <select
               value={settings.watermark}
               onChange={(e) => update({ watermark: e.target.value as SecurityWatermark })}
               style={{ width: '145px' }}
-              className="bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-800 dark:text-zinc-200 cursor-pointer outline-none focus:border-slate-500 dark:focus:border-zinc-400"
+              className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-800 cursor-pointer outline-none focus:border-slate-500"
               title="Burns diagonal compliance / export-control watermark across all marked PDF pages"
             >
               <option value="NONE">None</option>
@@ -324,7 +324,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
           {/* High-Resolution Print Export Toggle */}
           <div className="flex items-center text-[10.5px]">
             <label 
-              className="flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white select-none"
+              className="flex items-center gap-1.5 cursor-pointer text-slate-700 hover:text-slate-900 select-none"
               title="Produce 300 DPI high-definition engineering print when exporting marked PDF"
             >
               <input
@@ -345,7 +345,7 @@ export const SettingsRibbonTab: React.FC<SettingsRibbonTabProps> = ({
           <button
             type="button"
             onClick={() => onOpenSettingsModal?.('options')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold text-[11px] shadow-xs transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[11px] shadow-xs transition cursor-pointer"
             title="Configure Blueprint Tolerances, Numbering, Workspace, Net-Inspect, and Cloudflare licensing (Ctrl+,)"
           >
             <Settings className="w-3.5 h-3.5" />

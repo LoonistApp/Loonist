@@ -155,16 +155,16 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
       : 'p-0.5';
 
   const btnBaseClass = `${btnHeightClass} flex items-center justify-center transition cursor-pointer`;
-  const btnInactiveClass = "hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100";
-  const btnActiveClass = "bg-slate-800 dark:bg-zinc-700 text-white shadow-xs";
+  const btnInactiveClass = "hover:bg-slate-100 text-slate-600 hover:text-slate-900";
+  const btnActiveClass = "bg-slate-800 text-white shadow-xs";
 
   return (
     <div
       ref={toolbarRef}
-      className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 w-9 flex flex-col items-center bg-white/95 dark:bg-[#1c1c1c]/95 backdrop-blur-xs border border-slate-300 dark:border-[#2d2d2d] rounded-lg shadow-lg select-none text-slate-700 dark:text-zinc-200 transition-all duration-150 overflow-visible ${containerPaddingClass} ${gapClass}`}
+      className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 w-9 flex flex-col items-center bg-white/95 backdrop-blur-xs border border-slate-300 rounded-lg shadow-lg select-none text-slate-700 transition-all duration-150 overflow-visible ${containerPaddingClass} ${gapClass}`}
     >
       {/* Tool Selectors */}
-      <div className={`flex flex-col items-center border-b border-slate-200 dark:border-[#2d2d2d] w-full ${groupPaddingClass} ${gapClass}`}>
+      <div className={`flex flex-col items-center border-b border-slate-200 w-full ${groupPaddingClass} ${gapClass}`}>
         <button
           type="button"
           onClick={() => onToolChange('pan')}
@@ -192,7 +192,7 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
       </div>
 
       {/* Zoom Controls */}
-      <div className={`flex flex-col items-center border-b border-slate-200 dark:border-[#2d2d2d] w-full relative ${groupZoomPaddingClass} ${gapClass}`}>
+      <div className={`flex flex-col items-center border-b border-slate-200 w-full relative ${groupZoomPaddingClass} ${gapClass}`}>
         <button
           type="button"
           onClick={onZoomIn}
@@ -208,7 +208,7 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
           <button
             type="button"
             onClick={() => setShowPresets(!showPresets)}
-            className={`${zoomBtnClass} rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-center font-mono font-semibold text-slate-800 dark:text-zinc-200 transition cursor-pointer flex items-center justify-center leading-none`}
+            className={`${zoomBtnClass} rounded hover:bg-slate-100 text-center font-mono font-semibold text-slate-800 transition cursor-pointer flex items-center justify-center leading-none`}
             title="Select Zoom Preset"
           >
             {zoomPercent}%
@@ -216,7 +216,7 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
 
           {showPresets && (
             <div 
-              className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-white dark:bg-[#1c1c1c] border border-slate-300 dark:border-[#2d2d2d] rounded-lg shadow-xl py-1 w-24 flex flex-col z-30"
+              className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-white border border-slate-300 rounded-lg shadow-xl py-1 w-24 flex flex-col z-30"
             >
               {ZOOM_PRESETS.map((preset) => (
                 <button
@@ -228,8 +228,8 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
                   }}
                   className={`px-3 py-1 text-xs font-mono text-left transition cursor-pointer ${
                     Math.abs(scale - preset) < 0.01 
-                      ? 'text-slate-900 dark:text-zinc-100 font-bold bg-slate-100 dark:bg-zinc-800' 
-                      : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                      ? 'text-slate-900 font-bold bg-slate-100' 
+                      : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   {Math.round(preset * 100)}%

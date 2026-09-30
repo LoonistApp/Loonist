@@ -5,9 +5,10 @@ import {
   FolderOpen
 } from 'lucide-react';
 
-export type RibbonTabId = 
+export type RibbonTabId =
   | 'home'
-  | 'settings';
+  | 'settings'
+  | 'help';
 
 interface RibbonTabNavProps {
   activeTab: RibbonTabId;
@@ -23,6 +24,7 @@ interface RibbonTabNavProps {
 const TABS: Array<{ id: RibbonTabId; label: string }> = [
   { id: 'home', label: 'HOME' },
   { id: 'settings', label: 'SETTINGS' },
+  { id: 'help', label: 'HELP' },
 ];
 
 export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
@@ -34,7 +36,7 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
   onToggleCollapse
 }) => {
   return (
-    <div className="h-7 bg-slate-200/90 dark:bg-[#161b22] px-2 flex items-center justify-between border-b border-slate-300 dark:border-zinc-800 select-none">
+    <div className="h-7 bg-slate-200 px-2 flex items-center justify-between border-b border-slate-300 select-none">
       {/* Ribbon Workspace Navigation Tabs */}
       <div className="flex items-center h-full gap-0.5">
         {/* FILE Tab (In front of HOME) */}
@@ -43,13 +45,13 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
           onClick={onOpenFileMenu}
           className={`relative h-6 px-3 flex items-center gap-1.5 text-[11px] tracking-wide transition cursor-pointer rounded-t-xs ${
             isFileMenuOpen
-              ? 'bg-white dark:bg-[#1c2128] font-bold border-t-2 border-t-slate-800 dark:border-t-zinc-200 border-x border-x-slate-300 dark:border-x-zinc-700/80 shadow-2xs'
-              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800/80 border-t-2 border-t-transparent'
+              ? 'bg-white font-bold border-t-2 border-t-slate-800 border-x border-x-slate-300 shadow-2xs'
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 border-t-2 border-t-transparent'
           }`}
           title="File Operations & Backstage Menu [Alt+F]"
         >
-          <FolderOpen className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-300 shrink-0" />
-          <span className={isFileMenuOpen ? 'font-bold text-slate-900 dark:text-zinc-100' : 'font-semibold text-slate-700 dark:text-zinc-400'}>
+          <FolderOpen className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+          <span className={isFileMenuOpen ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}>
             FILE
           </span>
         </button>
@@ -68,11 +70,11 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
               }}
               className={`relative h-6 px-3 flex items-center text-[11px] tracking-wide transition cursor-pointer rounded-t-xs ${
                 isActive
-                  ? 'bg-white dark:bg-[#1c2128] font-bold border-t-2 border-t-slate-800 dark:border-t-zinc-200 border-x border-x-slate-300 dark:border-x-zinc-700/80 shadow-2xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800/80 border-t-2 border-t-transparent'
+                  ? 'bg-white font-bold border-t-2 border-t-slate-800 border-x border-x-slate-300 shadow-2xs'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 border-t-2 border-t-transparent'
               }`}
             >
-              <span className={isActive ? 'font-bold text-slate-900 dark:text-zinc-100' : 'font-semibold text-slate-700 dark:text-zinc-400'}>
+              <span className={isActive ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}>
                 {tab.label}
               </span>
             </button>
@@ -86,7 +88,7 @@ export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-300/70 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 transition cursor-pointer"
+          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-300/70 transition cursor-pointer"
           title={isRibbonCollapsed ? 'Expand Ribbon Strip' : 'Minimize Ribbon Strip (Maximize Viewport Canvas)'}
         >
           {isRibbonCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}

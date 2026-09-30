@@ -35,12 +35,12 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
 
   // Variant: LARGE (stacked icon over text - CAD primary action style)
   if (variant === 'large') {
-    let activeBg = 'bg-slate-200 text-slate-900 border-slate-400 dark:bg-zinc-700 dark:text-white dark:border-zinc-500';
+    let activeBg = 'bg-slate-200 text-slate-900 border-slate-400';
     if (active) {
-      if (accent === 'emerald') activeBg = 'bg-emerald-50 text-emerald-700 border-emerald-400 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700';
-      else if (accent === 'amber') activeBg = 'bg-amber-50 text-amber-700 border-amber-400 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700';
-      else if (accent === 'red') activeBg = 'bg-red-50 text-red-700 border-red-400 dark:bg-red-950/60 dark:text-red-300 dark:border-red-700';
-      else activeBg = 'bg-slate-200 text-slate-900 border-slate-400 dark:bg-zinc-700 dark:text-white dark:border-zinc-500';
+      if (accent === 'emerald') activeBg = 'bg-emerald-50 text-emerald-700 border-emerald-400';
+      else if (accent === 'amber') activeBg = 'bg-amber-50 text-amber-700 border-amber-400';
+      else if (accent === 'red') activeBg = 'bg-red-50 text-red-700 border-red-400';
+      else activeBg = 'bg-slate-200 text-slate-900 border-slate-400';
     }
 
     return (
@@ -66,7 +66,7 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
         className={`group relative rounded-sm border transition select-none cursor-pointer text-center ${
           active
             ? `${activeBg} shadow-2xs font-semibold`
-            : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-100/90 hover:border-slate-300/80 dark:text-slate-300 dark:hover:text-white dark:hover:bg-zinc-800/80 dark:hover:border-zinc-700'
+            : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300'
         } disabled:opacity-35 disabled:pointer-events-none disabled:grayscale ${className}`}
       >
         <div 
@@ -82,46 +82,46 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
         >
           {icon}
           {badge !== undefined && (
-            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-[9px] font-mono font-bold rounded-full bg-slate-900 dark:bg-zinc-200 text-white dark:text-zinc-900 shadow-2xs leading-tight">
+            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-[9px] font-mono font-bold rounded-full bg-slate-900 text-white shadow-2xs leading-tight">
               {badge}
             </span>
           )}
         </div>
-        <div 
-          style={{ 
+        <div
+          style={{
             width: '100%',
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             justifyContent: 'flex-start'
           }}
         >
           {label && (
-            <span 
-              style={{ 
-                whiteSpace: 'nowrap', 
-                fontSize: '10.5px', 
-                fontWeight: 500, 
+            <span
+              style={{
+                whiteSpace: 'nowrap',
+                fontSize: '10.5px',
+                fontWeight: 500,
                 lineHeight: '12px',
                 textAlign: 'center',
                 display: 'block'
               }}
-              className="tracking-tight text-slate-800 dark:text-slate-200"
+              className="tracking-tight text-slate-800"
             >
               {label}
             </span>
           )}
           {subLabel && (
-            <span 
-              style={{ 
-                whiteSpace: 'nowrap', 
-                fontSize: '9px', 
-                lineHeight: '10px', 
+            <span
+              style={{
+                whiteSpace: 'nowrap',
+                fontSize: '9px',
+                lineHeight: '10px',
                 marginTop: '1px',
                 textAlign: 'center',
                 display: 'block'
               }}
-              className="text-slate-400 dark:text-zinc-400 font-mono"
+              className="text-slate-400 font-mono"
             >
               {subLabel}
             </span>
@@ -142,13 +142,13 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
         style={style}
         className={`relative flex items-center justify-center w-7 h-7 rounded-sm border transition select-none cursor-pointer ${
           active
-            ? 'bg-slate-200 text-slate-900 border-slate-400 shadow-2xs dark:bg-zinc-700 dark:text-white dark:border-zinc-500 font-bold'
-            : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300 dark:text-slate-300 dark:hover:text-white dark:hover:bg-zinc-800 dark:hover:border-zinc-700'
+            ? 'bg-slate-200 text-slate-900 border-slate-400 shadow-2xs font-bold'
+            : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300'
         } disabled:opacity-35 disabled:pointer-events-none disabled:grayscale ${className}`}
       >
         {icon}
         {badge !== undefined && (
-          <span className="absolute -top-1 -right-1 px-1 py-0.2 min-w-[12px] text-[8px] font-mono font-bold rounded-full bg-slate-900 dark:bg-zinc-200 text-white dark:text-zinc-900 leading-tight">
+          <span className="absolute -top-1 -right-1 px-1 py-0.2 min-w-[12px] text-[8px] font-mono font-bold rounded-full bg-slate-900 text-white leading-tight">
             {badge}
           </span>
         )}
@@ -166,14 +166,14 @@ export const RibbonButton: React.FC<RibbonButtonProps> = ({
       style={style}
       className={`group relative flex items-center gap-1.5 h-6 px-2 py-0.5 rounded-sm border transition select-none cursor-pointer ${
         active
-          ? 'bg-slate-200 text-slate-900 border-slate-400 shadow-2xs dark:bg-zinc-700 dark:text-white dark:border-zinc-500 font-semibold'
-          : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300 dark:text-slate-300 dark:hover:text-white dark:hover:bg-zinc-800 dark:hover:border-zinc-700'
+          ? 'bg-slate-200 text-slate-900 border-slate-400 shadow-2xs font-semibold'
+          : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300'
       } disabled:opacity-35 disabled:pointer-events-none disabled:grayscale ${className}`}
     >
       <span className="shrink-0 flex items-center justify-center">{icon}</span>
       {label && <span className="text-[11px] leading-none whitespace-nowrap font-medium">{label}</span>}
       {badge !== undefined && (
-        <span className="ml-auto px-1 py-0.2 min-w-[14px] text-[9px] font-mono font-semibold rounded bg-slate-200 text-slate-700 dark:bg-zinc-700 dark:text-slate-200 leading-tight">
+        <span className="ml-auto px-1 py-0.2 min-w-[14px] text-[9px] font-mono font-semibold rounded bg-slate-200 text-slate-700 leading-tight">
           {badge}
         </span>
       )}

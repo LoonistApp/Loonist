@@ -95,7 +95,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
         <RibbonButton
           variant="large"
           icon={
-            <Sparkles className="w-5 h-5 text-slate-700 dark:text-zinc-200" />
+            <Sparkles className="w-5 h-5 text-slate-700" />
           }
           label={isExtracting ? 'Extracting...' : 'Auto Extract'}
           disabled={!hasDrawing || isExtracting}
@@ -107,7 +107,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
         <div className="flex flex-col gap-0.5 justify-center">
           <RibbonButton
             variant="small"
-            icon={<Crop className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
+            icon={<Crop className="w-3.5 h-3.5 text-amber-600" />}
             label="Marquee OCR"
             active={activeTool === 'box-capture'}
             disabled={!hasDrawing}
@@ -117,7 +117,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
           {onToggleDrawer && (
             <RibbonButton
               variant="small"
-              icon={<Search className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+              icon={<Search className="w-3.5 h-3.5 text-slate-700" />}
               label="Inspections"
               active={isDrawerOpen}
               disabled={characteristicsCount === 0}
@@ -140,15 +140,15 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
                 onClick={() => onUpdateBalloonAppearance({ ...balloonAppearance, shape: s.id })}
                 title={s.label}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded text-left transition cursor-pointer text-xs ${isSelected
-                    ? 'bg-slate-100 dark:bg-zinc-700 font-bold border shadow-2xs'
-                    : 'text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-transparent'
+                    ? 'bg-slate-100 font-bold border shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100 border border-transparent'
                   }`}
                 style={isSelected && !isBlack ? { borderColor: `${activeColorHex}66` } : undefined}
               >
                 <s.Icon
                   className={`w-3.5 h-3.5 transition-all ${isSelected
-                      ? `scale-105 ${isBlack ? 'text-slate-900 dark:text-zinc-200' : ''}`
-                      : 'text-slate-600 dark:text-white opacity-80 hover:opacity-100'
+                      ? `scale-105 ${isBlack ? 'text-slate-900' : ''}`
+                      : 'text-slate-600 opacity-80 hover:opacity-100'
                     }`}
                   fill={isSelected ? (isBlack ? 'currentColor' : activeColorHex) : 'none'}
                   fillOpacity={isSelected ? 0.25 : 0}
@@ -177,7 +177,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
       {/* 3. COLOR & FIT */}
       <RibbonGroup title="COLOR & FIT">
         <div className="flex flex-col gap-1 justify-center">
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-800 p-1 rounded border border-slate-200 dark:border-zinc-700">
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded border border-slate-200">
             {BALLOON_COLORS.map((c) => (
               <button
                 key={c.name}
@@ -186,10 +186,10 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
                 title={c.label}
                 style={{ backgroundColor: c.hex }}
                 className={`w-3.5 h-3.5 rounded-full transition-transform cursor-pointer border ${c.name === 'black'
-                    ? 'border-slate-400 dark:border-zinc-300 shadow-2xs'
-                    : 'border-black/15 dark:border-white/25'
+                    ? 'border-slate-400 shadow-2xs'
+                    : 'border-black/15'
                   } ${balloonAppearance.color === c.name
-                    ? 'ring-2 ring-offset-1 ring-slate-700 dark:ring-white scale-110'
+                    ? 'ring-2 ring-offset-1 ring-slate-700 scale-110'
                     : 'opacity-90 hover:opacity-100 hover:scale-105'
                   }`}
               />
@@ -200,14 +200,14 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
             <select
               value={balloonAppearance.fit}
               onChange={(e) => onUpdateBalloonAppearance({ ...balloonAppearance, fit: Number(e.target.value) })}
-              className="text-[10px] bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded px-1.5 py-0.5 text-slate-700 dark:text-slate-200 cursor-pointer"
+              className="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 cursor-pointer"
             >
               <option value={1}>Tight Fit</option>
               <option value={2}>Standard Fit</option>
               <option value={3}>Relaxed Fit</option>
             </select>
 
-            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 dark:text-zinc-300 select-none">
+            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 select-none">
               <input
                 type="checkbox"
                 checked={balloonAppearance.showLeaderLine}
@@ -217,7 +217,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
               <span>Leader</span>
             </label>
 
-            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 dark:text-zinc-300 select-none" title="Toggle floating balloons on General Notes block (Default: Off for Clean Canvas)">
+            <label className="flex items-center gap-1 cursor-pointer text-[10px] text-slate-600 select-none" title="Toggle floating balloons on General Notes block (Default: Off for Clean Canvas)">
               <input
                 type="checkbox"
                 checked={!!balloonAppearance.balloonGeneralNotes}
@@ -235,7 +235,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
         {onRenumberAll && (
           <RibbonButton
             variant="large"
-            icon={<ListOrdered className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
+            icon={<ListOrdered className="w-5 h-5 text-slate-700" />}
             label="Renumber"
             subLabel="Sequential"
             disabled={characteristicsCount === 0}
@@ -251,7 +251,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
           {onRepositionBalloons && (
             <RibbonButton
               variant="small"
-              icon={<RefreshCw className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />}
+              icon={<RefreshCw className="w-3.5 h-3.5 text-slate-500" />}
               label="Auto Reposition"
               disabled={characteristicsCount === 0}
               title="Recalculate balloon coordinates avoiding callouts"
@@ -261,7 +261,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
 
           <RibbonButton
             variant="small"
-            icon={balloonsLocked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />}
+            icon={balloonsLocked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-500" />}
             label={balloonsLocked ? 'Locked' : 'Lock Drag'}
             active={balloonsLocked}
             accent="amber"
@@ -276,11 +276,11 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
       <RibbonGroup title="SELECTED FEATURE" noSeparator>
         {selectedChar ? (
           <div className="flex items-center gap-2">
-            <div className="flex flex-col justify-center bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded px-2 py-1">
+            <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded px-2 py-1">
               <div className="flex items-center gap-1.5 text-[10px] font-mono">
-                <span className="font-bold text-slate-900 dark:text-zinc-100">#{selectedChar.itemNumber}</span>
+                <span className="font-bold text-slate-900">#{selectedChar.itemNumber}</span>
                 <span className="text-slate-400">|</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[120px]" title={selectedChar.rawText}>
+                <span className="font-semibold text-slate-700 truncate max-w-[120px]" title={selectedChar.rawText}>
                   {selectedChar.cleanNominal !== null ? selectedChar.cleanNominal : selectedChar.rawText}
                 </span>
               </div>
@@ -303,7 +303,7 @@ export const BalloonsRibbonTab: React.FC<BalloonsRibbonTabProps> = ({
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-center px-3 py-2 text-[10px] text-slate-400 dark:text-zinc-500 italic">
+          <div className="flex items-center justify-center px-3 py-2 text-[10px] text-slate-400 italic">
             Click any balloon to inspect
           </div>
         )}

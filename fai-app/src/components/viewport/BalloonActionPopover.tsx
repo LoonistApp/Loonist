@@ -162,22 +162,22 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
         top: `${popoverTop}px`,
         zIndex: 50
       }}
-      className="w-80 bg-white dark:bg-zinc-900 rounded-lg shadow-2xl border border-slate-200 dark:border-zinc-700 text-slate-800 dark:text-zinc-100 flex flex-col overflow-hidden select-none pointer-events-auto cursor-default"
+      className="w-80 bg-white rounded-lg shadow-2xl border border-slate-200 text-slate-800 flex flex-col overflow-hidden select-none pointer-events-auto cursor-default"
     >
       {/* 1. HEADER BAR: Title, Zone, Fast Action Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-zinc-800/80 border-b border-slate-200 dark:border-zinc-700">
+      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
         <div className="flex items-center gap-2">
           {/* Balloon Identity Pill */}
-          <span className="flex items-center gap-1 font-mono font-bold text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-zinc-700 text-slate-900 dark:text-zinc-100 border border-slate-300 dark:border-zinc-600">
+          <span className="flex items-center gap-1 font-mono font-bold text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-900 border border-slate-300">
             <span>#{balloonNum}</span>
           </span>
 
-          <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 font-semibold">
+          <span className="text-[10px] font-mono text-slate-500 font-semibold">
             {characteristic.drawingZone || 'Zone --'}
           </span>
 
           {characteristic.sheetNumber > 1 && (
-            <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">
+            <span className="text-[10px] font-mono text-slate-400">
               Sh.{characteristic.sheetNumber}
             </span>
           )}
@@ -200,8 +200,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 title={isVerified ? 'Verified / Accepted (Click to Flag for Review)' : 'Needs Review (Click to Accept Item)'}
                 className={`p-1 rounded transition cursor-pointer ${
                   isVerified
-                    ? 'text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/50'
-                    : 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/50 animate-pulse'
+                    ? 'text-emerald-600 hover:bg-emerald-50'
+                    : 'text-amber-500 hover:bg-amber-50 animate-pulse'
                 }`}
               >
                 {isVerified ? (
@@ -224,7 +224,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 });
               }}
               title="Reset to default position"
-              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition cursor-pointer"
+              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -238,7 +238,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 onOpenInspector();
               }}
               title="Open full inspector dock"
-              className="p-1 rounded text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+              className="p-1 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -263,7 +263,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 type="button"
                 onClick={() => setConfirmDelete(true)}
                 title="Delete balloon"
-                className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition cursor-pointer"
+                className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -275,7 +275,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
             type="button"
             onClick={onClose}
             title="Close (Esc)"
-            className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition cursor-pointer ml-1"
+            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer ml-1"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -283,30 +283,30 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
       </div>
 
       {/* 2. AS9102 FORM 3 IN-PLACE MEASUREMENT BAR */}
-      <div className="p-3 bg-white dark:bg-zinc-900 border-b border-slate-100 dark:border-zinc-800 flex flex-col gap-2">
+      <div className="p-3 bg-white border-b border-slate-100 flex flex-col gap-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-600 dark:text-zinc-300">
+          <span className="font-semibold text-slate-600">
             Actual Measurement
           </span>
 
           {/* Conformance Status Badge */}
           {characteristic.conformanceStatus === 'PASS' && (
-            <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200 flex items-center gap-1">
               <Check className="w-3 h-3" /> PASS
             </span>
           )}
           {characteristic.conformanceStatus === 'MARGINAL' && (
-            <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] border border-amber-300 dark:border-amber-700 flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px] border border-amber-300 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" /> MARGINAL
             </span>
           )}
           {characteristic.conformanceStatus === 'FAIL' && (
-            <span className="px-2 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300 font-bold text-[10px] border border-red-300 dark:border-red-700 animate-pulse flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px] border border-red-300 animate-pulse flex items-center gap-1">
               <X className="w-3 h-3" /> FAIL
             </span>
           )}
           {(!characteristic.conformanceStatus || characteristic.conformanceStatus === 'UNMEASURED') && (
-            <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-medium text-[10px]">
+            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-medium text-[10px]">
               UNMEASURED
             </span>
           )}
@@ -321,7 +321,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
               placeholder={`Nom: ${characteristic.cleanNominal ?? '--'}`}
               value={characteristic.measuredValue !== null && characteristic.measuredValue !== undefined ? characteristic.measuredValue : ''}
               onChange={(e) => handleMeasuredChange(e.target.value)}
-              className="w-full pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-zinc-800 border-2 border-slate-300 dark:border-zinc-700 focus:border-slate-800 dark:focus:border-zinc-300 rounded text-sm font-mono font-bold text-slate-900 dark:text-zinc-100 focus:outline-hidden"
+              className="w-full pl-2.5 pr-8 py-1.5 bg-slate-50 border-2 border-slate-300 focus:border-slate-800 rounded text-sm font-mono font-bold text-slate-900 focus:outline-hidden"
               autoFocus
             />
             {characteristic.measuredValue !== null && characteristic.measuredValue !== undefined && (
@@ -329,7 +329,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 type="button"
                 onClick={() => handleMeasuredChange('')}
                 title="Clear measurement"
-                className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+                className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -337,11 +337,11 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
           </div>
 
           {/* Deviation Output */}
-          <div className="w-24 px-2 py-1.5 bg-slate-100 dark:bg-zinc-800 rounded border border-slate-200 dark:border-zinc-700 flex flex-col justify-center">
-            <span className="text-[9px] text-slate-400 dark:text-zinc-400 font-semibold uppercase">Deviation</span>
+          <div className="w-24 px-2 py-1.5 bg-slate-100 rounded border border-slate-200 flex flex-col justify-center">
+            <span className="text-[9px] text-slate-400 font-semibold uppercase">Deviation</span>
             <span className="text-xs font-mono font-bold truncate">
               {characteristic.deviation !== null && characteristic.deviation !== undefined ? (
-                <span className={characteristic.deviation > 0 ? 'text-amber-600 dark:text-amber-400' : characteristic.deviation < 0 ? 'text-slate-700 dark:text-slate-300' : 'text-slate-600 dark:text-slate-400'}>
+                <span className={characteristic.deviation > 0 ? 'text-amber-600' : characteristic.deviation < 0 ? 'text-slate-700' : 'text-slate-600'}>
                   {characteristic.deviation > 0 ? `+${characteristic.deviation.toFixed(4)}` : characteristic.deviation.toFixed(4)}
                 </span>
               ) : (
@@ -352,22 +352,22 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
         </div>
 
         {/* Specification Limits Reference */}
-        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-zinc-400 px-1 pt-0.5">
-          <span>Min: <b className="text-slate-700 dark:text-zinc-200">{characteristic.minLimit?.toFixed(4) ?? '--'}</b></span>
-          <span>Nom: <b className="text-slate-700 dark:text-zinc-200">{characteristic.cleanNominal?.toFixed(4) ?? '--'}</b></span>
-          <span>Max: <b className="text-slate-700 dark:text-zinc-200">{characteristic.maxLimit?.toFixed(4) ?? '--'}</b></span>
+        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 px-1 pt-0.5">
+          <span>Min: <b className="text-slate-700">{characteristic.minLimit?.toFixed(4) ?? '--'}</b></span>
+          <span>Nom: <b className="text-slate-700">{characteristic.cleanNominal?.toFixed(4) ?? '--'}</b></span>
+          <span>Max: <b className="text-slate-700">{characteristic.maxLimit?.toFixed(4) ?? '--'}</b></span>
         </div>
       </div>
 
       {/* 3. COMPACT TAB NAVIGATOR */}
-      <div className="flex items-center justify-around border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 text-xs px-1">
+      <div className="flex items-center justify-around border-b border-slate-200 bg-slate-50 text-xs px-1">
         <button
           type="button"
           onClick={() => setActiveTab('measure')}
           className={`py-1.5 px-2 font-medium transition flex items-center gap-1 cursor-pointer border-b-2 text-[11px] ${
             activeTab === 'measure'
-              ? 'border-slate-900 text-slate-900 dark:border-zinc-100 dark:text-zinc-100 font-bold'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Gauge className="w-3 h-3" />
@@ -379,8 +379,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
           onClick={() => setActiveTab('edit')}
           className={`py-1.5 px-2 font-medium transition flex items-center gap-1 cursor-pointer border-b-2 text-[11px] ${
             activeTab === 'edit'
-              ? 'border-slate-900 text-slate-900 dark:border-zinc-100 dark:text-zinc-100 font-bold'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Edit3 className="w-3 h-3" />
@@ -392,8 +392,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
           onClick={() => setActiveTab('appearance')}
           className={`py-1.5 px-2 font-medium transition flex items-center gap-1 cursor-pointer border-b-2 text-[11px] ${
             activeTab === 'appearance'
-              ? 'border-slate-900 text-slate-900 dark:border-zinc-100 dark:text-zinc-100 font-bold'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Palette className="w-3 h-3" />
@@ -406,8 +406,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
             onClick={() => setActiveTab('split')}
             className={`py-1.5 px-2 font-medium transition flex items-center gap-1 cursor-pointer border-b-2 text-[11px] ${
               activeTab === 'split'
-                ? 'border-slate-900 text-slate-900 dark:border-zinc-100 dark:text-zinc-100 font-bold'
-                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                ? 'border-slate-900 text-slate-900 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <Split className="w-3 h-3" />
@@ -420,8 +420,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
           onClick={() => setActiveTab('method')}
           className={`py-1.5 px-2 font-medium transition flex items-center gap-1 cursor-pointer border-b-2 text-[11px] ${
             activeTab === 'method'
-              ? 'border-slate-900 text-slate-900 dark:border-zinc-100 dark:text-zinc-100 font-bold'
-              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Wrench className="w-3 h-3" />
@@ -435,10 +435,10 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
         {activeTab === 'measure' && (
           <div className="flex flex-col gap-2">
             <div>
-              <span className="text-[10px] text-slate-400 dark:text-zinc-400 font-semibold block mb-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold block mb-0.5">
                 Requirement / Callout Text
               </span>
-              <div className="p-2 rounded bg-slate-50 dark:bg-zinc-800 font-mono text-xs border border-slate-200 dark:border-zinc-700 text-slate-800 dark:text-zinc-200">
+              <div className="p-2 rounded bg-slate-50 font-mono text-xs border border-slate-200 text-slate-800">
                 {characteristic.rawText}
               </div>
             </div>
@@ -446,16 +446,16 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <span className="text-[10px] text-slate-400 font-semibold block">Type</span>
-                <span className="font-semibold text-slate-700 dark:text-zinc-200">{characteristic.subType || characteristic.type}</span>
+                <span className="font-semibold text-slate-700">{characteristic.subType || characteristic.type}</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 font-semibold block">Inspection Method</span>
-                <span className="font-semibold text-slate-700 dark:text-zinc-200">{characteristic.inspectionMethod}</span>
+                <span className="font-semibold text-slate-700">{characteristic.inspectionMethod}</span>
               </div>
             </div>
 
             {/* Quick Inspector Initials */}
-            <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-zinc-800">
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
               <span className="text-[10px] text-slate-400 font-semibold">Inspector:</span>
               <input
                 type="text"
@@ -466,7 +466,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                   ...characteristic,
                   inspectorInitials: e.target.value.toUpperCase()
                 })}
-                className="w-20 px-2 py-0.5 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded font-mono text-xs uppercase"
+                className="w-20 px-2 py-0.5 bg-slate-50 border border-slate-300 rounded font-mono text-xs uppercase"
               />
             </div>
           </div>
@@ -481,7 +481,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 type="text"
                 value={characteristic.rawText}
                 onChange={(e) => onUpdateCharacteristic({ ...characteristic, rawText: e.target.value })}
-                className="w-full px-2 py-1 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded font-mono text-xs"
+                className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono text-xs"
               />
             </div>
 
@@ -505,7 +505,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                       upperLimit: nom + up
                     });
                   }}
-                  className="w-full px-1.5 py-1 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded font-mono text-xs font-bold"
+                  className="w-full px-1.5 py-1 bg-slate-50 border border-slate-300 rounded font-mono text-xs font-bold"
                 />
               </div>
 
@@ -526,7 +526,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                       upperLimit: nom + up
                     });
                   }}
-                  className="w-full px-1.5 py-1 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded font-mono text-xs"
+                  className="w-full px-1.5 py-1 bg-slate-50 border border-slate-300 rounded font-mono text-xs"
                 />
               </div>
 
@@ -547,7 +547,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                       lowerLimit: nom - low
                     });
                   }}
-                  className="w-full px-1.5 py-1 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded font-mono text-xs"
+                  className="w-full px-1.5 py-1 bg-slate-50 border border-slate-300 rounded font-mono text-xs"
                 />
               </div>
             </div>
@@ -577,7 +577,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                 <select
                   value={characteristic.classification}
                   onChange={(e) => onUpdateCharacteristic({ ...characteristic, classification: e.target.value as any })}
-                  className="text-[10px] font-semibold bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded px-1.5 py-0.5"
+                  className="text-[10px] font-semibold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5"
                 >
                   <option value="Critical">Critical</option>
                   <option value="Major">Major</option>
@@ -595,7 +595,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
               <span className="text-[10px] text-slate-400 font-semibold block mb-1">
                 Balloon Shape for #{balloonNum}
               </span>
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 p-1 rounded border border-slate-200 dark:border-zinc-700">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded border border-slate-200">
                 {BALLOON_SHAPES.map((s) => {
                   const isSelected = activeShape === s.id;
                   return (
@@ -609,8 +609,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                       title={s.label}
                       className={`flex-1 py-1 flex items-center justify-center rounded cursor-pointer transition ${
                         isSelected
-                          ? 'bg-white dark:bg-zinc-700 shadow-2xs font-bold text-slate-900 dark:text-white'
-                          : 'text-slate-500 hover:bg-slate-200/60 dark:hover:bg-zinc-700/50'
+                          ? 'bg-white shadow-2xs font-bold text-slate-900'
+                          : 'text-slate-500 hover:bg-slate-200/60'
                       }`}
                     >
                       <s.Icon className="w-3.5 h-3.5" />
@@ -624,7 +624,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
               <span className="text-[10px] text-slate-400 font-semibold block mb-1">
                 Balloon Color for #{balloonNum}
               </span>
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 p-1 rounded border border-slate-200 dark:border-zinc-700">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded border border-slate-200">
                 {BALLOON_COLORS.map((c) => {
                   const isSelected = activeColor === c.name;
                   return (
@@ -639,11 +639,11 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                       style={{ backgroundColor: c.hex }}
                       className={`flex-1 h-5 rounded transition-transform cursor-pointer flex items-center justify-center border ${
                         c.name === 'black'
-                          ? 'border-slate-400 dark:border-zinc-300'
-                          : 'border-black/15 dark:border-white/20'
+                          ? 'border-slate-400'
+                          : 'border-black/15'
                       } ${
                         isSelected
-                          ? 'ring-2 ring-offset-1 ring-slate-700 dark:ring-white scale-105'
+                          ? 'ring-2 ring-offset-1 ring-slate-700 scale-105'
                           : 'opacity-90 hover:opacity-100 hover:scale-105'
                       }`}
                     >
@@ -663,7 +663,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                   customBalloonShape: undefined,
                   customBalloonColor: undefined
                 })}
-                className="text-[10px] text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200 text-center py-1 underline cursor-pointer"
+                className="text-[10px] text-slate-500 hover:text-slate-800 text-center py-1 underline cursor-pointer"
               >
                 Reset shape & color to project default
               </button>
@@ -675,17 +675,17 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
         {activeTab === 'split' && (
           <div className="flex flex-col gap-2">
             {characteristic.quantity > 1 && !characteristic.isExpandedMultiplier && (
-              <div className="flex flex-col gap-2 p-2 bg-slate-100 dark:bg-zinc-800/60 rounded border border-slate-200 dark:border-zinc-700">
-                <span className="font-semibold text-slate-900 dark:text-zinc-200">
+              <div className="flex flex-col gap-2 p-2 bg-slate-100 rounded border border-slate-200">
+                <span className="font-semibold text-slate-900">
                   Multiplier Callout Detected ({characteristic.quantity}X)
                 </span>
-                <p className="text-[11px] text-slate-600 dark:text-zinc-400">
+                <p className="text-[11px] text-slate-600">
                   Splits this {characteristic.quantity}X callout into individual sub-balloons ({balloonNum}.1, {balloonNum}.2...) so each physical feature can be measured independently.
                 </p>
                 <button
                   type="button"
                   onClick={handleSplitMultiplier}
-                  className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer"
                 >
                   <Split className="w-3.5 h-3.5" />
                   <span>Split into {characteristic.quantity} Sub-Balloons</span>
@@ -694,17 +694,17 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
             )}
 
             {characteristic.isExpandedMultiplier && (
-              <div className="flex flex-col gap-2 p-2 bg-slate-50 dark:bg-zinc-800 rounded border border-slate-200 dark:border-zinc-700">
-                <span className="font-semibold text-slate-700 dark:text-zinc-300">
+              <div className="flex flex-col gap-2 p-2 bg-slate-50 rounded border border-slate-200">
+                <span className="font-semibold text-slate-700">
                   Sub-Balloon Feature ({balloonNum})
                 </span>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                <p className="text-[11px] text-slate-500">
                   This balloon is part of an expanded multi-hole set. You can merge all sub-items back into a single parent characteristic.
                 </p>
                 <button
                   type="button"
                   onClick={handleMergeSubBalloons}
-                  className="px-3 py-1.5 rounded bg-slate-200 hover:bg-slate-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-slate-800 dark:text-zinc-100 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="px-3 py-1.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Layers className="w-3.5 h-3.5" />
                   <span>Merge All Sub-Balloons</span>
@@ -725,7 +725,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                   ...characteristic,
                   inspectionMethod: e.target.value as InspectionMethod
                 })}
-                className="w-full px-2 py-1 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-xs"
+                className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs"
               >
                 {INSPECTION_METHODS.map((m) => (
                   <option key={m} value={m}>{m}</option>
@@ -743,7 +743,7 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
                   comments: e.target.value
                 })}
                 placeholder="AS9102 Form 3 remark or gage serial..."
-                className="w-full px-2 py-1 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-xs resize-none"
+                className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs resize-none"
               />
             </div>
           </div>

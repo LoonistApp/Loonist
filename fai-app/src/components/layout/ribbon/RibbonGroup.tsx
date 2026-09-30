@@ -18,7 +18,7 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
   return (
     <div
       className={`relative flex flex-col justify-between h-full px-2 py-0.5 shrink-0 select-none ${
-        noSeparator ? '' : 'border-r border-slate-200 dark:border-zinc-800/80'
+        noSeparator ? '' : 'border-r border-slate-200'
       } ${className}`}
       style={{ boxSizing: 'border-box' }}
     >
@@ -29,7 +29,7 @@ export const RibbonGroup: React.FC<RibbonGroupProps> = ({
 
       {/* Engineering Group Label */}
       <div className="flex items-center justify-center pb-0.5">
-        <span className="text-[9px] font-sans font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500 whitespace-nowrap select-none">
+        <span className="text-[9px] font-sans font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap select-none">
           {title}
         </span>
       </div>

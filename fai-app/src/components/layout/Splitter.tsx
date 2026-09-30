@@ -119,8 +119,8 @@ export const HorizontalSplitter: React.FC<HorizontalSplitterProps> = ({
         tabIndex={0}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
-        className={`w-full h-3.5 cursor-row-resize select-none relative z-50 flex items-center justify-center transition-colors group shrink-0 bg-transparent hover:bg-slate-400/20 dark:hover:bg-zinc-600/30 ${
-          isDragging ? 'bg-slate-400/30 dark:bg-zinc-600/40' : ''
+        className={`w-full h-3.5 cursor-row-resize select-none relative z-50 flex items-center justify-center transition-colors group shrink-0 bg-transparent hover:bg-slate-400/20 ${
+          isDragging ? 'bg-slate-400/30' : ''
         } ${className}`}
         style={{ cursor: 'row-resize' }}
         title="Drag vertically to resize bottom panel. Double-click to maximize / restore."
@@ -129,8 +129,8 @@ export const HorizontalSplitter: React.FC<HorizontalSplitterProps> = ({
         <div
           className={`w-full absolute top-1/2 -translate-y-1/2 left-0 transition-all pointer-events-none ${
             isDragging
-              ? 'h-[2px] bg-slate-700 dark:bg-zinc-300'
-              : 'h-[1px] bg-slate-300 dark:bg-zinc-700 group-hover:h-[2px] group-hover:bg-[#0078d4] dark:group-hover:bg-zinc-400'
+              ? 'h-[2px] bg-slate-700'
+              : 'h-[1px] bg-slate-300 group-hover:h-[2px] group-hover:bg-[#0078d4]'
           }`}
         />
 
@@ -138,8 +138,8 @@ export const HorizontalSplitter: React.FC<HorizontalSplitterProps> = ({
         <div
           className={`h-1 rounded-full transition-all pointer-events-none z-10 ${
             isDragging
-              ? 'opacity-100 w-20 bg-slate-800 dark:bg-zinc-300 shadow-xs'
-              : 'opacity-70 w-12 bg-slate-400 group-hover:opacity-100 group-hover:w-20 group-hover:bg-slate-600 dark:group-hover:bg-zinc-400 shadow-2xs'
+              ? 'opacity-100 w-20 bg-slate-800 shadow-xs'
+              : 'opacity-70 w-12 bg-slate-400 group-hover:opacity-100 group-hover:w-20 group-hover:bg-slate-600 shadow-2xs'
           }`}
         />
       </div>
@@ -266,8 +266,8 @@ export const VerticalSplitter: React.FC<VerticalSplitterProps> = ({
         tabIndex={0}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
-        className={`w-3.5 h-full cursor-col-resize select-none relative z-50 flex items-center justify-center transition-colors group shrink-0 bg-transparent hover:bg-slate-400/20 dark:hover:bg-zinc-600/30 ${
-          isDragging ? 'bg-slate-400/30 dark:bg-zinc-600/40' : ''
+        className={`w-3.5 h-full cursor-col-resize select-none relative z-50 flex items-center justify-center transition-colors group shrink-0 bg-transparent hover:bg-slate-400/20 ${
+          isDragging ? 'bg-slate-400/30' : ''
         } ${className}`}
         style={{ cursor: 'col-resize' }}
         title="Drag horizontally to resize sidebar. Double-click to maximize / restore."
@@ -276,8 +276,8 @@ export const VerticalSplitter: React.FC<VerticalSplitterProps> = ({
         <div
           className={`h-full absolute top-0 left-1/2 -translate-x-1/2 transition-all pointer-events-none ${
             isDragging
-              ? 'w-[2px] bg-slate-700 dark:bg-zinc-300'
-              : 'w-[1px] bg-slate-300 dark:bg-zinc-700 group-hover:w-[2px] group-hover:bg-[#0078d4] dark:group-hover:bg-zinc-400'
+              ? 'w-[2px] bg-slate-700'
+              : 'w-[1px] bg-slate-300 group-hover:w-[2px] group-hover:bg-[#0078d4]'
           }`}
         />
 
@@ -285,8 +285,8 @@ export const VerticalSplitter: React.FC<VerticalSplitterProps> = ({
         <div
           className={`w-1 rounded-full transition-all pointer-events-none z-10 ${
             isDragging
-              ? 'opacity-100 h-20 bg-slate-800 dark:bg-zinc-300 shadow-xs'
-              : 'opacity-70 h-12 bg-slate-400 group-hover:opacity-100 group-hover:h-20 group-hover:bg-slate-600 dark:group-hover:bg-zinc-400 shadow-2xs'
+              ? 'opacity-100 h-20 bg-slate-800 shadow-xs'
+              : 'opacity-70 h-12 bg-slate-400 group-hover:opacity-100 group-hover:h-20 group-hover:bg-slate-600 shadow-2xs'
           }`}
         />
       </div>
@@ -408,8 +408,8 @@ export const RightVerticalSplitter: React.FC<RightVerticalSplitterProps> = ({
         tabIndex={0}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
-        className={`w-3.5 h-full cursor-col-resize select-none absolute top-0 left-0 -translate-x-1/2 z-50 flex items-center justify-center transition-colors group shrink-0 bg-transparent hover:bg-slate-400/20 dark:hover:bg-zinc-600/30 ${
-          isDragging ? 'bg-slate-400/30 dark:bg-zinc-600/40' : ''
+        className={`w-3.5 h-full cursor-col-resize select-none absolute top-0 left-0 -translate-x-1/2 z-50 flex items-center justify-center transition-colors group shrink-0 bg-transparent hover:bg-slate-400/20 ${
+          isDragging ? 'bg-slate-400/30' : ''
         } ${className}`}
         style={{ cursor: 'col-resize' }}
         title="Drag horizontally to resize Characteristics Inspector. Double-click to maximize / restore."
@@ -418,8 +418,8 @@ export const RightVerticalSplitter: React.FC<RightVerticalSplitterProps> = ({
         <div
           className={`h-full absolute top-0 left-1/2 -translate-x-1/2 transition-all pointer-events-none ${
             isDragging
-              ? 'w-[2px] bg-slate-700 dark:bg-zinc-300'
-              : 'w-[1px] bg-slate-300 dark:bg-zinc-700 group-hover:w-[2px] group-hover:bg-slate-600 dark:group-hover:bg-zinc-400'
+              ? 'w-[2px] bg-slate-700'
+              : 'w-[1px] bg-slate-300 group-hover:w-[2px] group-hover:bg-slate-600'
           }`}
         />
 
@@ -427,8 +427,8 @@ export const RightVerticalSplitter: React.FC<RightVerticalSplitterProps> = ({
         <div
           className={`w-1 rounded-full transition-all pointer-events-none z-10 ${
             isDragging
-              ? 'opacity-100 h-20 bg-slate-800 dark:bg-zinc-300 shadow-xs'
-              : 'opacity-70 h-12 bg-slate-400 group-hover:opacity-100 group-hover:h-20 group-hover:bg-slate-600 dark:group-hover:bg-zinc-400 shadow-2xs'
+              ? 'opacity-100 h-20 bg-slate-800 shadow-xs'
+              : 'opacity-70 h-12 bg-slate-400 group-hover:opacity-100 group-hover:h-20 group-hover:bg-slate-600 shadow-2xs'
           }`}
         />
       </div>

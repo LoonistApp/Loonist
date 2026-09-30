@@ -18,6 +18,7 @@ import { RibbonTabNav, type RibbonTabId } from './ribbon/RibbonTabNav';
 import { FileBackstageModal } from './ribbon/FileBackstageModal';
 import { HomeRibbonTab } from './ribbon/tabs/HomeRibbonTab';
 import { SettingsRibbonTab } from './ribbon/tabs/SettingsRibbonTab';
+import { HelpRibbonTab } from './ribbon/tabs/HelpRibbonTab';
 import { ProjectSettingsModal, type SettingsTab } from '../modals/ProjectSettingsModal';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types/settings';
 
@@ -116,8 +117,7 @@ export interface RibbonBarProps {
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
 
-  // External Help & Documentation Website
-  helpUrl?: string;
+  // In-App Help Tab (LOONIST is fully offline)
   onOpenHelp?: () => void;
 }
 
@@ -138,7 +138,6 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onRepositionBalloons,
   onLoadSample,
   onNewProject,
-  helpUrl,
   onOpenHelp,
   onRotateClockwise,
   onRotateCounterClockwise,
@@ -213,14 +212,15 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
   const logoMenuRef = useRef<HTMLDivElement>(null);
 
-  // External Help Website launcher
-  const handleOpenHelpWebsite = useCallback(() => {
+  // Opens the in-app Help tab (LOONIST is fully offline; no external site is used)
+  const handleOpenHelp = useCallback(() => {
     if (onOpenHelp) {
       onOpenHelp();
       return;
     }
-    window.open(helpUrl || 'https://loonist.com/help', '_blank');
-  }, [helpUrl, onOpenHelp]);
+    setActiveTab('help');
+    setIsRibbonCollapsed(false);
+  }, [onOpenHelp]);
 
   // Close Logo System Menu on outside click
   useEffect(() => {
@@ -261,14 +261,14 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
         e.preventDefault();
-        handleOpenHelpWebsite();
+        handleOpenHelp();
       } else if (e.key === 'Escape') {
         setIsLogoMenuOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleOpenHelpWebsite]);
+  }, [handleOpenHelp]);
 
   // Windows System Menu actions (IPC with browser fallback)
   const handleRestoreWindow = async () => {
@@ -344,9 +344,9 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   const effectiveCharCount = characteristicsCount || characteristics.length;
 
   return (
-    <header className="flex flex-col w-full bg-slate-100 dark:bg-[#121212] border-b border-slate-300 dark:border-zinc-800 select-none text-slate-800 dark:text-slate-200 text-xs shadow-xs z-30">
+    <header className="flex flex-col w-full bg-slate-100 border-b border-slate-300 select-none text-slate-800 text-xs shadow-xs z-30">
       {/* 1. TOP APPLICATION BAR WITH QUICK ACCESS TOOLBAR & TITLE (Height: 30px) */}
-      <div className="h-7 bg-slate-100 dark:bg-[#0d1117] text-slate-700 dark:text-slate-200 px-2 flex items-center justify-between border-b border-slate-200 dark:border-[#21262d]">
+      <div className="h-7 bg-slate-100 text-slate-700 px-2 flex items-center justify-between border-b border-slate-200">
         {/* Left: System Menu Logo & Quick Access Toolbar */}
         <div className="flex items-center gap-1.5">
           {/* Logo Button & System Menu Dropdown */}
@@ -369,7 +369,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             {/* Native Windows CAD System Menu Dropdown */}
             {isLogoMenuOpen && (
               <div
-                className="absolute top-full left-0 mt-1 bg-white dark:bg-[#1f242c] border border-slate-300 dark:border-zinc-700 shadow-xl rounded-[2px] py-1 text-[12px] font-normal z-50 select-none animate-in fade-in zoom-in-95 duration-75"
+                className="absolute top-full left-0 mt-1 bg-white border border-slate-300 shadow-xl rounded-[2px] py-1 text-[12px] font-normal z-50 select-none animate-in fade-in zoom-in-95 duration-75"
                 style={{ width: '190px', minWidth: '190px', fontFamily: 'Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif' }}
               >
                 {/* 1. Restore */}
@@ -379,8 +379,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                   onClick={handleRestoreWindow}
                   className={`w-full px-3 py-1 flex items-center gap-2.5 text-left transition-colors ${
                     isWindowMaximized
-                      ? 'text-slate-900 dark:text-slate-100 hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] cursor-pointer'
-                      : 'text-slate-400 dark:text-zinc-500 cursor-default'
+                      ? 'text-slate-900 hover:bg-[#0078d4] hover:text-white cursor-pointer'
+                      : 'text-slate-400 cursor-default'
                   }`}
                 >
                   <span className="w-4 h-4 flex items-center justify-center shrink-0">
@@ -392,13 +392,13 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                 </button>
 
                 {/* 2. Move (Disabled) */}
-                <div className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-400 dark:text-zinc-500 cursor-default">
+                <div className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-400 cursor-default">
                   <span className="w-4 h-4 shrink-0" />
                   <span>Move</span>
                 </div>
 
                 {/* 3. Size (Disabled) */}
-                <div className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-400 dark:text-zinc-500 cursor-default">
+                <div className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-400 cursor-default">
                   <span className="w-4 h-4 shrink-0" />
                   <span>Size</span>
                 </div>
@@ -407,7 +407,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                 <button
                   type="button"
                   onClick={handleMinimizeWindow}
-                  className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-900 dark:text-slate-100 hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] transition-colors cursor-pointer"
+                  className="w-full px-3 py-1 flex items-center gap-2.5 text-left text-slate-900 hover:bg-[#0078d4] hover:text-white transition-colors cursor-pointer"
                 >
                   <span className="w-4 h-4 flex items-center justify-center shrink-0">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
@@ -424,8 +424,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                   onClick={handleMaximizeWindow}
                   className={`w-full px-3 py-1 flex items-center gap-2.5 text-left transition-colors ${
                     !isWindowMaximized
-                      ? 'text-slate-900 dark:text-slate-100 hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] cursor-pointer'
-                      : 'text-slate-400 dark:text-zinc-500 cursor-default'
+                      ? 'text-slate-900 hover:bg-[#0078d4] hover:text-white cursor-pointer'
+                      : 'text-slate-400 cursor-default'
                   }`}
                 >
                   <span className="w-4 h-4 flex items-center justify-center shrink-0">
@@ -437,13 +437,13 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                 </button>
 
                 {/* Separator line */}
-                <div className="my-1 border-t border-slate-200 dark:border-zinc-700" />
+                <div className="my-1 border-t border-slate-200" />
 
                 {/* 6. Close */}
                 <button
                   type="button"
                   onClick={handleCloseWindow}
-                  className="w-full px-3 py-1 flex items-center justify-between text-left text-slate-900 dark:text-white hover:bg-[#0078d4] hover:text-white dark:hover:bg-[#1f6feb] transition-colors cursor-pointer group"
+                  className="w-full px-3 py-1 flex items-center justify-between text-left text-slate-900 hover:bg-[#0078d4] hover:text-white transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="w-4 h-4 flex items-center justify-center shrink-0">
@@ -465,20 +465,20 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             <button
               type="button"
               onClick={onNewProject}
-              className="p-1 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              className="p-1 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
               title="New Project (Ctrl+N)"
             >
-              <FilePlus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <FilePlus className="w-3.5 h-3.5 text-blue-600" />
             </button>
 
             {/* Save Project */}
             <button
               type="button"
               onClick={onSaveProject}
-              className="p-1 rounded text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              className="p-1 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
               title="Save Project (Ctrl+S)"
             >
-              <Save className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+              <Save className="w-3.5 h-3.5 text-slate-700" />
             </button>
 
             {/* Undo */}
@@ -488,8 +488,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               onClick={onUndo}
               className={`p-1 rounded transition ${
                 canUndo
-                  ? 'text-blue-600 dark:text-blue-400 hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer'
-                  : 'text-slate-400 dark:text-zinc-600 cursor-default opacity-40'
+                  ? 'text-blue-600 hover:bg-slate-200 cursor-pointer'
+                  : 'text-slate-400 cursor-default opacity-40'
               }`}
               title="Undo (Ctrl+Z)"
             >
@@ -503,8 +503,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               onClick={onRedo}
               className={`p-1 rounded transition ${
                 canRedo
-                  ? 'text-blue-600 dark:text-blue-400 hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer'
-                  : 'text-slate-400 dark:text-zinc-600 cursor-default opacity-40'
+                  ? 'text-blue-600 hover:bg-slate-200 cursor-pointer'
+                  : 'text-slate-400 cursor-default opacity-40'
               }`}
               title="Redo (Ctrl+Y)"
             >
@@ -516,12 +516,12 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         {/* Right: Security Badge & Window Controls */}
         <div className="flex items-center gap-3">
           {/* ITAR Air-Gapped Status Badge */}
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-sans">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-sans" title="Fully offline: no cloud connection, no telemetry">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="hidden sm:inline">Air-Gapped Local</span>
+            <span>Air-Gapped Local</span>
           </div>
 
-          <span className="h-3 w-px bg-slate-300 dark:bg-[#282e39]" />
+          <span className="h-3 w-px bg-slate-300" />
 
           {/* Panel Layout Controls & Dark Mode Switch */}
           <div className="flex items-center gap-0.5">
@@ -529,8 +529,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               type="button"
               onClick={onToggleLeftPanel}
               className={`p-1 rounded transition cursor-pointer ${isLeftPanelOpen
-                  ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-zinc-700'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                  ? 'text-slate-900 bg-slate-200'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
                 }`}
               title={isLeftPanelOpen ? 'Collapse Left Side Panel' : 'Expand Left Side Panel'}
             >
@@ -541,8 +541,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               type="button"
               onClick={onToggleBottomPanel}
               className={`p-1 rounded transition cursor-pointer ${isBottomPanelOpen
-                  ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-zinc-700'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                  ? 'text-slate-900 bg-slate-200'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
                 }`}
               title={isBottomPanelOpen ? 'Collapse Bottom Table' : 'Expand Bottom Table'}
             >
@@ -553,7 +553,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             <button
               type="button"
               onClick={onToggleDarkMode}
-              className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition cursor-pointer"
               title={isDarkMode ? 'Switch to CAD Light Mode' : 'Switch to CAD Dark Charcoal Mode'}
             >
               {isDarkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
@@ -563,7 +563,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             <button
               type="button"
               onClick={() => handleOpenSettingsModal('tolerances')}
-              className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition cursor-pointer"
               title="Project Settings & Tolerances (Ctrl+,)"
             >
               <Settings className="w-3.5 h-3.5" />
@@ -572,8 +572,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             {/* Help / Documentation Website Button */}
             <button
               type="button"
-              onClick={handleOpenHelpWebsite}
-              className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              onClick={handleOpenHelp}
+              className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition cursor-pointer"
               title="Help & Documentation [F1]"
             >
               <HelpCircle className="w-3.5 h-3.5" />
@@ -594,7 +594,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
 
       {/* 3. CONTEXTUAL COMMAND STRIP (Height: 70px) - Hidden when ribbon is collapsed */}
       {!isRibbonCollapsed && (
-        <div className="h-[70px] bg-white dark:bg-[#1c2128] px-2 flex items-center border-b border-slate-300 dark:border-zinc-800 overflow-x-auto select-none shadow-2xs">
+        <div className="h-[70px] bg-white px-2 flex items-center border-b border-slate-300 overflow-x-auto select-none shadow-2xs">
           {activeTab === 'home' && (
             <HomeRibbonTab
               hasDrawing={hasDrawing}
@@ -631,12 +631,20 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               onOpenSettingsModal={handleOpenSettingsModal}
             />
           )}
+
+          {activeTab === 'help' && (
+            <HelpRibbonTab
+              onLoadSample={onLoadSample}
+              characteristicsCount={effectiveCharCount}
+              hasDrawing={hasDrawing}
+            />
+          )}
         </div>
       )}
 
       {/* 4. MULTI-DOCUMENT PROJECT TABS BAR (Height: 24px) - Rendered when files are loaded */}
       {projectFiles.length > 0 && (
-        <div className="h-6 bg-slate-200/80 dark:bg-[#14181f] px-2 flex items-center gap-1 border-b border-slate-300 dark:border-zinc-800 overflow-x-auto select-none no-scrollbar">
+        <div className="h-6 bg-slate-200/80 px-2 flex items-center gap-1 border-b border-slate-300 overflow-x-auto select-none no-scrollbar">
           {projectFiles.map((file) => {
             const isActive = file.id === activeFileId;
             return (
@@ -653,11 +661,11 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                   }
                 }}
                 className={`group relative h-5 px-2.5 flex items-center gap-1.5 text-[11px] rounded-t font-mono cursor-pointer transition select-none shrink-0 ${isActive
-                    ? 'bg-white dark:bg-[#1c2128] text-slate-900 dark:text-white font-bold shadow-2xs border-t border-x border-slate-300 dark:border-zinc-700'
-                    : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-300/80 dark:hover:bg-zinc-800 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-white text-slate-900 font-bold shadow-2xs border-t border-x border-slate-300'
+                    : 'text-slate-600 hover:bg-slate-300/80 hover:text-slate-900'
                   }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-slate-900 dark:bg-zinc-200' : 'bg-slate-400 dark:bg-zinc-600'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-slate-900' : 'bg-slate-400'}`} />
                 <span className="truncate max-w-[200px]" title={file.name}>{file.name}</span>
                 {onCloseFile && (
                   <button
@@ -666,7 +674,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                       e.stopPropagation();
                       onCloseFile(file.id);
                     }}
-                    className="ml-1 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-400 hover:text-red-600 transition shrink-0 cursor-pointer"
+                    className="ml-1 p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-red-600 transition shrink-0 cursor-pointer"
                     title={`Close ${file.name}`}
                   >
                     <X className="w-3 h-3" />

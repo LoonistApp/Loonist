@@ -123,20 +123,20 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
   }, [activeChar?.id]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden select-none bg-slate-100 dark:bg-[#141414]">
+    <div className="flex flex-col h-full overflow-hidden select-none bg-slate-100">
       {/* Quality Telemetry & Filter Strip */}
-      <div className="p-2.5 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1a1a1a] flex flex-col gap-2 shrink-0">
+      <div className="p-2.5 border-b border-slate-200 bg-white flex flex-col gap-2 shrink-0">
         <div className="flex items-center justify-between text-xs font-medium">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-bold border border-slate-200 dark:border-zinc-700">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold border border-slate-200">
               {sheetScope === 'current' ? `${currentSheetItemsCount} of ${totalCount} Items` : `${totalCount} Items`}
             </span>
-            <span className="flex items-center gap-1 text-slate-700 dark:text-zinc-200 font-semibold text-[11px]">
-              <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
+            <span className="flex items-center gap-1 text-slate-700 font-semibold text-[11px]">
+              <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
               <span>{verifiedCount} Accepted</span>
             </span>
             {needsReviewCount > 0 && (
-              <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-700 font-semibold text-[11px]">
                 <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
                 <span>{needsReviewCount} Needs Review</span>
               </span>
@@ -147,8 +147,8 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
             onClick={() => setFilterNeedsReview(!filterNeedsReview)}
             className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition cursor-pointer ${
               filterNeedsReview 
-                ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700' 
-                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                ? 'bg-amber-100 text-amber-800 border-amber-300' 
+                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
             }`}
           >
             {filterNeedsReview ? 'Showing Flagged Only' : 'Filter Needs Review'}
@@ -156,20 +156,20 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
         </div>
 
         {/* Scope Selector: Controlled by Bottom Drawing Viewport Sheet Navigation */}
-        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-zinc-400 w-full pt-0.5">
-          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-zinc-400 select-none">
-            <Layers className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400 shrink-0" />
+        <div className="flex items-center justify-between text-[11px] text-slate-600 w-full pt-0.5">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 select-none">
+            <Layers className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span>Scope:</span>
           </span>
 
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800/80 p-0.5 rounded border border-slate-200 dark:border-zinc-700">
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded border border-slate-200">
             <button
               type="button"
               onClick={() => setSheetScope('current')}
               className={`px-2.5 py-0.5 rounded text-[10px] transition cursor-pointer flex items-center gap-1 ${
                 sheetScope === 'current'
-                  ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-zinc-100 font-bold shadow-2xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 font-medium'
+                  ? 'bg-white text-slate-900 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 font-medium'
               }`}
               title={`Inspect characteristics on active Sheet ${currentSheetNum} (controlled by bottom sheet tabs)`}
             >
@@ -182,8 +182,8 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
               onClick={() => setSheetScope('all')}
               className={`px-2.5 py-0.5 rounded text-[10px] transition cursor-pointer flex items-center gap-1 ${
                 sheetScope === 'all'
-                  ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-zinc-100 font-bold shadow-2xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 font-medium'
+                  ? 'bg-white text-slate-900 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 font-medium'
               }`}
               title="Inspect all characteristics across all sheets"
             >
@@ -195,20 +195,20 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
       </div>
 
       {/* Magnified Blueprint Crop Display */}
-      <div className="mx-2 mt-2 p-2 bg-white dark:bg-[#111111] rounded-lg border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col gap-1.5 shrink-0">
-        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+      <div className="mx-2 mt-2 p-2 bg-white rounded-lg border border-slate-200 shadow-xs flex flex-col gap-1.5 shrink-0">
+        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
           <div className="flex items-center gap-1.5">
             {activeChar ? (
               <>
-                <span className="w-2 h-2 rounded-full bg-slate-500 dark:bg-zinc-300" />
-                <span className="font-mono text-slate-900 dark:text-zinc-100 font-bold text-xs">
+                <span className="w-2 h-2 rounded-full bg-slate-500" />
+                <span className="font-mono text-slate-900 font-bold text-xs">
                   #{activeChar.subNumber || activeChar.itemNumber} ({activeChar.drawingZone || 'Sheet ' + activeChar.sheetNumber})
                 </span>
               </>
             ) : (
               <>
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
-                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Blueprint Crop Preview</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                <span className="text-[10px] font-medium text-slate-500">Blueprint Crop Preview</span>
               </>
             )}
           </div>
@@ -220,7 +220,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                 e.stopPropagation();
                 onDeleteCharacteristic(activeChar.id);
               }}
-              className="p-1 rounded text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
               title={`Delete Balloon #${activeChar.subNumber || activeChar.itemNumber}`}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -228,24 +228,24 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
           )}
         </div>
 
-        <div className="w-full h-20 bg-slate-50 dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner p-1">
+        <div className="w-full h-20 bg-slate-50 rounded border border-slate-200 flex items-center justify-center overflow-hidden relative shadow-inner p-1">
           {activeCropUrl && activeChar ? (
             <img
               src={activeCropUrl}
               alt="Magnified Blueprint Crop"
-              className="max-h-full max-w-full object-contain dark:filter dark:invert dark:brightness-150 dark:contrast-125"
+              className="max-h-full max-w-full object-contain"
             />
           ) : activeChar ? (
             <div className="flex flex-col items-center justify-center text-center">
-              <span className="font-mono text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-500/40 px-2 py-0.5 rounded">
+              <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded">
                 {activeChar.rawText}
               </span>
               <span className="text-[9px] text-slate-500 mt-0.5">Vector Marquee Region</span>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center text-center select-none py-1">
-              <Balloon className="w-4 h-4 text-slate-400 dark:text-zinc-500 mb-1 opacity-75" />
-              <span className="text-slate-500 dark:text-zinc-400 text-[11px] font-medium">
+              <Balloon className="w-4 h-4 text-slate-400 mb-1 opacity-75" />
+              <span className="text-slate-500 text-[11px] font-medium">
                 Select a balloon to display
               </span>
             </div>
@@ -272,35 +272,35 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                 key={char.id}
                 ref={isSelected ? selectedCardRef : undefined}
                 onClick={() => onSelectCharacteristic(char)}
-                className={`p-2.5 rounded-lg border bg-white dark:bg-[#1c1c1c] shadow-xs transition cursor-pointer ${
+                className={`p-2.5 rounded-lg border bg-white shadow-xs transition cursor-pointer ${
                   isSelected
-                    ? 'border-slate-500 dark:border-zinc-400 ring-2 ring-slate-400/30 dark:ring-zinc-400/30 bg-slate-100/60 dark:bg-zinc-800/60'
+                    ? 'border-slate-500 ring-2 ring-slate-400/30 bg-slate-100/60'
                     : isFlagged
-                    ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-950/20 hover:border-amber-400'
-                    : 'border-slate-200 dark:border-zinc-800 hover:border-slate-400 dark:hover:border-zinc-600'
+                    ? 'border-amber-300 bg-amber-50/40 hover:border-amber-400'
+                    : 'border-slate-200 hover:border-slate-400'
                 }`}
               >
                 {/* Top Row: Balloon #, Zone, Confidence */}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="min-w-5 h-5 px-1.5 rounded bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border border-slate-300 dark:border-zinc-700 font-bold font-mono text-[11px] flex items-center justify-center shrink-0 shadow-2xs">
+                    <span className="min-w-5 h-5 px-1.5 rounded bg-white text-slate-900 border border-slate-300 font-bold font-mono text-[11px] flex items-center justify-center shrink-0 shadow-2xs">
                       {char.subNumber || char.itemNumber}
                     </span>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700">
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                       {char.drawingZone} (Sheet {char.sheetNumber})
                     </span>
                     {isBasic && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
                         [BASIC]
                       </span>
                     )}
                     {isRef && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                         (REF)
                       </span>
                     )}
                     {isLimit && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
                         LIMIT
                       </span>
                     )}
@@ -308,14 +308,14 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
 
                   <div className="flex items-center gap-1">
                     {isFlagged ? (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
                         Needs Review
                       </span>
                     ) : char.classification && char.classification !== 'Minor' ? (
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                         char.classification === 'Critical'
-                          ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800'
+                          ? 'bg-red-50 text-red-700 border border-red-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}>
                         {char.classification}
                       </span>
@@ -325,10 +325,10 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
 
                 {/* Main Callout & OCR Text */}
                 <div className="mb-1.5">
-                  <div className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-zinc-900 px-2 py-1 rounded border border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+                  <div className="font-mono text-xs font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded border border-slate-200 flex items-center justify-between">
                     <span className="truncate">{char.rawText}</span>
                     {char.type && (char.type as string) !== 'DIMENSION' && char.type.toLowerCase() !== 'linear' && (
-                      <span className="text-[9px] font-sans text-slate-400 dark:text-zinc-500 uppercase shrink-0 ml-1">
+                      <span className="text-[9px] font-sans text-slate-400 uppercase shrink-0 ml-1">
                         {char.type}
                       </span>
                     )}
@@ -336,16 +336,16 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                 </div>
 
                 {/* Tolerance & Limits Grid */}
-                <div className="grid grid-cols-3 gap-1 text-[10px] font-mono mb-1.5 bg-slate-50 dark:bg-zinc-900/60 p-1.5 rounded border border-slate-100 dark:border-zinc-800/80">
+                <div className="grid grid-cols-3 gap-1 text-[10px] font-mono mb-1.5 bg-slate-50 p-1.5 rounded border border-slate-100">
                   <div>
-                    <span className="text-slate-400 dark:text-zinc-500 block text-[9px] uppercase font-sans">Nominal</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="text-slate-400 block text-[9px] uppercase font-sans">Nominal</span>
+                    <span className="font-semibold text-slate-800">
                       {char.cleanNominal !== null ? char.cleanNominal : '—'} {char.units}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 dark:text-zinc-500 block text-[9px] uppercase font-sans">Tolerance</span>
-                    <span className="text-slate-700 dark:text-zinc-300">
+                    <span className="text-slate-400 block text-[9px] uppercase font-sans">Tolerance</span>
+                    <span className="text-slate-700">
                       {char.upperTol === 0 && char.lowerTol === 0 ? (
                         '0.000'
                       ) : (
@@ -354,27 +354,27 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 dark:text-zinc-500 block text-[9px] uppercase font-sans">Limits</span>
-                    <span className="text-slate-600 dark:text-zinc-400 text-[9px]">
+                    <span className="text-slate-400 block text-[9px] uppercase font-sans">Limits</span>
+                    <span className="text-slate-600 text-[9px]">
                       {char.minLimit ?? '—'} to {char.maxLimit ?? '—'}
                     </span>
                   </div>
                 </div>
 
                 {/* Tolerance Source Metadata */}
-                <div className="text-[10px] text-slate-500 dark:text-zinc-400 mb-1.5 flex items-center">
-                  <span className="truncate">Source: <strong className="text-slate-700 dark:text-zinc-300">{char.toleranceSource}</strong></span>
+                <div className="text-[10px] text-slate-500 mb-1.5 flex items-center">
+                  <span className="truncate">Source: <strong className="text-slate-700">{char.toleranceSource}</strong></span>
                 </div>
 
                 {/* Action Bar: Inspection Tooling & Verification */}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400 dark:text-zinc-500">Gage:</span>
+                    <span className="text-[10px] text-slate-400">Gage:</span>
                     <select
                       value={char.inspectionMethod}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => handleUpdateMethod(char, e.target.value as InspectionMethod, e)}
-                      className="text-[11px] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-slate-700 dark:text-zinc-200 font-medium cursor-pointer"
+                      className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium cursor-pointer"
                     >
                       {INSPECTION_METHODS.map(m => (
                         <option key={m} value={m}>{m}</option>
@@ -388,7 +388,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                       <button
                         type="button"
                         onClick={(e) => handleExpandMultiplier(char, e)}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-300 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700 transition font-medium cursor-pointer"
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 transition font-medium cursor-pointer"
                         title="Split into individual sub-characteristics for AS9102 Form 3"
                       >
                         <Split className="w-3 h-3" />
@@ -405,8 +405,8 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                         Verify
                       </button>
                     ) : (
-                      <span className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-zinc-300 font-medium px-1 py-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
+                      <span className="flex items-center gap-1 text-[10px] text-slate-600 font-medium px-1 py-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
                         <span>Accepted</span>
                       </span>
                     )}
@@ -418,7 +418,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                           e.stopPropagation();
                           onDeleteCharacteristic(char.id);
                         }}
-                        className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-800 transition cursor-pointer ml-0.5"
+                        className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer ml-0.5"
                         title={`Delete Balloon #${char.subNumber || char.itemNumber}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

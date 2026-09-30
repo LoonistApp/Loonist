@@ -65,6 +65,7 @@ export function App() {
   const [activeTool, setActiveTool] = useState<ViewportTool>('pan');
   const [isLoading, setIsLoading] = useState(false);
   const [fps, setFps] = useState(60);
+  const [isDraggingFileOver, setIsDraggingFileOver] = useState(false);
 
   // Multi-Document Project Ingestion State (InspectionXpert Benchmark)
   const [projectFiles, setProjectFiles] = useState<Array<{ id: string; name: string; type: 'pdf' | 'dwg' | 'catpart'; filePath?: string }>>([]);
@@ -551,6 +552,18 @@ export function App() {
   useEffect(() => {
     handleOpenBlueprintRef.current = handleOpenBlueprint;
   }, [handleOpenBlueprint]);
+
+  // Handler for dropping a PDF blueprint directly onto the empty canvas
+  const handleCanvasFileDrop = useCallback(async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      await showLoonistDialog('Only PDF blueprint files can be dropped here.');
+      return;
+    }
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    const fileHash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    await loadPdfBuffer(buffer, file.name, file.size, fileHash, undefined, true);
+  }, [loadPdfBuffer]);
 
   // Handler for New Project - launches file picker without wiping or closing the existing drawing!
   // The existing drawing remains open and active until/unless a new drawing file is imported.
@@ -1234,7 +1247,7 @@ export function App() {
   return (
     <div className={`flex flex-col w-screen h-screen ${isDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} overflow-hidden font-sans select-none relative transition-colors duration-200`}>
       {isLoading && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-slate-900 dark:bg-zinc-200 animate-pulse z-50" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-slate-900 animate-pulse z-50" />
       )}
       {/* 1. TOP RIBBON BAR (Desktop Engineering Ribbon System) */}
       <RibbonBar
@@ -1363,7 +1376,22 @@ export function App() {
                 : '#141416'
           }}
         >
-          <main className="relative flex-1 w-full overflow-hidden flex items-center justify-center min-h-0">
+          <main
+            className="relative flex-1 w-full overflow-hidden flex items-center justify-center min-h-0"
+            onDragOver={(e) => {
+              if (blueprintDoc) return;
+              e.preventDefault();
+              setIsDraggingFileOver(true);
+            }}
+            onDragLeave={() => setIsDraggingFileOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDraggingFileOver(false);
+              if (blueprintDoc) return;
+              const file = e.dataTransfer.files?.[0];
+              if (file) void handleCanvasFileDrop(file);
+            }}
+          >
             {blueprintDoc && currentSheet ? (
               <>
                 <ViewportCanvas
@@ -1421,8 +1449,11 @@ export function App() {
                     backgroundSize: '32px 32px'
                   }}
                 />
-                <div className="relative z-10 flex flex-col items-center justify-center text-center select-none pointer-events-none px-6">
-                  <h2 
+                {isDraggingFileOver && (
+                  <div className="absolute inset-4 z-20 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500/10 pointer-events-none" />
+                )}
+                <div className="relative z-10 flex flex-col items-center justify-center text-center select-none px-6">
+                  <h2
                     className="text-sm font-semibold tracking-wide mb-1"
                     style={{
                       color:
@@ -1433,8 +1464,8 @@ export function App() {
                   >
                     No Drawing Loaded
                   </h2>
-                  <p 
-                    className="text-xs font-normal"
+                  <p
+                    className="text-xs font-normal mb-4"
                     style={{
                       color:
                         appOptions.workspace.canvasBackground === 'white'
@@ -1442,8 +1473,24 @@ export function App() {
                           : '#ffffff'
                     }}
                   >
-                    Open project to begin.
+                    Open a drawing to begin, or drop a PDF here.
                   </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenBlueprint({ isNewProject: true })}
+                      className="flex items-center gap-2 px-4 py-2 rounded bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                    >
+                      Open Drawing (PDF)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenProject()}
+                      className="flex items-center gap-2 px-4 py-2 rounded bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
+                    >
+                      Open Project (.loonist)
+                    </button>
+                  </div>
                 </div>
               </>
             )}

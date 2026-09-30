@@ -528,8 +528,8 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
 
       {/* Loading Indicator */}
       {isRendering && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs px-3 py-1.5 rounded shadow-sm">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-700 dark:text-zinc-300" />
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded shadow-sm">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-700" />
           <span>Rasterizing Blueprint...</span>
         </div>
       )}
@@ -962,7 +962,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
                         zIndex: 50,
                         pointerEvents: 'auto'
                       }}
-                      className="w-4 h-4 rounded-full bg-slate-800 hover:bg-slate-950 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-slate-200 hover:text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-125"
+                      className="w-4 h-4 rounded-full bg-slate-800 hover:bg-slate-950 text-slate-200 hover:text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-125"
                       title={`Delete Balloon #${balloonNum} (or press Delete)`}
                     >
                       <Trash2 className="w-2.5 h-2.5" />
@@ -980,7 +980,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
             className="absolute inset-0 pointer-events-none flex items-center justify-center select-none z-10 overflow-hidden"
           >
             <span 
-              className="font-black tracking-widest text-red-600/15 dark:text-red-400/15 uppercase select-none text-center"
+              className="font-black tracking-widest text-red-600/15 uppercase select-none text-center"
               style={{
                 fontSize: 'clamp(32px, 6vw, 84px)',
                 transform: 'rotate(-30deg)',
@@ -1002,9 +1002,9 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
               zIndex: 100
             }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-zinc-700 shadow-xl rounded-lg py-1 px-1 min-w-[170px] text-xs select-none animate-in fade-in zoom-in-95 duration-75"
+            className="bg-white border border-slate-200 shadow-xl rounded-lg py-1 px-1 min-w-[170px] text-xs select-none animate-in fade-in zoom-in-95 duration-75"
           >
-            <div className="px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-zinc-200 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+            <div className="px-2.5 py-1 text-[11px] font-bold text-slate-700 border-b border-slate-100 flex items-center justify-between">
               <span>Balloon #{contextMenu.char.subNumber || contextMenu.char.itemNumber}</span>
               <span className="text-[10px] text-slate-400 font-normal">{contextMenu.char.drawingZone}</span>
             </div>
@@ -1015,9 +1015,9 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
                   onDeleteCharacteristic(contextMenu.char.id);
                   setContextMenu(null);
                 }}
-                className="w-full text-left px-2.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center gap-2 cursor-pointer font-medium mt-0.5"
+                className="w-full text-left px-2.5 py-1.5 rounded hover:bg-slate-100 text-slate-700 flex items-center gap-2 cursor-pointer font-medium mt-0.5"
               >
-                <Trash2 className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
+                <Trash2 className="w-3.5 h-3.5 text-slate-500" />
                 <span>Delete Balloon</span>
               </button>
             )}

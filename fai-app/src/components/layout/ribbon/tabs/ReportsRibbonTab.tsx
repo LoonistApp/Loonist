@@ -36,7 +36,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
         <RibbonButton
           variant="large"
           accent="emerald"
-          icon={<FileSpreadsheet className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />}
+          icon={<FileSpreadsheet className="w-5 h-5 text-emerald-600" />}
           label="AS9102 Excel"
           subLabel="Forms 1, 2, 3"
           disabled={characteristicsCount === 0}
@@ -47,7 +47,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
         <RibbonButton
           variant="large"
           accent="red"
-          icon={<FileDown className="w-5 h-5 text-red-600 dark:text-red-400" />}
+          icon={<FileDown className="w-5 h-5 text-red-600" />}
           label="Marked PDF"
           subLabel="Vector Stamped"
           disabled={!hasDrawing || characteristicsCount === 0}
@@ -60,7 +60,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
       <RibbonGroup title="PROJECT ARCHIVE">
         <RibbonButton
           variant="large"
-          icon={<Save className="w-5 h-5 text-slate-700 dark:text-zinc-200" />}
+          icon={<Save className="w-5 h-5 text-slate-700" />}
           label="Save Package"
           subLabel=".loonist"
           disabled={!hasDrawing && characteristicsCount === 0}
@@ -71,7 +71,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
         <div className="flex flex-col justify-center">
           <RibbonButton
             variant="small"
-            icon={<FolderOpen className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+            icon={<FolderOpen className="w-3.5 h-3.5 text-slate-700" />}
             label="Open Package"
             hotkey="Ctrl+O"
             title="Load existing LOONIST project package"
@@ -80,7 +80,7 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
           {onToggleDrawer && (
             <RibbonButton
               variant="small"
-              icon={<Search className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-200" />}
+              icon={<Search className="w-3.5 h-3.5 text-slate-700" />}
               label="Inspections"
               disabled={characteristicsCount === 0}
               title="View inspection results before exporting"
@@ -93,11 +93,11 @@ export const ReportsRibbonTab: React.FC<ReportsRibbonTabProps> = ({
       {/* 3. QUALITY SIGNOFF READINESS */}
       <RibbonGroup title="QUALITY SIGNOFF" noSeparator>
         <div className="flex flex-col justify-center px-2 py-0.5">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>SAE AS9102 Certified Exporters</span>
           </div>
-          <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5 max-w-[200px] leading-tight">
+          <p className="text-[10px] text-slate-500 mt-0.5 max-w-[200px] leading-tight">
             Output files comply with Form 1 (Part), Form 2 (Materials), and Form 3 (Characteristics).
           </p>
         </div>
