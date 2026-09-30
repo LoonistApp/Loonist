@@ -753,6 +753,38 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         />
                         <span>Exclude Reference Dimensions (dimensions enclosed in parentheses)</span>
                       </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={draft.skipBasicDimensions}
+                          onChange={(e) => setDraft({ ...draft, skipBasicDimensions: e.target.checked })}
+                          className="rounded border-slate-300 accent-slate-800 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Exclude Basic Dimensions (dimensions enclosed in a box, e.g. [1.500])</span>
+                      </label>
+                    </div>
+
+                    {/* OCR Review Confidence Floor */}
+                    <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <div>
+                        <span className="text-[11px] font-semibold text-slate-700 block">
+                          OCR Review Confidence Floor
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Characteristics extracted below this confidence are flagged for mandatory inspection review instead of auto-accepted.
+                        </span>
+                      </div>
+                      <select
+                        value={draft.ocrConfidenceThreshold}
+                        onChange={(e) => setDraft({ ...draft, ocrConfidenceThreshold: parseFloat(e.target.value) })}
+                        className="bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium cursor-pointer shrink-0"
+                      >
+                        <option value={0.75}>75% (Lenient)</option>
+                        <option value={0.80}>80% (Standard)</option>
+                        <option value={0.85}>85% (Aerospace Default)</option>
+                        <option value={0.90}>90% (Strict)</option>
+                      </select>
                     </div>
                   </div>
                 </>

@@ -943,7 +943,7 @@ export function App() {
     try {
       const maxItemNumber = characteristics.reduce((max, c) => Math.max(max, c.itemNumber), 0);
       const nextItemNumber = maxItemNumber + 1;
-      const newChar = await AiExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber, cropCanvas);
+      const newChar = await AiExtractionService.captureBox(pdfDoc, box, pageNumber, nextItemNumber, cropCanvas, projectSettings);
       setUndoStack((u) => [...u.slice(-30), characteristics]);
       setRedoStack([]);
       setCharacteristics((prev) => [...prev, newChar]);

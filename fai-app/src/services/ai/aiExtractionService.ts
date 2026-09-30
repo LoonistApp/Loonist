@@ -570,7 +570,7 @@ export class AiExtractionService {
             if (parsed.enclosure === 'limit') confidence = 0.98;
             if (parsed.isToleranceInherited && parsed.nominal < 0.2) confidence = 0.88;
 
-            const verificationStatus = confidence < 0.90 ? 'needs_review' : 'auto_accepted';
+            const verificationStatus = confidence < (settings?.ocrConfidenceThreshold ?? 0.85) ? 'needs_review' : 'auto_accepted';
 
             // Check for multiplier (e.g. 4X)
             const multiplier = parsed.multiplier || 1;
@@ -1081,7 +1081,8 @@ export class AiExtractionService {
     box: { x: number; y: number; width: number; height: number },
     pageNumber: number,
     nextItemNumber: number,
-    cropCanvasOrDataUrl?: HTMLCanvasElement | string
+    cropCanvasOrDataUrl?: HTMLCanvasElement | string,
+    settings?: ProjectSettings
   ): Promise<EngineeringCharacteristic> {
     let capturedText = '';
     let zone = 'Zone A-1';
@@ -1240,7 +1241,7 @@ export class AiExtractionService {
       quantity: 1,
       inspectionMethod: inspectionMethod,
       confidenceScore: extractionConfidence,
-      verificationStatus: extractionConfidence >= 0.85 ? 'auto_accepted' : 'needs_review',
+      verificationStatus: extractionConfidence >= (settings?.ocrConfidenceThreshold ?? 0.85) ? 'auto_accepted' : 'needs_review',
       extractionSource: extractionSource,
       extractionConfidence: extractionConfidence,
       isBasic: parsed.enclosure === 'basic',
