@@ -17,9 +17,8 @@ import {
 import { RibbonTabNav, type RibbonTabId } from './ribbon/RibbonTabNav';
 import { FileBackstageModal } from './ribbon/FileBackstageModal';
 import { HomeRibbonTab } from './ribbon/tabs/HomeRibbonTab';
-import { SettingsRibbonTab } from './ribbon/tabs/SettingsRibbonTab';
-import { HelpRibbonTab } from './ribbon/tabs/HelpRibbonTab';
 import { ProjectSettingsModal, type SettingsTab } from '../modals/ProjectSettingsModal';
+import { QuickStartModal } from '../modals/QuickStartModal';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types/settings';
 
 export interface ProjectFileTab {
@@ -210,16 +209,16 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   // Windows System Menu & Window Controls State
   const [isLogoMenuOpen, setIsLogoMenuOpen] = useState(false);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const logoMenuRef = useRef<HTMLDivElement>(null);
 
-  // Opens the in-app Help tab (LOONIST is fully offline; no external site is used)
+  // Opens the in-app Help modal (LOONIST is fully offline; no external site is used)
   const handleOpenHelp = useCallback(() => {
     if (onOpenHelp) {
       onOpenHelp();
       return;
     }
-    setActiveTab('help');
-    setIsRibbonCollapsed(false);
+    setIsHelpModalOpen(true);
   }, [onOpenHelp]);
 
   // Close Logo System Menu on outside click
@@ -513,16 +512,8 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
           </div>
         </div>
 
-        {/* Right: Security Badge & Window Controls */}
+        {/* Right: Window Controls */}
         <div className="flex items-center gap-3">
-          {/* ITAR Air-Gapped Status Badge */}
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-sans" title="Fully offline: no cloud connection, no telemetry">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Air-Gapped Local</span>
-          </div>
-
-          <span className="h-3 w-px bg-slate-300" />
-
           {/* Panel Layout Controls & Dark Mode Switch */}
           <div className="flex items-center gap-0.5">
             <button
@@ -623,22 +614,6 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               onToggleLockBalloons={onToggleLockBalloons}
             />
           )}
-
-          {activeTab === 'settings' && (
-            <SettingsRibbonTab
-              settings={settings || DEFAULT_PROJECT_SETTINGS}
-              onUpdateSettings={onUpdateSettings || (() => {})}
-              onOpenSettingsModal={handleOpenSettingsModal}
-            />
-          )}
-
-          {activeTab === 'help' && (
-            <HelpRibbonTab
-              onLoadSample={onLoadSample}
-              characteristicsCount={effectiveCharCount}
-              hasDrawing={hasDrawing}
-            />
-          )}
         </div>
       )}
 
@@ -711,6 +686,13 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         settings={settings || DEFAULT_PROJECT_SETTINGS}
         onUpdateSettings={onUpdateSettings || (() => {})}
         initialTab={settingsModalInitialTab}
+      />
+
+      {/* 7. QUICK START / HELP MODAL */}
+      <QuickStartModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+        onLoadSample={onLoadSample}
       />
     </header>
   );

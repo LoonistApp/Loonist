@@ -6,9 +6,7 @@ import {
 } from 'lucide-react';
 
 export type RibbonTabId =
-  | 'home'
-  | 'settings'
-  | 'help';
+  | 'home';
 
 interface RibbonTabNavProps {
   activeTab: RibbonTabId;
@@ -23,8 +21,6 @@ interface RibbonTabNavProps {
 
 const TABS: Array<{ id: RibbonTabId; label: string }> = [
   { id: 'home', label: 'HOME' },
-  { id: 'settings', label: 'SETTINGS' },
-  { id: 'help', label: 'HELP' },
 ];
 
 export const RibbonTabNav: React.FC<RibbonTabNavProps> = ({
