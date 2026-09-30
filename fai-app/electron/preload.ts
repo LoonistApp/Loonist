@@ -22,4 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   licenseRenew: (apiUrl: string, deviceId: string) => ipcRenderer.invoke('ipc-license-renew', { apiUrl, deviceId }),
   licenseRevoke: (apiUrl: string, deviceId: string) => ipcRenderer.invoke('ipc-license-revoke', { apiUrl, deviceId }),
   licenseVerify: (payload: unknown, signature: string) => ipcRenderer.invoke('ipc-license-verify', { payload, signature }),
+  // Durable key/value settings (survives restarts; window.localStorage does not for file:// origins)
+  getStoredSetting: (key: string) => ipcRenderer.invoke('ipc-settings-get', { key }),
+  setStoredSetting: (key: string, value: string) => ipcRenderer.invoke('ipc-settings-set', { key, value }),
 });

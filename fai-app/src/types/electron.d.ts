@@ -63,6 +63,8 @@ export interface IElectronAPI {
   licenseRenew?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
   licenseRevoke?: (apiUrl: string, deviceId: string) => Promise<LicenseCallResult>;
   licenseVerify?: (payload: unknown, signature: string) => Promise<LicenseVerification>;
+  getStoredSetting?: (key: string) => Promise<{ value: string | null }>;
+  setStoredSetting?: (key: string, value: string) => Promise<{ success: boolean }>;
 }
 
 declare global {

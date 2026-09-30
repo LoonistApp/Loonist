@@ -26,6 +26,7 @@ import {
   DEFAULT_AEROSPACE_TOLERANCES 
 } from './types/characteristics';
 import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings } from './types/settings';
+import { getPersistentSetting, setPersistentSetting } from './utils/persistentSettings';
 import { DEFAULT_METRIC_ISO_TOLERANCES, ToleranceEngine } from './services/ai/toleranceEngine';
 import type { BlueprintDocument, ViewportTool } from './types/blueprint';
 import { ExportModal } from './components/layout/ExportModal';
@@ -96,13 +97,25 @@ export function App() {
     return false;
   });
 
+  // On mount, reconcile with the durable (file-backed) theme setting in case
+  // localStorage didn't survive the last app restart.
+  useEffect(() => {
+    let cancelled = false;
+    getPersistentSetting('loonist_theme').then((saved) => {
+      if (!cancelled && saved) {
+        setIsDarkMode(saved === 'dark');
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('loonist_theme', 'dark');
+      setPersistentSetting('loonist_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('loonist_theme', 'light');
+      setPersistentSetting('loonist_theme', 'light');
     }
   }, [isDarkMode]);
 
@@ -150,6 +163,22 @@ export function App() {
     }
     return DEFAULT_PROJECT_SETTINGS;
   });
+
+  // On mount, reconcile with the durable (file-backed) default settings in
+  // case localStorage didn't survive the last app restart.
+  useEffect(() => {
+    let cancelled = false;
+    getPersistentSetting('loonist_project_settings_default').then((saved) => {
+      if (cancelled || !saved) return;
+      try {
+        const parsed = JSON.parse(saved);
+        setProjectSettings({ ...DEFAULT_PROJECT_SETTINGS, ...parsed });
+      } catch {
+        // ignore malformed persisted settings
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Handle Project Settings Update with Retroactive Tolerance Recalculation
   const handleUpdateSettings = useCallback((newSettings: ProjectSettings) => {

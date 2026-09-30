@@ -394,6 +394,50 @@ handleIpc('ipc-window-close', noPayload, () => {
 });
 
 // ==========================================
+// PERSISTENT RENDERER SETTINGS (FILE-BACKED)
+// ==========================================
+// The renderer's file:// origin does not reliably persist window.localStorage
+// across app restarts in Electron/Chromium. Durable, small key/value settings
+// (theme preference, default project settings, saved tolerance presets) are
+// instead stored here as a flat JSON file under userData, the same durable
+// location already used for the license key in electron/licensing.ts.
+
+function settingsFilePath(): string {
+  return path.join(app.getPath('userData'), 'settings', 'renderer-settings.json');
+}
+
+function readSettingsStore(): Record<string, string> {
+  try {
+    const raw = fs.readFileSync(settingsFilePath(), 'utf-8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSettingsStore(store: Record<string, string>) {
+  const file = settingsFilePath();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(store), 'utf-8');
+}
+
+const settingsGetSchema = z.object({ key: z.string().min(1) });
+const settingsSetSchema = z.object({ key: z.string().min(1), value: z.string() });
+
+handleIpc('ipc-settings-get', settingsGetSchema, ({ key }) => {
+  const store = readSettingsStore();
+  return { value: Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null };
+});
+
+handleIpc('ipc-settings-set', settingsSetSchema, ({ key, value }) => {
+  const store = readSettingsStore();
+  store[key] = value;
+  writeSettingsStore(store);
+  return { success: true };
+});
+
+// ==========================================
 // SPRINT 8: LICENSING (MAIN PROCESS ONLY)
 // ==========================================
 
