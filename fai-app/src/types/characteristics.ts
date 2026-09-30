@@ -237,6 +237,10 @@ export interface TitleBlockTolerancePreset {
   fourDecimals: number;   // .XXXX default (e.g. ±0.0005)
   angular: number;        // Angles default (e.g. ±0.5°)
   unit: 'in' | 'mm';
+  // When set, this preset is a real ISO 2768-1 tolerance class (f/m/c/v) and
+  // linear tolerances are resolved by dimension SIZE bracket, not decimal
+  // precision - the oneDecimal..fourDecimals fields above are not used for it.
+  iso2768Class?: 'f' | 'm' | 'c' | 'v';
 }
 
 export const DEFAULT_AEROSPACE_TOLERANCES: TitleBlockTolerancePreset = {

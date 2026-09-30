@@ -130,6 +130,18 @@ export class ToleranceEngine {
       };
     }
 
+    // ISO 2768-1 general tolerances are selected by the dimension's nominal SIZE
+    // bracket, not by how many decimal places were written on the drawing (that's
+    // an inch/shop-convention idiom). When a preset declares an ISO 2768 class,
+    // always resolve through the real size-bracket table instead of the
+    // decimal-place grid below.
+    if (preset.iso2768Class) {
+      const nomNum = parseFloat(nominalStr);
+      if (!Number.isNaN(nomNum)) {
+        return this.resolveMetricIso2768Tolerance(nomNum, preset.iso2768Class);
+      }
+    }
+
     const precision = this.getDecimalPrecision(nominalStr);
     const unitLabel = preset.unit === 'mm' ? 'mm' : 'in';
 
@@ -177,22 +189,35 @@ export class ToleranceEngine {
   }
 
   /**
-   * Resolves standard ISO 2768-m general metric tolerances by nominal dimension size.
+   * ISO 2768-1 general linear tolerance tables (mm), by size bracket, per class.
+   * Brackets are upper-inclusive: e.g. "30" covers >6 to 30mm.
    */
-  public static resolveMetricIso2768Tolerance(nominal: number): { upperTol: number; lowerTol: number; source: string } {
+  private static readonly ISO_2768_TABLE: Record<'f' | 'm' | 'c' | 'v', Array<[number, number]>> = {
+    // [bracket upper bound (mm), tolerance (±mm)]
+    f: [[3, 0.05], [6, 0.05], [30, 0.1], [120, 0.15], [400, 0.2], [1000, 0.3], [2000, 0.5], [4000, 0.8]],
+    m: [[3, 0.1], [6, 0.1], [30, 0.2], [120, 0.3], [400, 0.5], [1000, 0.8], [2000, 1.2], [4000, 2]],
+    c: [[3, 0.2], [6, 0.3], [30, 0.5], [120, 0.8], [400, 1.2], [1000, 2], [2000, 3], [4000, 4]],
+    v: [[6, 0.5], [30, 1], [120, 1.5], [400, 2.5], [1000, 4], [2000, 6], [4000, 8]]
+  };
+
+  /**
+   * Resolves standard ISO 2768-1 general metric tolerances by nominal dimension
+   * size bracket (not by decimal precision) for the given tolerance class:
+   * f = fine, m = medium, c = coarse, v = very coarse.
+   */
+  public static resolveMetricIso2768Tolerance(
+    nominal: number,
+    tolClass: 'f' | 'm' | 'c' | 'v' = 'm'
+  ): { upperTol: number; lowerTol: number; source: string } {
     const absNom = Math.abs(nominal);
-    let tol = 0.2;
-    if (absNom <= 3) tol = 0.1;
-    else if (absNom <= 6) tol = 0.1;
-    else if (absNom <= 30) tol = 0.2;
-    else if (absNom <= 120) tol = 0.3;
-    else if (absNom <= 400) tol = 0.5;
-    else tol = 0.8;
+    const brackets = this.ISO_2768_TABLE[tolClass];
+    const match = brackets.find(([upperBound]) => absNom <= upperBound);
+    const tol = (match ?? brackets[brackets.length - 1])[1];
 
     return {
       upperTol: tol,
       lowerTol: tol,
-      source: `ISO 2768-m (±${tol} mm)`
+      source: `ISO 2768-${tolClass} (±${tol} mm, size bracket)`
     };
   }
 

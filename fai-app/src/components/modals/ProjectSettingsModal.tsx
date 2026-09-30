@@ -66,12 +66,22 @@ function saveCustomPresets(presets: CustomTolerancePreset[]) {
 }
 
 function tolerancesMatch(a: TitleBlockTolerancePreset, b: TitleBlockTolerancePreset): boolean {
+  if (a.iso2768Class || b.iso2768Class) {
+    return a.iso2768Class === b.iso2768Class && a.angular === b.angular;
+  }
   return a.oneDecimal === b.oneDecimal &&
     a.twoDecimals === b.twoDecimals &&
     a.threeDecimals === b.threeDecimals &&
     a.fourDecimals === b.fourDecimals &&
     a.angular === b.angular;
 }
+
+const ISO_2768_REFERENCE: Record<'f' | 'm' | 'c' | 'v', Array<[string, string]>> = {
+  f: [['0.5–3', '±0.05'], ['>3–6', '±0.05'], ['>6–30', '±0.1'], ['>30–120', '±0.15'], ['>120–400', '±0.2'], ['>400–1000', '±0.3']],
+  m: [['0.5–3', '±0.1'], ['>3–6', '±0.1'], ['>6–30', '±0.2'], ['>30–120', '±0.3'], ['>120–400', '±0.5'], ['>400–1000', '±0.8']],
+  c: [['0.5–3', '±0.2'], ['>3–6', '±0.3'], ['>6–30', '±0.5'], ['>30–120', '±0.8'], ['>120–400', '±1.2'], ['>400–1000', '±2']],
+  v: [['>3–6', '±0.5'], ['>6–30', '±1'], ['>30–120', '±1.5'], ['>120–400', '±2.5'], ['>400–1000', '±4']]
+};
 
 // Predefined industry-standard tolerance matrices
 const TOLERANCE_PRESETS: Record<TolerancePresetKey, TitleBlockTolerancePreset> = {
@@ -100,12 +110,15 @@ const TOLERANCE_PRESETS: Record<TolerancePresetKey, TitleBlockTolerancePreset> =
     unit: 'in'
   },
   'iso-medium': {
+    // Linear tolerances are resolved by size bracket (ToleranceEngine.resolveMetricIso2768Tolerance)
+    // per iso2768Class below, not by these decimal-place fields - kept only as a fallback shape.
     oneDecimal: 0.20,
     twoDecimals: 0.10,
     threeDecimals: 0.05,
     fourDecimals: 0.01,
     angular: 0.5,
-    unit: 'mm'
+    unit: 'mm',
+    iso2768Class: 'm'
   },
   'iso-fine': {
     oneDecimal: 0.10,
@@ -113,7 +126,8 @@ const TOLERANCE_PRESETS: Record<TolerancePresetKey, TitleBlockTolerancePreset> =
     threeDecimals: 0.01,
     fourDecimals: 0.002,
     angular: 0.5,
-    unit: 'mm'
+    unit: 'mm',
+    iso2768Class: 'f'
   },
   'sheet-metal-metric': {
     oneDecimal: 0.50,
@@ -600,73 +614,105 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </div>
                     </div>
 
-                    {/* 5-Column Decimal Tolerance Grid */}
-                    <div className="grid grid-cols-5 gap-2.5">
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
-                          ± .X (1 Place)
-                        </label>
-                        <input
-                          type="number"
-                          step={draft.units === 'mm' ? '0.1' : '0.01'}
-                          value={draft.tolerances.oneDecimal}
-                          onChange={(e) => handleToleranceInput('oneDecimal', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
-                        />
+                    {draft.tolerances.iso2768Class ? (
+                      /* ISO 2768-1 is resolved by dimension SIZE bracket, not decimal places -
+                         these values aren't user-editable numbers, they're the fixed standard table. */
+                      <div className="flex gap-2.5 items-stretch">
+                        <div className="flex-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          <div className="text-[10px] font-semibold text-slate-500 mb-1.5">
+                            ISO 2768-{draft.tolerances.iso2768Class} Linear Tolerance by Size Bracket (mm)
+                          </div>
+                          <div className="grid grid-cols-6 gap-x-3 gap-y-0.5 text-[10px] font-mono">
+                            {ISO_2768_REFERENCE[draft.tolerances.iso2768Class].map(([bracket, tol]) => (
+                              <div key={bracket} className="flex flex-col">
+                                <span className="text-slate-400">{bracket}</span>
+                                <span className="font-bold text-slate-800">{tol}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="w-28 shrink-0 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                            ± Angles (°)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={draft.tolerances.angular}
+                            onChange={(e) => handleToleranceInput('angular', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
                       </div>
+                    ) : (
+                      /* 5-Column Decimal Tolerance Grid */
+                      <div className="grid grid-cols-5 gap-2.5">
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                            ± .X (1 Place)
+                          </label>
+                          <input
+                            type="number"
+                            step={draft.units === 'mm' ? '0.1' : '0.01'}
+                            value={draft.tolerances.oneDecimal}
+                            onChange={(e) => handleToleranceInput('oneDecimal', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
 
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
-                          ± .XX (2 Places)
-                        </label>
-                        <input
-                          type="number"
-                          step={draft.units === 'mm' ? '0.05' : '0.005'}
-                          value={draft.tolerances.twoDecimals}
-                          onChange={(e) => handleToleranceInput('twoDecimals', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
-                        />
-                      </div>
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                            ± .XX (2 Places)
+                          </label>
+                          <input
+                            type="number"
+                            step={draft.units === 'mm' ? '0.05' : '0.005'}
+                            value={draft.tolerances.twoDecimals}
+                            onChange={(e) => handleToleranceInput('twoDecimals', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
 
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
-                          ± .XXX (3 Places)
-                        </label>
-                        <input
-                          type="number"
-                          step={draft.units === 'mm' ? '0.01' : '0.001'}
-                          value={draft.tolerances.threeDecimals}
-                          onChange={(e) => handleToleranceInput('threeDecimals', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
-                        />
-                      </div>
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                            ± .XXX (3 Places)
+                          </label>
+                          <input
+                            type="number"
+                            step={draft.units === 'mm' ? '0.01' : '0.001'}
+                            value={draft.tolerances.threeDecimals}
+                            onChange={(e) => handleToleranceInput('threeDecimals', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
 
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
-                          ± .XXXX (4 Places)
-                        </label>
-                        <input
-                          type="number"
-                          step={draft.units === 'mm' ? '0.002' : '0.0001'}
-                          value={draft.tolerances.fourDecimals}
-                          onChange={(e) => handleToleranceInput('fourDecimals', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
-                        />
-                      </div>
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                            ± .XXXX (4 Places)
+                          </label>
+                          <input
+                            type="number"
+                            step={draft.units === 'mm' ? '0.002' : '0.0001'}
+                            value={draft.tolerances.fourDecimals}
+                            onChange={(e) => handleToleranceInput('fourDecimals', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
 
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                        <label className="text-[10px] font-semibold text-slate-500 block mb-1">
-                          ± Angles (°)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={draft.tolerances.angular}
-                          onChange={(e) => handleToleranceInput('angular', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
-                        />
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                            ± Angles (°)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={draft.tolerances.angular}
+                            onChange={(e) => handleToleranceInput('angular', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="h-px bg-slate-200" />
