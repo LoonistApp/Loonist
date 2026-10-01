@@ -1053,10 +1053,19 @@ export function App() {
       width: s.width,
       height: s.height
     }));
+    const repositioned = SpatialPlacementService.recalculateAllSheets(characteristics, sheetsMeta, true);
+    const isNoOp = characteristics.every((c, i) =>
+      c.customBalloonPosition?.x === repositioned[i].customBalloonPosition?.x &&
+      c.customBalloonPosition?.y === repositioned[i].customBalloonPosition?.y
+    );
+    if (isNoOp) {
+      setToastMessage('Already optimally positioned');
+      return;
+    }
     setUndoStack((u) => [...u.slice(-30), characteristics]);
     setRedoStack([]);
-    const repositioned = SpatialPlacementService.recalculateAllSheets(characteristics, sheetsMeta, true);
     setCharacteristics(repositioned);
+    setToastMessage(`Repositioned ${repositioned.length} balloon${repositioned.length === 1 ? '' : 's'}`);
   }, [characteristics, blueprintDoc]);
 
   // Sprint 4: Save LOONIST Self-Contained Project Package (*.loonist)
