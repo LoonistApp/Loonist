@@ -92,6 +92,8 @@ export function App() {
   const [isInspectOpen, setIsInspectOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const lastExtractKeyRef = useRef<string | null>(null);
+  const lastInspectSignatureRef = useRef<string | null>(null);
   const [selectedExportTemplate, setSelectedExportTemplate] = useState('AS9102C.xlt');
   const [tableFilter, setTableFilter] = useState<'all' | 'critical' | 'review'>('all');
 
@@ -355,6 +357,8 @@ export function App() {
         setHudCropDataUrl(null);
         setHasInspectionResults(false);
         setIsInspecting(false);
+        lastExtractKeyRef.current = null;
+        lastInspectSignatureRef.current = null;
         docCacheRef.current.clear();
         setProjectProps({
           partName: '',
@@ -703,6 +707,13 @@ export function App() {
   const handleSmartExtract = useCallback(async (scopeOverride?: 'active' | 'all') => {
     if (!pdfDoc) return;
     const scope = scopeOverride || extractScope;
+    const extractKey = `${activeFileId}:${scope === 'active' ? activeSheetIndex : 'all'}`;
+    if (lastExtractKeyRef.current === extractKey) {
+      const proceed = window.confirm(
+        `This ${scope === 'active' ? 'sheet was' : 'drawing was'} already extracted. Re-running Auto Extract will re-scan it and may overwrite any manual edits made since.\n\nExtract again?`
+      );
+      if (!proceed) return;
+    }
     try {
       setIsExtracting(true);
       const targetSheet = scope === 'active' ? (activeSheetIndex + 1) : undefined;
@@ -714,6 +725,7 @@ export function App() {
         characteristics
       );
       setCharacteristics(result.characteristics);
+      lastExtractKeyRef.current = extractKey;
       setProjectProps(prev => ({ ...prev, ...result.projectProps }));
       if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
         setProjectSettings(prev => ({
@@ -741,7 +753,7 @@ export function App() {
     } finally {
       setIsExtracting(false);
     }
-  }, [pdfDoc, projectSettings, activeSheetIndex, characteristics, extractScope]);
+  }, [pdfDoc, projectSettings, activeSheetIndex, characteristics, extractScope, activeFileId]);
 
   // Top Action: Run Inspection Analysis (Generates/Refreshes Results, does NOT open panel directly)
   const handleRunInspection = useCallback(async () => {
@@ -756,6 +768,14 @@ export function App() {
         'No inspection characteristics found.\nRun Smart Extract or manually add balloons before starting the inspection.'
       );
       return;
+    }
+
+    const signature = characteristics.map((c) => `${c.id}:${c.measuredValue ?? ''}`).join('|');
+    if (hasInspectionResults && lastInspectSignatureRef.current === signature) {
+      const proceed = window.confirm(
+        'Inspection already run and no measurements have changed since.\n\nRe-run anyway?'
+      );
+      if (!proceed) return;
     }
 
     try {
@@ -777,6 +797,7 @@ export function App() {
 
       setCharacteristics(analyzed);
       setHasInspectionResults(true);
+      lastInspectSignatureRef.current = signature;
 
       // Record audit ledger entry
       AuditLedgerService.recordEntry({
@@ -792,7 +813,7 @@ export function App() {
     } finally {
       setIsInspecting(false);
     }
-  }, [blueprintDoc, pdfDoc, characteristics]);
+  }, [blueprintDoc, pdfDoc, characteristics, hasInspectionResults]);
 
   // Export to AS9102 Excel / CSV Handler
   // Blocks a customer-facing export unless every characteristic is either reviewed or exempt
@@ -1011,9 +1032,14 @@ export function App() {
   // Renumber all characteristics sequentially
   const handleRenumberAll = useCallback(() => {
     setCharacteristics((prev) => {
+      const renumbered = RenumberingService.cascadeRenumber(prev);
+      const isNoOp = prev.every((c, i) => c.itemNumber === renumbered[i].itemNumber && c.subNumber === renumbered[i].subNumber);
+      if (isNoOp) {
+        setToastMessage('Already in sequential order');
+        return prev;
+      }
       setUndoStack((u) => [...u.slice(-30), prev]);
       setRedoStack([]);
-      const renumbered = RenumberingService.cascadeRenumber(prev);
       setToastMessage(`Renumbered ${renumbered.length} balloon${renumbered.length === 1 ? '' : 's'}`);
       return renumbered;
     });
