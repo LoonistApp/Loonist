@@ -831,8 +831,7 @@ export function App() {
       As9102ExcelExporter.exportToCsv(
         characteristics,
         projectProps,
-        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`,
-        projectSettings.balloonPrefix
+        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
       );
       return;
     }
@@ -841,7 +840,7 @@ export function App() {
     const { activeTemplateId, templates } = appOptions.templates;
     const customTemplate = templates.find(t => t.id === activeTemplateId && t.isCustom);
     if (!customTemplate || activeTemplateId === BUILT_IN_TEMPLATE_ID) {
-      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
+      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
       return;
     }
 
@@ -851,13 +850,13 @@ export function App() {
         await showLoonistDialog(
           `The template file for "${customTemplate.name}" is missing. The report was exported with the built-in AS9102 layout instead. Re-upload the template in Options → Templates.`
         );
-        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
+        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
         return;
       }
       const filled = fillExcelTemplate(
         templateBytes,
         buildProjectValues(projectProps, characteristics.length),
-        characteristics.map((c) => buildCharacteristicValues(c, projectSettings.balloonPrefix))
+        characteristics.map(buildCharacteristicValues)
       );
       As9102ExcelExporter.downloadXlsx(filled, fileName);
     } catch (err) {
@@ -866,7 +865,7 @@ export function App() {
         `Could not fill the template "${customTemplate.name}". Check that it opens in Excel, or switch back to the built-in template in Options → Templates.`
       );
     }
-  }, [characteristics, projectProps, appOptions.templates, projectSettings, confirmExportReadiness]);
+  }, [characteristics, projectProps, appOptions.templates, confirmExportReadiness]);
 
   // Vector Marked Blueprint PDF Exporter (pdf-lib)
   const handleExportMarkedPdf = useCallback(async () => {
@@ -901,8 +900,7 @@ export function App() {
         {
           highlightNonConformance: true,
           showLeaderLines: true,
-          watermark: projectSettings.watermark,
-          balloonPrefix: projectSettings.balloonPrefix
+          watermark: projectSettings.watermark
         }
       );
 
@@ -914,7 +912,7 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, projectSettings, confirmExportReadiness]);
+  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, confirmExportReadiness]);
 
   // When a characteristic or balloon is selected
   const handleSelectCharacteristic = useCallback((char: EngineeringCharacteristic) => {
@@ -1008,7 +1006,7 @@ export function App() {
       }
       setActiveTool('select');
     }
-  }, [characteristics, pdfDoc, projectSettings]);
+  }, [characteristics, pdfDoc]);
 
   // Renumber all characteristics sequentially
   const handleRenumberAll = useCallback(() => {
@@ -1413,7 +1411,6 @@ export function App() {
             hasDrawing={Boolean(blueprintDoc)}
             hudCropDataUrl={hudCropDataUrl}
             activeSheetNumber={activeSheetIndex + 1}
-            balloonPrefix={projectSettings.balloonPrefix}
             isOpen={isLeftPanelOpen}
             onToggleOpen={setIsLeftPanelOpen}
             width={leftPanelWidth}
@@ -1496,7 +1493,6 @@ export function App() {
                   onFpsUpdate={setFps}
                   onCropGenerated={setHudCropDataUrl}
                   watermark={projectSettings.watermark}
-                  balloonPrefix={projectSettings.balloonPrefix}
                 />
 
                 {/* Floating CAD HUD Toolbar */}
@@ -1631,7 +1627,6 @@ export function App() {
           onFilterChange={setTableFilter}
           activeSheetNumber={activeSheetIndex + 1}
           totalSheets={blueprintDoc?.numSheets || 1}
-          balloonPrefix={projectSettings.balloonPrefix}
         />
       )}
 
@@ -1645,7 +1640,6 @@ export function App() {
         hasDrawing={Boolean(blueprintDoc)}
         selectedTemplate={selectedExportTemplate}
         onSelectTemplate={setSelectedExportTemplate}
-        defaultFormat={projectSettings.exportFormat === 'NET_INSPECT' ? 'csv' : 'xlsx'}
       />
 
       <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
