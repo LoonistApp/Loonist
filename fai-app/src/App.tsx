@@ -31,6 +31,7 @@ import { getPersistentSetting, setPersistentSetting } from './utils/persistentSe
 import { DEFAULT_METRIC_ISO_TOLERANCES, ToleranceEngine } from './services/ai/toleranceEngine';
 import type { BlueprintDocument, ViewportTool } from './types/blueprint';
 import { ExportModal } from './components/layout/ExportModal';
+import { Toast } from './components/common/Toast';
 import { showLoonistDialog } from './utils/dialog';
 import { useApplicationOptions } from './stores/useApplicationOptionsStore';
 import { CloudflareLicenseClient } from './services/license/licenseClient';
@@ -90,6 +91,7 @@ export function App() {
   const [hudCropDataUrl, setHudCropDataUrl] = useState<string | null>(null);
   const [isInspectOpen, setIsInspectOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedExportTemplate, setSelectedExportTemplate] = useState('AS9102C.xlt');
   const [tableFilter, setTableFilter] = useState<'all' | 'critical' | 'review'>('all');
 
@@ -829,7 +831,8 @@ export function App() {
       As9102ExcelExporter.exportToCsv(
         characteristics,
         projectProps,
-        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
+        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`,
+        projectSettings.balloonPrefix
       );
       return;
     }
@@ -838,7 +841,7 @@ export function App() {
     const { activeTemplateId, templates } = appOptions.templates;
     const customTemplate = templates.find(t => t.id === activeTemplateId && t.isCustom);
     if (!customTemplate || activeTemplateId === BUILT_IN_TEMPLATE_ID) {
-      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
+      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
       return;
     }
 
@@ -848,13 +851,13 @@ export function App() {
         await showLoonistDialog(
           `The template file for "${customTemplate.name}" is missing. The report was exported with the built-in AS9102 layout instead. Re-upload the template in Options → Templates.`
         );
-        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
+        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
         return;
       }
       const filled = fillExcelTemplate(
         templateBytes,
         buildProjectValues(projectProps, characteristics.length),
-        characteristics.map(buildCharacteristicValues)
+        characteristics.map((c) => buildCharacteristicValues(c, projectSettings.balloonPrefix))
       );
       As9102ExcelExporter.downloadXlsx(filled, fileName);
     } catch (err) {
@@ -863,7 +866,7 @@ export function App() {
         `Could not fill the template "${customTemplate.name}". Check that it opens in Excel, or switch back to the built-in template in Options → Templates.`
       );
     }
-  }, [characteristics, projectProps, appOptions.templates, confirmExportReadiness]);
+  }, [characteristics, projectProps, appOptions.templates, projectSettings, confirmExportReadiness]);
 
   // Vector Marked Blueprint PDF Exporter (pdf-lib)
   const handleExportMarkedPdf = useCallback(async () => {
@@ -898,7 +901,8 @@ export function App() {
         {
           highlightNonConformance: true,
           showLeaderLines: true,
-          watermark: projectSettings.watermark
+          watermark: projectSettings.watermark,
+          balloonPrefix: projectSettings.balloonPrefix
         }
       );
 
@@ -910,7 +914,7 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, confirmExportReadiness]);
+  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, projectSettings, confirmExportReadiness]);
 
   // When a characteristic or balloon is selected
   const handleSelectCharacteristic = useCallback((char: EngineeringCharacteristic) => {
@@ -1004,14 +1008,16 @@ export function App() {
       }
       setActiveTool('select');
     }
-  }, [characteristics, pdfDoc]);
+  }, [characteristics, pdfDoc, projectSettings]);
 
   // Renumber all characteristics sequentially
   const handleRenumberAll = useCallback(() => {
     setCharacteristics((prev) => {
       setUndoStack((u) => [...u.slice(-30), prev]);
       setRedoStack([]);
-      return RenumberingService.cascadeRenumber(prev);
+      const renumbered = RenumberingService.cascadeRenumber(prev);
+      setToastMessage(`Renumbered ${renumbered.length} balloon${renumbered.length === 1 ? '' : 's'}`);
+      return renumbered;
     });
   }, []);
 
@@ -1407,6 +1413,7 @@ export function App() {
             hasDrawing={Boolean(blueprintDoc)}
             hudCropDataUrl={hudCropDataUrl}
             activeSheetNumber={activeSheetIndex + 1}
+            balloonPrefix={projectSettings.balloonPrefix}
             isOpen={isLeftPanelOpen}
             onToggleOpen={setIsLeftPanelOpen}
             width={leftPanelWidth}
@@ -1489,6 +1496,7 @@ export function App() {
                   onFpsUpdate={setFps}
                   onCropGenerated={setHudCropDataUrl}
                   watermark={projectSettings.watermark}
+                  balloonPrefix={projectSettings.balloonPrefix}
                 />
 
                 {/* Floating CAD HUD Toolbar */}
@@ -1623,6 +1631,7 @@ export function App() {
           onFilterChange={setTableFilter}
           activeSheetNumber={activeSheetIndex + 1}
           totalSheets={blueprintDoc?.numSheets || 1}
+          balloonPrefix={projectSettings.balloonPrefix}
         />
       )}
 
@@ -1636,7 +1645,10 @@ export function App() {
         hasDrawing={Boolean(blueprintDoc)}
         selectedTemplate={selectedExportTemplate}
         onSelectTemplate={setSelectedExportTemplate}
+        defaultFormat={projectSettings.exportFormat === 'NET_INSPECT' ? 'csv' : 'xlsx'}
       />
+
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
     </div>
   );
 }
