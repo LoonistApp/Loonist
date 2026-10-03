@@ -123,12 +123,22 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   const applyTransform = useCallback((x: number, y: number, currentScale: number) => {
     transformRef.current = { x, y };
     if (layerRef.current) {
-      layerRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${currentScale}) rotate(${rotation}deg)`;
+      // The layer's transform-origin is top-left (0,0) so pan/zoom math elsewhere can keep
+      // treating (x,y) as the layer's top-left position. A plain `rotate(deg)` would then also
+      // pivot around that same top-left corner, swinging the sheet off-center. Sandwiching the
+      // rotation between translate(cx,cy)/translate(-cx,-cy) (the sheet's own center, in its
+      // pre-scale local coordinates) makes it pivot around the sheet's center instead, without
+      // disturbing the top-left-anchored scale/pan that follows.
+      const cx = sheet ? sheet.width / 2 : 0;
+      const cy = sheet ? sheet.height / 2 : 0;
+      layerRef.current.style.transform =
+        `translate3d(${x}px, ${y}px, 0) scale(${currentScale}) ` +
+        `translate(${cx}px, ${cy}px) rotate(${rotation}deg) translate(${-cx}px, ${-cy}px)`;
     }
     if (onTransformChange) {
       onTransformChange(x, y);
     }
-  }, [rotation, onTransformChange]);
+  }, [rotation, onTransformChange, sheet]);
 
   // Measure FPS
   useEffect(() => {
