@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type * as pdfjsLib from 'pdfjs-dist';
 import { PDFRenderService } from '../../services/pdfRenderer';
 import type { SheetMetadata, ViewportTool } from '../../types/blueprint';
@@ -43,7 +43,14 @@ const COLOR_MAP: Record<string, string> = {
   black: '#0f172a'
 };
 
-export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
+export interface ViewportCanvasHandle {
+  /** Rescales AND re-centers the sheet to fit entirely within the visible viewport. */
+  fitPage: () => void;
+  /** Rescales to fit the sheet's width, centered horizontally, scrolled to top. */
+  fitWidth: () => void;
+}
+
+export const ViewportCanvas = forwardRef<ViewportCanvasHandle, ViewportCanvasProps>(({
   pdfDoc,
   sheet,
   scale,
@@ -65,7 +72,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   onCropGenerated,
   watermark,
   balloonPrefix
-}) => {
+}, ref) => {
   const [appOptions] = useApplicationOptions();
   const containerRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +166,30 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [onFpsUpdate]);
 
+  // Shared fit-to-viewport math, driven by the container's actual measured size (not a guess
+  // at window size minus fixed sidebar/ribbon offsets, which goes stale the moment a panel is
+  // resized). Used both for the one-time fit on initial sheet load and for the toolbar's
+  // Fit Page / Fit Width buttons, so both rescale AND re-center instead of only rescaling.
+  const computeFit = useCallback((mode: 'page' | 'width') => {
+    if (!sheet || !containerRef.current) return null;
+    const container = containerRef.current;
+    const padding = 40;
+    const availWidth = container.clientWidth - padding * 2;
+    const availHeight = container.clientHeight - padding * 2;
+
+    const scaleX = availWidth / sheet.width;
+    const scaleY = availHeight / sheet.height;
+    const fitScale = mode === 'page' ? Math.min(scaleX, scaleY, 1.2) : scaleX;
+    const clampedScale = Math.max(0.25, Math.min(fitScale, 32.0));
+
+    const x = Math.round((container.clientWidth - sheet.width * clampedScale) / 2);
+    const y = mode === 'page'
+      ? Math.round((container.clientHeight - sheet.height * clampedScale) / 2)
+      : padding;
+
+    return { scale: clampedScale, x, y };
+  }, [sheet]);
+
   // Fit Page to container on initial load (only once per sheet page change)
   const fittedSheetPageRef = useRef<number | null>(null);
 
@@ -167,21 +198,27 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
     if (fittedSheetPageRef.current === sheet.pageNumber) return;
     fittedSheetPageRef.current = sheet.pageNumber;
 
-    const container = containerRef.current;
-    const padding = 40;
-    const availWidth = container.clientWidth - padding * 2;
-    const availHeight = container.clientHeight - padding * 2;
+    const fit = computeFit('page');
+    if (!fit) return;
+    onScaleChange(fit.scale);
+    applyTransform(fit.x, fit.y, fit.scale);
+  }, [sheet, applyTransform, onScaleChange, computeFit]);
 
-    const scaleX = availWidth / sheet.width;
-    const scaleY = availHeight / sheet.height;
-    const fitScale = Math.min(scaleX, scaleY, 1.2);
-
-    const initialX = Math.round((container.clientWidth - sheet.width * fitScale) / 2);
-    const initialY = Math.round((container.clientHeight - sheet.height * fitScale) / 2);
-
-    onScaleChange(Math.max(0.25, Math.min(fitScale, 32.0)));
-    applyTransform(initialX, initialY, fitScale);
-  }, [sheet, applyTransform, onScaleChange]);
+  // Imperative Fit Page / Fit Width, triggered by the floating viewport toolbar
+  useImperativeHandle(ref, () => ({
+    fitPage: () => {
+      const fit = computeFit('page');
+      if (!fit) return;
+      onScaleChange(fit.scale);
+      applyTransform(fit.x, fit.y, fit.scale);
+    },
+    fitWidth: () => {
+      const fit = computeFit('width');
+      if (!fit) return;
+      onScaleChange(fit.scale);
+      applyTransform(fit.x, fit.y, fit.scale);
+    }
+  }), [computeFit, onScaleChange, applyTransform]);
 
   // Render PDF Page to Canvas
   useEffect(() => {
@@ -1039,4 +1076,6 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
       </div>
     </div>
   );
-};
+});
+
+ViewportCanvas.displayName = 'ViewportCanvas';

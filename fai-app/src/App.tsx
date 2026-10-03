@@ -4,7 +4,7 @@ import { PDFRenderService } from './services/pdfRenderer';
 import { RibbonBar } from './components/layout/RibbonBar';
 import { LeftPropertiesDock } from './components/layout/LeftPropertiesDock';
 import { TableManager } from './components/layout/TableManager';
-import { ViewportCanvas } from './components/viewport/ViewportCanvas';
+import { ViewportCanvas, type ViewportCanvasHandle } from './components/viewport/ViewportCanvas';
 import { ViewportToolbar } from './components/viewport/ViewportToolbar';
 import { SheetTabs } from './components/viewport/SheetTabs';
 import { HorizontalSplitter, VerticalSplitter } from './components/layout/Splitter';
@@ -72,6 +72,7 @@ export function App() {
   const [blueprintDoc, setBlueprintDoc] = useState<BlueprintDocument | null>(null);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [scale, setScale] = useState(1.0);
+  const viewportRef = useRef<ViewportCanvasHandle>(null);
   const [rotation, setRotation] = useState(0);
   const [activeTool, setActiveTool] = useState<ViewportTool>('pan');
   const [isLoading, setIsLoading] = useState(false);
@@ -688,21 +689,15 @@ export function App() {
   const handleRotateCw = () => setRotation((r) => (r + 90) % 360);
   const handleRotateCcw = () => setRotation((r) => (r - 90 + 360) % 360);
 
+  // Delegate to the viewport's own fit logic, which measures the actual container size
+  // (correct even after the side/bottom panels are resized) and re-centers the pan position,
+  // rather than guessing available space from window size and leaving the pan offset stale.
   const handleFitPage = () => {
-    if (!blueprintDoc?.sheets[activeSheetIndex]) return;
-    const sheet = blueprintDoc.sheets[activeSheetIndex];
-    const availWidth = window.innerWidth - 380; // account for left sidebar
-    const availHeight = window.innerHeight - 340; // account for ribbon + bottom table
-    const fitScale = Math.min(availWidth / sheet.width, availHeight / sheet.height, 1.2);
-    setScale(Math.max(0.25, Math.min(32.0, fitScale)));
+    viewportRef.current?.fitPage();
   };
 
   const handleFitWidth = () => {
-    if (!blueprintDoc?.sheets[activeSheetIndex]) return;
-    const sheet = blueprintDoc.sheets[activeSheetIndex];
-    const availWidth = window.innerWidth - 380;
-    const fitScale = availWidth / sheet.width;
-    setScale(Math.max(0.25, Math.min(32.0, fitScale)));
+    viewportRef.current?.fitWidth();
   };
 
   const [extractScope, setExtractScope] = useState<'active' | 'all'>('active');
@@ -1555,6 +1550,7 @@ export function App() {
             {blueprintDoc && currentSheet ? (
               <>
                 <ViewportCanvas
+                  ref={viewportRef}
                   pdfDoc={pdfDoc}
                   sheet={currentSheet}
                   scale={scale}
