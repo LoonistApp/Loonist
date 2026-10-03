@@ -75,6 +75,12 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* This is a touch-capable desktop app (Electron on Windows touchscreens). Without this,
+     Chromium's touch-to-mouse synthesis still runs its double-tap-zoom gesture check on every
+     tap, which can fire a second, delayed synthetic event after the real click already landed -
+     e.g. a toolbar button briefly showing active, then reverting a moment later with no further
+     input. `manipulation` tells it to skip that check app-wide and treat taps as plain clicks. */
+  touch-action: manipulation;
 }
 
 #root {
@@ -778,6 +784,10 @@ body {
 
 .touch-none {
   touch-action: none;
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
 }
 
 .cursor-crosshair {

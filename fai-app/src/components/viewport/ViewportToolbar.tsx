@@ -119,14 +119,7 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
       ? 'gap-0.5'
       : 'gap-0';
 
-  const groupPaddingClass = 
-    tier === 'normal'
-      ? 'pb-1'
-      : tier === 'medium'
-      ? 'pb-0.5'
-      : 'pb-0';
-
-  const groupZoomPaddingClass = 
+  const groupZoomPaddingClass =
     tier === 'normal'
       ? 'py-1'
       : tier === 'medium'
@@ -163,8 +156,14 @@ export const ViewportToolbar: React.FC<ViewportToolbarProps> = ({
       ref={toolbarRef}
       className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 w-9 flex flex-col items-center bg-white/95 backdrop-blur-xs border border-slate-300 rounded-lg shadow-lg select-none text-slate-700 transition-all duration-150 overflow-visible ${containerPaddingClass} ${gapClass}`}
     >
-      {/* Tool Selectors */}
-      <div className={`flex flex-col items-center border-b border-slate-200 w-full ${groupPaddingClass} ${gapClass}`}>
+      {/* Tool Selectors
+          Still follows the same height-compression tier as the rest of the toolbar (forcing a
+          fixed larger size broke the fit when vertical space is constrained - the toolbar no
+          longer fit and buttons got clipped off). Only the GAP between these three is bumped to a
+          small fixed floor (6px) instead of collapsing to 0 under compression, since separation
+          between adjacent buttons matters more for avoiding a mis-tap than their own size, and
+          costs far less height. */}
+      <div className={`flex flex-col items-center gap-1.5 border-b border-slate-200 w-full ${groupZoomPaddingClass} touch-manipulation`}>
         <button
           type="button"
           onClick={() => onToolChange('pan')}
