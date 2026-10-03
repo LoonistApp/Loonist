@@ -307,8 +307,12 @@ export const ViewportCanvas = forwardRef<ViewportCanvasHandle, ViewportCanvasPro
     isPanningRef.current = false;
     hasJustDraggedRef.current = false;
 
-    // Double-click to pan detection directly on 2nd mousedown (supports immediate click-and-drag freely)
-    if (e.button === 0 && e.detail >= 2) {
+    // Double-click to pan detection directly on 2nd mousedown (supports immediate click-and-drag freely).
+    // e.detail is the browser's native click counter: it keeps incrementing (2, 3, 4...) for every
+    // consecutive click in a quick-succession run, not just a genuine double-click. `=== 2` catches
+    // only the real 2nd-click-of-a-double-click; `>= 2` would also match every further rapid tap,
+    // repeatedly forcing the tool back to pan and making any other tool look like it "won't switch."
+    if (e.button === 0 && e.detail === 2) {
       isDoubleClickedPanRef.current = true;
       onToolChange?.('pan');
       if (isCapturingRef.current) {
@@ -362,6 +366,11 @@ export const ViewportCanvas = forwardRef<ViewportCanvasHandle, ViewportCanvasPro
   // --- DOUBLE CLICK TO PAN HANDLING ---
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    // The native dblclick event re-fires for every click beyond the first in a fast run (it uses
+    // the same click-count/detail logic as click), not just a strict pair - so without this guard,
+    // continuous rapid tapping kept forcing the tool back to pan through THIS handler even after
+    // the mousedown handler's own `e.detail === 2` guard was fixed.
+    if (e.detail !== 2) return;
     isDoubleClickedPanRef.current = true;
     onToolChange?.('pan');
     if (isCapturingRef.current) {
@@ -485,11 +494,15 @@ export const ViewportCanvas = forwardRef<ViewportCanvasHandle, ViewportCanvasPro
     isDraggingRef.current = false;
     if (containerRef.current) {
       const isPanModeActive = activeTool === 'pan' || isDoubleClickedPanRef.current;
-      containerRef.current.style.cursor = 
-        isPanModeActive ? 'grab' : 
-        activeTool === 'box-capture' ? 'crosshair' : 
+      containerRef.current.style.cursor =
+        isPanModeActive ? 'grab' :
+        activeTool === 'box-capture' ? 'crosshair' :
         'default';
     }
+    // Clear the double-click-pan override once this drag gesture ends. Left set, it silently
+    // disabled the Box Capture tool (see the `!isDoubleClickedPanRef.current` guard above) for
+    // the rest of the session after the first double-click, even once a different tool was picked.
+    isDoubleClickedPanRef.current = false;
   }, [activeTool, characteristics, onBoxCapture, onUpdateCharacteristic, selectionBox, sheet]);
 
   // Generate HUD Crop Data URL when selected characteristic changes

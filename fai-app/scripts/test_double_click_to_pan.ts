@@ -49,8 +49,8 @@ class MockDrawingViewerController {
   public handleMouseDown(e: MockEvent) {
     this.isPanning = false;
 
-    // Double-click to pan detection directly on 2nd mousedown (detail >= 2)
-    if (e.button === 0 && e.detail >= 2) {
+    // Double-click to pan detection directly on 2nd mousedown (detail === 2 only - see note below)
+    if (e.button === 0 && e.detail === 2) {
       this.internalPanMode = true;
       this.onToolChange('pan');
       this.isDragging = true;
@@ -81,6 +81,10 @@ class MockDrawingViewerController {
 
   public handleDoubleClick(e: MockEvent) {
     if (e.button !== 0) return;
+    // The real dblclick event re-fires for every click beyond the first in a fast run (same
+    // click-count/detail logic as click), not just a strict pair, so this needs the same guard
+    // as handleMouseDown or continuous tapping forces pan through this path too.
+    if (e.detail !== 2) return;
     this.internalPanMode = true;
     this.onToolChange('pan');
     this.cursor = 'grab';
@@ -105,6 +109,9 @@ class MockDrawingViewerController {
     this.isDragging = false;
     const isPanModeActive = this.activeTool === 'pan' || this.internalPanMode;
     this.cursor = isPanModeActive ? 'grab' : 'default';
+    // Clear the double-click override once the drag ends, so it doesn't silently force pan
+    // behavior (and disable Box Capture) forever after the first double-click of the session.
+    this.internalPanMode = false;
   }
 }
 
@@ -177,6 +184,36 @@ function runTests() {
   viewer2.handleMouseUp();
   assert(viewer2.activeTool === 'pan', 'Viewer remains in pan tool after double-click drag completes');
   assert(viewer2.cursor === 'grab', 'Cursor is grab ready for next drag');
+
+  // TEST 6: Regression - rapid continuous clicking must NOT keep forcing the tool back to pan.
+  // e.detail is the browser's native click counter: it keeps incrementing (2, 3, 4, 5...) for
+  // every click in a fast run, not just a genuine double-click pair, and a real dblclick event
+  // ALSO re-fires on every one of those clicks (not just strict pairs). Each simulated click below
+  // fires mousedown -> mouseup -> dblclick in that order, matching real browser event sequencing,
+  // so both code paths that used to force pan are exercised the same way a real rapid tap would.
+  const viewer3 = new MockDrawingViewerController();
+  viewer3.handleDoubleClick({ button: 0, clientX: 100, clientY: 100, detail: 2 });
+  viewer3.handleMouseDown({ button: 0, clientX: 100, clientY: 100, detail: 2 });
+  viewer3.handleMouseUp();
+  viewer3.onToolChange('select'); // user explicitly picks Select again after the double-click-pan
+  assert(viewer3.activeTool === 'select', 'User can switch back to Select after a double-click-pan');
+
+  // Several further rapid single clicks elsewhere (detail climbing 3, 4, 5...) must not re-force pan
+  viewer3.handleMouseDown({ button: 0, clientX: 300, clientY: 120, detail: 3 });
+  viewer3.handleMouseUp();
+  viewer3.handleDoubleClick({ button: 0, clientX: 300, clientY: 120, detail: 3 });
+  assert(viewer3.activeTool === 'select', 'A 3rd rapid click (mousedown + dblclick) does not force the tool back to pan');
+
+  viewer3.handleMouseDown({ button: 0, clientX: 310, clientY: 400, detail: 4 });
+  viewer3.handleMouseUp();
+  viewer3.handleDoubleClick({ button: 0, clientX: 310, clientY: 400, detail: 4 });
+  assert(viewer3.activeTool === 'select', 'A 4th rapid click (mousedown + dblclick) does not force the tool back to pan');
+
+  viewer3.handleMouseDown({ button: 0, clientX: 50, clientY: 50, detail: 5 });
+  viewer3.handleMouseUp();
+  viewer3.handleDoubleClick({ button: 0, clientX: 50, clientY: 50, detail: 5 });
+  assert(viewer3.activeTool === 'select', 'Continuous rapid tapping leaves the selected tool alone');
+  assert(viewer3.internalPanMode === false, 'internalPanMode is cleared after the double-click drag ends');
 
   console.log(`\nResults: ${passed}/${total} assertions passed.\n`);
   if (passed === total) {
