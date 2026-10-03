@@ -47,6 +47,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'LOONIST — Aerospace FAI Platform',
+    icon: path.join(__dirname, '../public/icon-256.png'),
     backgroundColor: '#f8fafc',
     show: false,
     webPreferences: {
