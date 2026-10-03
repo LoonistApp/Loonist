@@ -5,6 +5,7 @@ import type { SheetMetadata, ViewportTool } from '../../types/blueprint';
 import type { EngineeringCharacteristic, BalloonAppearance } from '../../types/characteristics';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useApplicationOptions } from '../../stores/useApplicationOptionsStore';
+import { formatBalloonNumber } from '../../utils/balloonFormat';
 
 interface ViewportCanvasProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -31,6 +32,7 @@ interface ViewportCanvasProps {
   onFpsUpdate?: (fps: number) => void;
   onCropGenerated?: (dataUrl: string) => void;
   watermark?: string;
+  balloonPrefix?: string;
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -61,7 +63,8 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
   onTransformChange,
   onFpsUpdate,
   onCropGenerated,
-  watermark
+  watermark,
+  balloonPrefix
 }) => {
   const [appOptions] = useApplicationOptions();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -709,7 +712,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
               const isSelected = selectedCharId === char.id;
               const isFlagged = char.verificationStatus === 'needs_review';
               const isBeingDragged = draggedBalloonPos?.id === char.id;
-              const balloonNum = char.subNumber || char.itemNumber;
+              const balloonNum = formatBalloonNumber(char.itemNumber, char.subNumber, balloonPrefix);
 
               const isFlagNote = char.subType === 'FlagNote';
               const isBasic = char.isBasic;
@@ -1005,7 +1008,7 @@ export const ViewportCanvas: React.FC<ViewportCanvasProps> = ({
             className="bg-white border border-slate-200 shadow-xl rounded-lg py-1 px-1 min-w-[170px] text-xs select-none animate-in fade-in zoom-in-95 duration-75"
           >
             <div className="px-2.5 py-1 text-[11px] font-bold text-slate-700 border-b border-slate-100 flex items-center justify-between">
-              <span>Balloon #{contextMenu.char.subNumber || contextMenu.char.itemNumber}</span>
+              <span>Balloon #{formatBalloonNumber(contextMenu.char.itemNumber, contextMenu.char.subNumber, balloonPrefix)}</span>
               <span className="text-[10px] text-slate-400 font-normal">{contextMenu.char.drawingZone}</span>
             </div>
             {onDeleteCharacteristic && (

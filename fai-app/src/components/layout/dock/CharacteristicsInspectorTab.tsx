@@ -4,6 +4,7 @@ import type {
   InspectionMethod 
 } from '../../../types/characteristics';
 import { MultiplierParser } from '../../../services/ai/multiplierParser';
+import { formatBalloonNumber } from '../../../utils/balloonFormat';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -35,6 +36,7 @@ interface CharacteristicsInspectorTabProps {
   onDeleteCharacteristic?: (charId: string) => void;
   hudCropDataUrl?: string | null;
   activeSheetNumber?: number;
+  balloonPrefix?: string;
 }
 
 export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabProps> = ({
@@ -45,7 +47,8 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
   onUpdateCharacteristics,
   onDeleteCharacteristic,
   hudCropDataUrl,
-  activeSheetNumber
+  activeSheetNumber,
+  balloonPrefix
 }) => {
   const [filterNeedsReview, setFilterNeedsReview] = useState(false);
   const [sheetScope, setSheetScope] = useState<'current' | 'all'>('current');
@@ -202,7 +205,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
               <>
                 <span className="w-2 h-2 rounded-full bg-slate-500" />
                 <span className="font-mono text-slate-900 font-bold text-xs">
-                  #{activeChar.subNumber || activeChar.itemNumber} ({activeChar.drawingZone || 'Sheet ' + activeChar.sheetNumber})
+                  #{formatBalloonNumber(activeChar.itemNumber, activeChar.subNumber, balloonPrefix)} ({activeChar.drawingZone || 'Sheet ' + activeChar.sheetNumber})
                 </span>
               </>
             ) : (
@@ -221,7 +224,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                 onDeleteCharacteristic(activeChar.id);
               }}
               className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
-              title={`Delete Balloon #${activeChar.subNumber || activeChar.itemNumber}`}
+              title={`Delete Balloon #${formatBalloonNumber(activeChar.itemNumber, activeChar.subNumber, balloonPrefix)}`}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -284,7 +287,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="min-w-5 h-5 px-1.5 rounded bg-white text-slate-900 border border-slate-300 font-bold font-mono text-[11px] flex items-center justify-center shrink-0 shadow-2xs">
-                      {char.subNumber || char.itemNumber}
+                      {formatBalloonNumber(char.itemNumber, char.subNumber, balloonPrefix)}
                     </span>
                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                       {char.drawingZone} (Sheet {char.sheetNumber})
@@ -419,7 +422,7 @@ export const CharacteristicsInspectorTab: React.FC<CharacteristicsInspectorTabPr
                           onDeleteCharacteristic(char.id);
                         }}
                         className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer ml-0.5"
-                        title={`Delete Balloon #${char.subNumber || char.itemNumber}`}
+                        title={`Delete Balloon #${formatBalloonNumber(char.itemNumber, char.subNumber, balloonPrefix)}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

@@ -12,6 +12,7 @@ import { GridZoneCalculator } from './gridZoneCalculator';
 import { SpatialClusteringEngine } from './spatialClusteringEngine';
 import { ToleranceEngine, DEFAULT_METRIC_ISO_TOLERANCES } from './toleranceEngine';
 import { SpatialPlacementService } from '../ballooning/spatialPlacementService';
+import { RenumberingService } from '../ballooning/renumberingService';
 import { ImagePreprocessingService } from './imagePreprocessingService';
 import { OcrEngineService } from './ocrEngineService';
 
@@ -738,10 +739,19 @@ export class DrawingExtractionService {
         return a.itemNumber - b.itemNumber;
       });
 
+      // Cascade-renumber the sorted, merged result so item numbers are always a clean, globally
+      // sequential 1..N by sheet order — regardless of what order sheets were individually
+      // extracted in. Without this, extracting a lower-numbered sheet *after* higher-numbered
+      // ones already exist finds nothing "preceding" it above and resets to 1, colliding with
+      // item numbers already assigned to those later sheets.
+      const renumbered = targetSheetNumber
+        ? RenumberingService.cascadeRenumber(combinedCharacteristics)
+        : combinedCharacteristics;
+
       // If document was an empty dummy mock, fallback to realistic pre-seeded AS9102 items ONLY for dummy 1-page mocks
-      if (combinedCharacteristics.length === 0 && !targetSheetNumber && pdfDoc.numPages === 1 && !extractedProps.partName && !extractedProps.partNumber) {
+      if (renumbered.length === 0 && !targetSheetNumber && pdfDoc.numPages === 1 && !extractedProps.partName && !extractedProps.partNumber) {
         const fallbackItems = this.getStandardTurbineBracketCharacteristics();
-        combinedCharacteristics.push(...fallbackItems);
+        renumbered.push(...fallbackItems);
       }
 
       const defaultProps: ProjectProperties = {
@@ -763,13 +773,13 @@ export class DrawingExtractionService {
         onProgress({
           state: 'COMPLETE',
           progressPercent: 100,
-          message: `Successfully extracted ${combinedCharacteristics.length} inspection characteristics!`,
-          totalFound: combinedCharacteristics.length
+          message: `Successfully extracted ${renumbered.length} inspection characteristics!`,
+          totalFound: renumbered.length
         });
       }
 
       // Compute optimal, collision-free balloon coordinates using Spatial R-Tree AABB algorithm
-      const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(combinedCharacteristics, sheetsMeta, true, drawingTextObstaclesBySheet);
+      const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(renumbered, sheetsMeta, true, drawingTextObstaclesBySheet);
 
       return { characteristics: spatiallyPlaced, projectProps: defaultProps };
     } catch (err) {

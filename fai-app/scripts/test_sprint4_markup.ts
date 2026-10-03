@@ -1,12 +1,12 @@
 import { RenumberingService } from '../src/services/ballooning/renumberingService.ts';
 import type { EngineeringCharacteristic } from '../src/types/characteristics.ts';
 
-function createDummyChar(id: string, itemNumber: number, subNumber?: string): EngineeringCharacteristic {
+function createDummyChar(id: string, itemNumber: number, subNumber?: string, sheetNumber: number = 1): EngineeringCharacteristic {
   return {
     id,
     itemNumber,
     subNumber,
-    sheetNumber: 1,
+    sheetNumber,
     drawingZone: 'Zone A-1',
     type: 'linear',
     displayType: 'Dimension',
@@ -94,6 +94,31 @@ function runTests() {
     console.log('  [PASS] Single remaining sub-item cleanly collapsed back to standard integer balloon #3.\n');
   } else {
     console.error('  [FAIL] Expected [1, 2, 3, 4], got:', display3);
+    process.exit(1);
+  }
+
+  // Test 4: Cross-sheet item-number collision must NOT be merged into one compound group.
+  // Regression for a real bug: per-sheet extraction numbered Sheet 3 starting from 1 *after*
+  // Sheet 2 (also 1-12) already existed, because the continuation logic only looked at sheets
+  // with a LOWER number. cascadeRenumber is the recovery path — it must treat two
+  // characteristics that merely share an old itemNumber on DIFFERENT sheets as unrelated, not
+  // as one compound sub-item family (which can only ever span a single sheet).
+  console.log('Test 4: Cross-sheet item-number collision (Sheet 2 items 1-3, Sheet 3 items 1-2, both colliding on old #1-2)');
+  const chars4 = [
+    createDummyChar('s2-1', 1, undefined, 2),
+    createDummyChar('s2-2', 2, undefined, 2),
+    createDummyChar('s2-3', 3, undefined, 2),
+    createDummyChar('s3-1', 1, undefined, 3),
+    createDummyChar('s3-2', 2, undefined, 3)
+  ];
+  const res4 = RenumberingService.cascadeRenumber(chars4);
+  const items4 = res4.map(c => `S${c.sheetNumber}#${c.itemNumber}`);
+  console.log('  Result:', items4);
+  const expected4 = ['S2#1', 'S2#2', 'S2#3', 'S3#4', 'S3#5'];
+  if (JSON.stringify(items4) === JSON.stringify(expected4)) {
+    console.log('  [PASS] Sheet 3 items correctly got fresh numbers 4-5, not merged into Sheet 2\'s 1-2.\n');
+  } else {
+    console.error('  [FAIL] Expected', expected4, ', got:', items4);
     process.exit(1);
   }
 

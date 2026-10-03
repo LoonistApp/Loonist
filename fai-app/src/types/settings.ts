@@ -18,12 +18,6 @@ export type SecurityWatermark =
   | 'PRELIMINARY FAIR'
   | 'CUSTOMER APPROVED';
 
-export type SamplingStandard = 'ANSI/ASQ Z1.4';
-
-export type AqlLevel = '0.65' | '1.0' | '2.5' | '4.0';
-
-export type InspectionLevel = 'Level I' | 'Level II' | 'Level III';
-
 export type MultiplierBehavior = 'single_balloon' | 'split_sub_balloons';
 
 export type TolerancePresetKey = 
@@ -55,17 +49,13 @@ export interface ProjectSettings {
   startingNumber: number;                   // Initial balloon index (e.g. 1, 100, 1000)
   incrementStep: number;                    // Increment step (1, 5, 10)
   balloonPrefix: string;                    // Prefix string e.g. 'D-', 'N-', ''
-  leadingZeros: boolean;                    // Formats 001, 002 vs 1, 2
   subDelimiter: DelimiterStyle;             // Delimiter for sub-characteristics: '1.1' vs '1-1' vs '1/1'
 
-  // Compliance, Sampling & Export
+  // Compliance & Export
   as9102Revision: As9102StandardRevision;
   exportFormat: ExportFormatTemplate;       // AS9102 Excel (.xlsx) vs Net-Inspect CSV
   watermark: SecurityWatermark;
   highResPdfExport: boolean;               // Publication-quality vector PDF
-  samplingStandard: SamplingStandard;
-  aqlLevel: AqlLevel;
-  inspectionLevel: InspectionLevel;
 }
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
@@ -81,13 +71,9 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   startingNumber: 1,
   incrementStep: 1,
   balloonPrefix: '',
-  leadingZeros: false,
   subDelimiter: '.',
   as9102Revision: 'Rev C',
   exportFormat: 'AS9102',
   watermark: 'NONE',
-  highResPdfExport: true,
-  samplingStandard: 'ANSI/ASQ Z1.4',
-  aqlLevel: '1.0',
-  inspectionLevel: 'Level II'
+  highResPdfExport: true
 };

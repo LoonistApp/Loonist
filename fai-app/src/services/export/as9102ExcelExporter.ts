@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { EngineeringCharacteristic, ProjectProperties } from '../../types/characteristics';
+import { formatBalloonNumber } from '../../utils/balloonFormat';
 
 export class As9102ExcelExporter {
   /**
@@ -10,9 +11,10 @@ export class As9102ExcelExporter {
   public static exportToExcel(
     characteristics: EngineeringCharacteristic[],
     projectProps: ProjectProperties,
-    fileName: string = `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`
+    fileName: string = `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`,
+    balloonPrefix?: string
   ): void {
-    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps);
+    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps, balloonPrefix);
 
     // Generate binary XLSX buffer
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -44,9 +46,10 @@ export class As9102ExcelExporter {
   public static exportToCsv(
     characteristics: EngineeringCharacteristic[],
     projectProps: ProjectProperties,
-    fileName: string = `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
+    fileName: string = `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`,
+    balloonPrefix?: string
   ): void {
-    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps);
+    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps, balloonPrefix);
     const form3Sheet = wb.Sheets['Form 3 - Characteristics'] || wb.Sheets[wb.SheetNames[2]] || wb.Sheets[wb.SheetNames[0]];
     const csvContent = XLSX.utils.sheet_to_csv(form3Sheet);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -68,7 +71,8 @@ export class As9102ExcelExporter {
    */
   public static buildWorkbook(
     characteristics: EngineeringCharacteristic[],
-    projectProps: ProjectProperties
+    projectProps: ProjectProperties,
+    balloonPrefix?: string
   ): XLSX.WorkBook {
     const wb = XLSX.utils.book_new();
 
@@ -165,7 +169,7 @@ export class As9102ExcelExporter {
     ];
 
     for (const char of characteristics) {
-      const row = As9102ExcelExporter.buildForm3Row(char);
+      const row = As9102ExcelExporter.buildForm3Row(char, balloonPrefix);
       form3Data.push([
         char.itemNumber,
         row.subNumber,
@@ -206,7 +210,7 @@ export class As9102ExcelExporter {
    * Computes the AS9102 Form 3 values for one characteristic.
    * Shared by the built-in workbook and customer Excel templates.
    */
-  public static buildForm3Row(char: EngineeringCharacteristic): Form3RowValues {
+  public static buildForm3Row(char: EngineeringCharacteristic, balloonPrefix?: string): Form3RowValues {
     const isRef = char.forReference || char.enclosure === 'reference';
     const isBasic = char.isBasic || char.enclosure === 'basic';
 
@@ -254,7 +258,7 @@ export class As9102ExcelExporter {
     else if (isRef) status = 'ACCEPT';
 
     return {
-      subNumber: char.subNumber || String(char.itemNumber),
+      subNumber: formatBalloonNumber(char.itemNumber, char.subNumber, balloonPrefix),
       location: `${char.sourceCaptureOrSheet || `Sheet ${char.sheetNumber}`} (${char.drawingZone})`,
       designator,
       lowerLimit,

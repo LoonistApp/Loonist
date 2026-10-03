@@ -1,10 +1,12 @@
 import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import type { EngineeringCharacteristic, BalloonAppearance } from '../../types/characteristics';
+import { formatBalloonNumber } from '../../utils/balloonFormat';
 
 export interface MarkedPdfExportOptions {
   highlightNonConformance?: boolean; // Color out-of-spec balloons in red
   showLeaderLines?: boolean;
   watermark?: string; // Optional security watermark e.g. "ITAR RESTRICTED"
+  balloonPrefix?: string;
 }
 
 export class MarkedPdfExporter {
@@ -117,7 +119,7 @@ export class MarkedPdfExporter {
       });
 
       // 3. Draw Centered Characteristic / Balloon Number
-      const itemLabel = char.subNumber || String(char.itemNumber);
+      const itemLabel = formatBalloonNumber(char.itemNumber, char.subNumber, options.balloonPrefix);
       const textWidth = font.widthOfTextAtSize(itemLabel, badgeFontSize);
       const textHeight = font.heightAtSize(badgeFontSize);
 

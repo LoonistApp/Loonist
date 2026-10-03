@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  FileText, 
-  FileSpreadsheet, 
-  FileDown, 
-  X, 
-  ChevronDown, 
-  Check 
+import {
+  FileText,
+  FileSpreadsheet,
+  FileDown,
+  X,
+  ChevronDown,
+  Check,
+  ClipboardCheck
 } from 'lucide-react';
 
 interface ExportModalProps {
@@ -14,6 +15,7 @@ interface ExportModalProps {
   onClose: () => void;
   onExportExcel: (format?: 'xlsx' | 'csv') => void;
   onExportPdf?: () => void;
+  onOpenPpapWarrant?: () => void;
   characteristicsCount: number;
   hasDrawing: boolean;
   selectedTemplate: string;
@@ -32,6 +34,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onClose,
   onExportExcel,
   onExportPdf,
+  onOpenPpapWarrant,
   characteristicsCount,
   hasDrawing,
   selectedTemplate,
@@ -269,6 +272,34 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </button>
             )}
           </div>
+
+          {/* SECTION 3: PPAP PACKAGE */}
+          {onOpenPpapWarrant && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  PPAP PACKAGE (AIAG)
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (characteristicsCount > 0) onOpenPpapWarrant();
+                }}
+                disabled={characteristicsCount === 0}
+                className={`w-full h-9 flex items-center justify-center gap-2 px-3 text-xs font-semibold rounded-lg border transition ${
+                  characteristicsCount === 0
+                    ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
+                    : 'export-card-unselected cursor-pointer'
+                }`}
+                title={characteristicsCount === 0 ? 'No characteristics to export' : 'Complete the Part Submission Warrant and export a PPAP package'}
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span>Create PPAP Warrant & Export...</span>
+              </button>
+            </div>
+          )}
 
           {/* 3. FOOTER: CANCEL AND EXPORT ACTIONS */}
           <div className="flex justify-end items-center gap-2 pt-2 border-t border-slate-200">

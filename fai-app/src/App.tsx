@@ -10,6 +10,9 @@ import { SheetTabs } from './components/viewport/SheetTabs';
 import { HorizontalSplitter, VerticalSplitter } from './components/layout/Splitter';
 import { DrawingExtractionService } from './services/ai/drawingExtractionService';
 import { As9102ExcelExporter } from './services/export/as9102ExcelExporter';
+import { PpapExcelExporter } from './services/export/ppapExporter';
+import { PPAP_ELEMENTS, type PpapWarrantData } from './types/ppap';
+import { PpapWarrantModal } from './components/modals/PpapWarrantModal';
 import { fillExcelTemplate, buildProjectValues, buildCharacteristicValues } from './services/export/excelTemplateFiller';
 import { templateFileStore } from './services/export/templateFileStore';
 import { BUILT_IN_TEMPLATE_ID } from './types/applicationOptions';
@@ -91,6 +94,7 @@ export function App() {
   const [hudCropDataUrl, setHudCropDataUrl] = useState<string | null>(null);
   const [isInspectOpen, setIsInspectOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isPpapModalOpen, setIsPpapModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const lastExtractKeyRef = useRef<string | null>(null);
   const lastInspectSignatureRef = useRef<string | null>(null);
@@ -798,6 +802,8 @@ export function App() {
       setCharacteristics(analyzed);
       setHasInspectionResults(true);
       lastInspectSignatureRef.current = signature;
+      setIsLeftPanelOpen(true);
+      setIsInspectOpen(true);
 
       // Record audit ledger entry
       AuditLedgerService.recordEntry({
@@ -852,7 +858,8 @@ export function App() {
       As9102ExcelExporter.exportToCsv(
         characteristics,
         projectProps,
-        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`
+        `${projectProps.partNumber || 'AS9102'}_Characteristics.csv`,
+        projectSettings.balloonPrefix
       );
       return;
     }
@@ -861,7 +868,7 @@ export function App() {
     const { activeTemplateId, templates } = appOptions.templates;
     const customTemplate = templates.find(t => t.id === activeTemplateId && t.isCustom);
     if (!customTemplate || activeTemplateId === BUILT_IN_TEMPLATE_ID) {
-      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
+      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
       return;
     }
 
@@ -871,13 +878,13 @@ export function App() {
         await showLoonistDialog(
           `The template file for "${customTemplate.name}" is missing. The report was exported with the built-in AS9102 layout instead. Re-upload the template in Options → Templates.`
         );
-        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName);
+        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
         return;
       }
       const filled = fillExcelTemplate(
         templateBytes,
         buildProjectValues(projectProps, characteristics.length),
-        characteristics.map(buildCharacteristicValues)
+        characteristics.map((c) => buildCharacteristicValues(c, projectSettings.balloonPrefix))
       );
       As9102ExcelExporter.downloadXlsx(filled, fileName);
     } catch (err) {
@@ -886,7 +893,47 @@ export function App() {
         `Could not fill the template "${customTemplate.name}". Check that it opens in Excel, or switch back to the built-in template in Options → Templates.`
       );
     }
-  }, [characteristics, projectProps, appOptions.templates, confirmExportReadiness]);
+  }, [characteristics, projectProps, appOptions.templates, projectSettings, confirmExportReadiness]);
+
+  // Export AIAG PPAP Package (PSW, Dimensional Results, Element Submission Status)
+  const handleExportPpap = useCallback((warrant: PpapWarrantData) => {
+    if (characteristics.length === 0) {
+      showLoonistDialog('Please run Smart Extract or add characteristics before exporting.');
+      return;
+    }
+    if (!confirmExportReadiness('PPAP package')) {
+      return;
+    }
+
+    // LOONIST only generates content for 2 of the 18 AIAG PPAP elements (Dimensional
+    // Results and the PSW itself, both built from verified inspection data). Any other
+    // element the warrant marks "Submitted" is a tracking record only - the underlying
+    // document (FMEA, Control Plan, MSA, Material Certs, etc.) is not in this workbook
+    // and must be attached separately. Surface that scope every export so a customer
+    // package is never mistaken for complete.
+    const submittedOtherElements = PPAP_ELEMENTS.filter(
+      (el) => el.number !== 9 && el.number !== 18 && warrant.elementStatuses[el.number] === 'Submitted'
+    );
+    let scopeWarning = 'This PPAP package contains generated content for only 2 of the 18 AIAG elements: ' +
+      'the Part Submission Warrant (18) and Dimensional Results (9), both built from your actual inspection data.\n\n';
+    if (submittedOtherElements.length > 0) {
+      scopeWarning += 'The Element Status checklist marks these additional elements as "Submitted" for tracking only ' +
+        '- LOONIST did not generate them. Attach the actual documents yourself before sending this package to the customer:\n' +
+        submittedOtherElements.map((el) => `• ${el.name}`).join('\n') + '\n\n';
+    }
+    scopeWarning += 'Export the package now?';
+
+    if (!window.confirm(scopeWarning)) {
+      return;
+    }
+
+    const fileName = `${projectProps.partNumber || 'PPAP'}_PPAP_Package.xlsx`;
+    PpapExcelExporter.exportToExcel(characteristics, projectProps, warrant, fileName, projectSettings.balloonPrefix);
+    AuditLedgerService.recordEntry({
+      action: 'REPORT_EXPORTED',
+      details: `PPAP package exported (Submission Level ${warrant.submissionLevel}) for part ${projectProps.partNumber || 'UNSPECIFIED'}. Elements with generated content: Dimensional Results, PSW. Elements marked Submitted for tracking only: ${submittedOtherElements.map((el) => el.name).join(', ') || 'none'}.`
+    });
+  }, [characteristics, projectProps, projectSettings, confirmExportReadiness]);
 
   // Vector Marked Blueprint PDF Exporter (pdf-lib)
   const handleExportMarkedPdf = useCallback(async () => {
@@ -921,7 +968,8 @@ export function App() {
         {
           highlightNonConformance: true,
           showLeaderLines: true,
-          watermark: projectSettings.watermark
+          watermark: projectSettings.watermark,
+          balloonPrefix: projectSettings.balloonPrefix
         }
       );
 
@@ -933,7 +981,7 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, confirmExportReadiness]);
+  }, [blueprintDoc, characteristics, balloonAppearance, activeFileId, projectProps, projectSettings, confirmExportReadiness]);
 
   // When a characteristic or balloon is selected
   const handleSelectCharacteristic = useCallback((char: EngineeringCharacteristic) => {
@@ -1027,7 +1075,7 @@ export function App() {
       }
       setActiveTool('select');
     }
-  }, [characteristics, pdfDoc]);
+  }, [characteristics, pdfDoc, projectSettings]);
 
   // Renumber all characteristics sequentially
   const handleRenumberAll = useCallback(() => {
@@ -1446,6 +1494,7 @@ export function App() {
             hasDrawing={Boolean(blueprintDoc)}
             hudCropDataUrl={hudCropDataUrl}
             activeSheetNumber={activeSheetIndex + 1}
+            balloonPrefix={projectSettings.balloonPrefix}
             isOpen={isLeftPanelOpen}
             onToggleOpen={setIsLeftPanelOpen}
             width={leftPanelWidth}
@@ -1528,6 +1577,7 @@ export function App() {
                   onFpsUpdate={setFps}
                   onCropGenerated={setHudCropDataUrl}
                   watermark={projectSettings.watermark}
+                  balloonPrefix={projectSettings.balloonPrefix}
                 />
 
                 {/* Floating CAD HUD Toolbar */}
@@ -1592,14 +1642,14 @@ export function App() {
                       onClick={() => void handleOpenBlueprint({ isNewProject: true })}
                       className="flex items-center gap-2 px-4 py-2 rounded bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
                     >
-                      Open Drawing (PDF)
+                      Open Drawing
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleOpenProject()}
                       className="flex items-center gap-2 px-4 py-2 rounded bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
                     >
-                      Open Project (.loonist)
+                      Open Project
                     </button>
                   </div>
                 </div>
@@ -1662,6 +1712,7 @@ export function App() {
           onFilterChange={setTableFilter}
           activeSheetNumber={activeSheetIndex + 1}
           totalSheets={blueprintDoc?.numSheets || 1}
+          balloonPrefix={projectSettings.balloonPrefix}
         />
       )}
 
@@ -1675,6 +1726,20 @@ export function App() {
         hasDrawing={Boolean(blueprintDoc)}
         selectedTemplate={selectedExportTemplate}
         onSelectTemplate={setSelectedExportTemplate}
+        defaultFormat={projectSettings.exportFormat === 'NET_INSPECT' ? 'csv' : 'xlsx'}
+        onOpenPpapWarrant={() => {
+          setIsExportModalOpen(false);
+          setIsPpapModalOpen(true);
+        }}
+      />
+
+      {/* 7. AIAG PPAP PACKAGE WARRANT MODAL */}
+      <PpapWarrantModal
+        isOpen={isPpapModalOpen}
+        onClose={() => setIsPpapModalOpen(false)}
+        projectProps={projectProps}
+        characteristicsCount={characteristics.length}
+        onExport={handleExportPpap}
       />
 
       <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />

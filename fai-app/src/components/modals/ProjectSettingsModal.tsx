@@ -13,7 +13,6 @@ import {
 import type {
   ProjectSettings,
   DelimiterStyle,
-  As9102StandardRevision,
   SecurityWatermark,
   TolerancePresetKey,
   ExportFormatTemplate
@@ -939,14 +938,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         <label className="text-[10px] font-semibold text-slate-500 block mb-1">
                           Aerospace Standard Revision
                         </label>
-                        <select
-                          value={draft.as9102Revision}
-                          onChange={(e) => setDraft({ ...draft, as9102Revision: e.target.value as As9102StandardRevision })}
-                          className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium cursor-pointer"
+                        <div
+                          className="w-full bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-700 font-medium"
+                          title="The generated Form 1/2/3 layout is not yet differentiated by revision - this reflects what's actually produced, not a selectable option"
                         >
-                          <option value="Rev C">SAE AS9102 Rev C (Current 2023)</option>
-                          <option value="Rev B">SAE AS9102 Rev B (Legacy)</option>
-                        </select>
+                          SAE AS9102 Rev C (fixed form layout)
+                        </div>
                       </div>
 
                       <div>
@@ -977,8 +974,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium cursor-pointer"
                       >
                         <option value="AS9102">AS9102 Excel Forms 1, 2, 3 (.xlsx)</option>
-                        <option value="NET_INSPECT">Net-Inspect Aerospace Portal Direct CSV (.csv)</option>
+                        <option value="NET_INSPECT">Characteristics CSV - generic, for Net-Inspect import (.csv)</option>
                       </select>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Sets which format is pre-selected when you open Export. The CSV is a generic Form 3
+                        characteristics export - column mapping to your specific Net-Inspect portal isn't verified.
+                      </p>
                     </div>
                   </div>
                 </>

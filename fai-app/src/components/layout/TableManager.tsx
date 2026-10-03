@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import type { EngineeringCharacteristic, InspectionMethod } from '../../types/characteristics';
 import { MeasurementEngine } from '../../services/compliance/measurementEngine';
 import { useApplicationOptions } from '../../stores/useApplicationOptionsStore';
+import { formatBalloonNumber } from '../../utils/balloonFormat';
 import { 
   ChevronUp, 
   Filter, 
@@ -45,6 +46,7 @@ interface TableManagerProps {
   onFilterChange?: (filter: 'all' | 'critical' | 'review') => void;
   activeSheetNumber?: number;
   totalSheets?: number;
+  balloonPrefix?: string;
 }
 
 export const TableManager: React.FC<TableManagerProps> = ({
@@ -65,7 +67,8 @@ export const TableManager: React.FC<TableManagerProps> = ({
   filterType: externalFilterType,
   onFilterChange,
   activeSheetNumber: _activeSheetNumber = 1,
-  totalSheets: _totalSheets = 1
+  totalSheets: _totalSheets = 1,
+  balloonPrefix
 }) => {
   const [activeTab, setActiveTab] = useState<'characteristics' | 'bom' | 'specifications'>('characteristics');
   const [internalFilterType, setInternalFilterType] = useState<'all' | 'critical' | 'review'>('all');
@@ -431,7 +434,7 @@ export const TableManager: React.FC<TableManagerProps> = ({
                         style={{ position: 'sticky', left: '40px', zIndex: 10 }}
                         className={`py-1 px-2 border-r-2 border-slate-300 text-center font-bold shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)] sticky-left-cha ${stickyBg}`}
                       >
-                        {char.subNumber || char.itemNumber}
+                        {formatBalloonNumber(char.itemNumber, char.subNumber, balloonPrefix)}
                       </td>
 
                       {isColVisible('type') && (
@@ -769,7 +772,7 @@ export const TableManager: React.FC<TableManagerProps> = ({
                               ? 'text-white/80 hover:text-white hover:bg-red-500/80' 
                               : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
                           }`}
-                          title={`Delete Balloon #${char.subNumber || char.itemNumber} (Cascade Renumber)`}
+                          title={`Delete Balloon #${formatBalloonNumber(char.itemNumber, char.subNumber, balloonPrefix)} (Cascade Renumber)`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

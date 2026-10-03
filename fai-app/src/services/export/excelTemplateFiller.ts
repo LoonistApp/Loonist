@@ -99,8 +99,8 @@ export function buildProjectValues(
   };
 }
 
-export function buildCharacteristicValues(char: EngineeringCharacteristic): Record<string, TemplateValue> {
-  const row = As9102ExcelExporter.buildForm3Row(char);
+export function buildCharacteristicValues(char: EngineeringCharacteristic, balloonPrefix?: string): Record<string, TemplateValue> {
+  const row = As9102ExcelExporter.buildForm3Row(char, balloonPrefix);
   return {
     'char.itemNumber': char.itemNumber,
     'char.subNumber': row.subNumber,

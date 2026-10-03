@@ -9,6 +9,7 @@ import { CharacteristicsInspectorTab } from './dock/CharacteristicsInspectorTab'
 import { ExportModal } from './ExportModal';
 import { useApplicationOptions } from '../../stores/useApplicationOptionsStore';
 import { formatDecimal } from '../../utils/numberFormat';
+import { formatBalloonNumber } from '../../utils/balloonFormat';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -79,6 +80,8 @@ interface LeftPropertiesDockProps {
 
   // Active Drawing Sheet from Bottom Viewport Sheet Bar
   activeSheetNumber?: number;
+
+  balloonPrefix?: string;
 }
 
 const INSPECTION_METHODS: InspectionMethod[] = [
@@ -121,7 +124,8 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
   isInspecting = false,
   isExportOpen = false,
   onOpenExportModal,
-  activeSheetNumber
+  activeSheetNumber,
+  balloonPrefix
 }) => {
   const [localIsInspectOpen, setLocalIsInspectOpen] = useState(false);
   const isInspectActive = isInspectOpen !== undefined ? isInspectOpen : localIsInspectOpen;
@@ -455,6 +459,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                   onDeleteCharacteristic={onDeleteCharacteristic}
                   hudCropDataUrl={hudCropDataUrl}
                   activeSheetNumber={activeSheetNumber}
+                  balloonPrefix={balloonPrefix}
                 />
               </div>
             ) : (
@@ -463,7 +468,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                   No inspection results
                 </h3>
                 <p className="text-xs text-slate-500 max-w-[220px] leading-relaxed mb-4">
-                  Click Inspect to analyze the current drawing.
+                  Run an inspection from the HOME tab, or start one here.
                 </p>
                 {onRunInspection && (
                   <button
@@ -472,9 +477,9 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                     disabled={isInspecting || !hasDrawing}
                     style={{ paddingLeft: '1.25rem', paddingRight: '1.25rem', paddingTop: '7px', paddingBottom: '7px' }}
                     className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-xs transition cursor-pointer"
-                    title="Inspect drawing"
+                    title="Run inspection analysis now"
                   >
-                    <span>{isInspecting ? 'Inspecting...' : 'Inspect'}</span>
+                    <span>{isInspecting ? 'Inspecting...' : 'Run Inspection Now'}</span>
                   </button>
                 )}
               </div>
@@ -500,7 +505,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                 <span>Project</span>
                 <span className="text-slate-400">/</span>
                 <span className="font-mono font-bold">
-                  #{selectedChar.subNumber || selectedChar.itemNumber}
+                  #{formatBalloonNumber(selectedChar.itemNumber, selectedChar.subNumber, balloonPrefix)}
                 </span>
               </button>
 
@@ -521,7 +526,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
               <div className="flex items-center gap-1.5 font-bold text-slate-900">
                 <span>Characteristic</span>
                 <span className="text-slate-900 font-mono">
-                  {selectedChar ? `#${selectedChar.subNumber || selectedChar.itemNumber}` : '--'}
+                  {selectedChar ? `#${formatBalloonNumber(selectedChar.itemNumber, selectedChar.subNumber, balloonPrefix)}` : '--'}
                 </span>
                 <span className="text-slate-400 font-normal">
                   ({currentIndex >= 0 ? currentIndex + 1 : 0} / {totalCount})
@@ -575,7 +580,7 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                   }}
                   disabled={!selectedChar}
                   className="p-1 rounded hover:bg-red-100 hover:text-red-700 disabled:opacity-30 text-slate-500 transition"
-                  title={`Delete Characteristic #${selectedChar ? (selectedChar.subNumber || selectedChar.itemNumber) : ''} (Cascade Renumber)`}
+                  title={`Delete Characteristic #${selectedChar ? formatBalloonNumber(selectedChar.itemNumber, selectedChar.subNumber, balloonPrefix) : ''} (Cascade Renumber)`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

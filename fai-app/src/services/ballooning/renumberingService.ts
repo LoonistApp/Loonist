@@ -9,25 +9,34 @@ export class RenumberingService {
    */
   public static cascadeRenumber(characteristics: EngineeringCharacteristic[]): EngineeringCharacteristic[] {
     let nextItemNumber = 1;
-    const oldToNewMap = new Map<number, number>();
+    const oldToNewMap = new Map<string, number>();
     const subCounterMap = new Map<number, number>();
 
-    // Count occurrences of each old itemNumber
-    const countsByOldItem = new Map<number, number>();
+    // Group by (sheetNumber, itemNumber), not itemNumber alone: a compound sub-item family is
+    // always generated from one callout on one sheet, so two characteristics can only be the
+    // same family if they also share a sheet. Grouping by itemNumber alone would silently merge
+    // unrelated characteristics from different sheets that happen to share an old item number
+    // (e.g. after a per-sheet extraction numbering collision) instead of giving them fresh ones.
+    const groupKey = (c: EngineeringCharacteristic) => `${c.sheetNumber}|${c.itemNumber}`;
+
+    // Count occurrences of each old (sheet, itemNumber) group
+    const countsByOldItem = new Map<string, number>();
     for (const c of characteristics) {
-      countsByOldItem.set(c.itemNumber, (countsByOldItem.get(c.itemNumber) || 0) + 1);
+      const key = groupKey(c);
+      countsByOldItem.set(key, (countsByOldItem.get(key) || 0) + 1);
     }
 
     return characteristics.map((char) => {
+      const key = groupKey(char);
       let newItemNumber: number;
-      if (oldToNewMap.has(char.itemNumber)) {
-        newItemNumber = oldToNewMap.get(char.itemNumber)!;
+      if (oldToNewMap.has(key)) {
+        newItemNumber = oldToNewMap.get(key)!;
       } else {
         newItemNumber = nextItemNumber++;
-        oldToNewMap.set(char.itemNumber, newItemNumber);
+        oldToNewMap.set(key, newItemNumber);
       }
 
-      const hasMultipleInGroup = (countsByOldItem.get(char.itemNumber) || 0) > 1;
+      const hasMultipleInGroup = (countsByOldItem.get(key) || 0) > 1;
       let newSubNumber: string | undefined = undefined;
 
       if (char.subNumber && hasMultipleInGroup) {

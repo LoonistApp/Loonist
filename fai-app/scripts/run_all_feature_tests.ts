@@ -47,7 +47,7 @@ const testSuites: TestSuite[] = [
     name: 'Balloon Markup & Collision Detection',
     sprint: 'Sprint 4',
     script: 'scripts/test_sprint4_markup.ts',
-    description: 'Verifies multi-sheet balloon spatial distribution and non-overlapping balloon coordinates'
+    description: 'Verifies multi-sheet balloon spatial distribution, non-overlapping balloon coordinates, and that cascade renumbering never merges colliding item numbers from different sheets into one compound group'
   },
   {
     name: 'Antigravity IDE Resizable Splitter Panels',
@@ -174,6 +174,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 8 / Security',
     script: 'scripts/test_licensing_security.ts',
     description: 'Verifies signed renew/revoke requests against the Worker, licensing URL rules, no renderer-held private key, closed renderer CSP, and Zod validation on every IPC channel'
+  },
+  {
+    name: 'AIAG PPAP Package Exporter',
+    sprint: 'Sprint 9 / Export',
+    script: 'scripts/test_ppap_export.ts',
+    description: 'Verifies the Part Submission Warrant, auto-derived dimensional conformance result, Dimensional Results sheet evaluations, and the 18-element submission status checklist against AIAG PPAP submission-level defaults'
   }
 ];
 
