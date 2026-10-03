@@ -153,9 +153,9 @@ console.log(`✓ All 3 PPAP sheets generated: ${sheetNames.join(', ')}`);
 
 // 3. PSW sheet: dimensional result must reflect the FAIL characteristic automatically
 const pswJson = XLSX.utils.sheet_to_json(wb.Sheets['PSW'], { header: 1 }) as any[][];
-const dimRow = pswJson.find((row) => row[0] === 'Dimensional Measurements meet drawing/specification requirements:');
+const dimRow = pswJson.find((row) => String(row[0]).startsWith('Dimensional Measurements meet drawing/specification requirements:'));
 assert(!!dimRow, 'PSW sheet must contain the dimensional measurements result row');
-assert(String(dimRow![1]).startsWith('NO'), `PSW must report NO when a characteristic has FAILed, got "${dimRow![1]}"`);
+assert(String(dimRow![0]).includes('NO'), `PSW must report NO when a characteristic has FAILed, got "${dimRow![0]}"`);
 console.log('✓ PSW dimensional result auto-derived from characteristic conformance data (NO due to 1 FAIL)');
 
 const customerRow = pswJson.find((row) => row[0] === 'Customer Name / Division:');

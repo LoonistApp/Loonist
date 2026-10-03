@@ -14,18 +14,6 @@ import {
   createDefaultPpapWarrant,
   defaultElementStatusesForLevel
 } from '../../types/ppap';
-import { getPersistentSetting, setPersistentSetting } from '../../utils/persistentSettings';
-
-const ORG_DEFAULTS_KEY = 'loonist_ppap_org_defaults';
-
-interface OrgDefaults {
-  organizationName: string;
-  organizationAddress: string;
-  authorizedSignatureName: string;
-  authorizedSignatureTitle: string;
-  authorizedSignaturePhone: string;
-  authorizedSignatureEmail: string;
-}
 
 interface PpapWarrantModalProps {
   isOpen: boolean;
@@ -50,25 +38,12 @@ export const PpapWarrantModal: React.FC<PpapWarrantModalProps> = ({
   const [warrant, setWarrant] = useState<PpapWarrantData>(createDefaultPpapWarrant());
   const wasOpenRef = useRef(false);
 
+  // Every open starts from a clean warrant - nothing is remembered between exports (or between
+  // drawings/parts), so a previous submission's customer, signer, or test entries never silently
+  // carry over into a new one.
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
-      let cancelled = false;
-      (async () => {
-        const raw = await getPersistentSetting(ORG_DEFAULTS_KEY);
-        const base = createDefaultPpapWarrant();
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as Partial<OrgDefaults>;
-            Object.assign(base, parsed);
-          } catch {
-            // ignore malformed persisted defaults
-          }
-        }
-        if (!cancelled) setWarrant(base);
-      })();
-      return () => {
-        cancelled = true;
-      };
+      setWarrant(createDefaultPpapWarrant());
     }
     wasOpenRef.current = isOpen;
   }, [isOpen]);
@@ -107,15 +82,6 @@ export const PpapWarrantModal: React.FC<PpapWarrantModalProps> = ({
   };
 
   const handleExport = () => {
-    const orgDefaults: OrgDefaults = {
-      organizationName: warrant.organizationName,
-      organizationAddress: warrant.organizationAddress,
-      authorizedSignatureName: warrant.authorizedSignatureName,
-      authorizedSignatureTitle: warrant.authorizedSignatureTitle,
-      authorizedSignaturePhone: warrant.authorizedSignaturePhone,
-      authorizedSignatureEmail: warrant.authorizedSignatureEmail
-    };
-    setPersistentSetting(ORG_DEFAULTS_KEY, JSON.stringify(orgDefaults));
     onExport(warrant);
     onClose();
   };
@@ -205,7 +171,7 @@ export const PpapWarrantModal: React.FC<PpapWarrantModalProps> = ({
             <div className="grid grid-cols-3 gap-2.5">
               <div>
                 <label className={fieldLabel}>Part Weight (kg)</label>
-                <input className={inputClass} value={warrant.partWeightKg} onChange={(e) => update('partWeightKg', e.target.value)} placeholder="0.0000" />
+                <input type="number" min="0" step="0.0001" className={inputClass} value={warrant.partWeightKg} onChange={(e) => update('partWeightKg', e.target.value)} placeholder="0.0000" />
               </div>
               <div>
                 <label className={fieldLabel}>Purchase Order Number</label>
@@ -228,7 +194,7 @@ export const PpapWarrantModal: React.FC<PpapWarrantModalProps> = ({
               </div>
               <div>
                 <label className={fieldLabel}>Checking Aid Date</label>
-                <input className={inputClass} value={warrant.checkingAidDate} onChange={(e) => update('checkingAidDate', e.target.value)} placeholder="MM/DD/YYYY" />
+                <input type="date" className={inputClass} value={warrant.checkingAidDate} onChange={(e) => update('checkingAidDate', e.target.value)} />
               </div>
             </div>
           </div>
@@ -328,11 +294,11 @@ export const PpapWarrantModal: React.FC<PpapWarrantModalProps> = ({
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className={fieldLabel}>Production Rate (Qty)</label>
-                <input className={inputClass} value={warrant.productionRateQty} onChange={(e) => update('productionRateQty', e.target.value)} placeholder="pcs" />
+                <input type="number" min="0" step="1" className={inputClass} value={warrant.productionRateQty} onChange={(e) => update('productionRateQty', e.target.value)} placeholder="pcs" />
               </div>
               <div>
                 <label className={fieldLabel}>Production Rate (Hours)</label>
-                <input className={inputClass} value={warrant.productionRateHours} onChange={(e) => update('productionRateHours', e.target.value)} placeholder="hrs" />
+                <input type="number" min="0" step="0.01" className={inputClass} value={warrant.productionRateHours} onChange={(e) => update('productionRateHours', e.target.value)} placeholder="hrs" />
               </div>
               <div className="col-span-2">
                 <label className={fieldLabel}>Explanation / Comments</label>
@@ -381,7 +347,7 @@ export const PpapWarrantModal: React.FC<PpapWarrantModalProps> = ({
               </div>
               <div>
                 <label className={fieldLabel}>Date</label>
-                <input className={inputClass} value={warrant.authorizedSignatureDate} onChange={(e) => update('authorizedSignatureDate', e.target.value)} />
+                <input type="date" className={inputClass} value={warrant.authorizedSignatureDate} onChange={(e) => update('authorizedSignatureDate', e.target.value)} />
               </div>
             </div>
           </div>

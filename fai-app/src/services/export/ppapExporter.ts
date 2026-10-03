@@ -69,10 +69,13 @@ export class PpapExcelExporter {
       ['REQUESTED SUBMISSION LEVEL:', PPAP_SUBMISSION_LEVEL_LABELS[warrant.submissionLevel]],
       [],
       ['SUBMISSION RESULTS'],
-      ['Dimensional Measurements meet drawing/specification requirements:', dimensionalMeetsRequirements ? 'YES' : 'NO (see Dimensional Results sheet)'],
-      ['Material and Functional Tests meet requirements:', warrant.materialFunctionalApplicable ? (warrant.materialFunctionalMeetsRequirements ? 'YES' : 'NO') : 'N/A'],
-      ['Appearance Criteria meet requirements:', warrant.appearanceApplicable ? (warrant.appearanceMeetsRequirements ? 'YES' : 'NO') : 'N/A'],
-      ['Statistical Process Package meets requirements:', warrant.statisticalPackageApplicable ? (warrant.statisticalPackageMeetsRequirements ? 'YES' : 'NO') : 'N/A'],
+      // Combined into one cell (rather than split label/value columns): these labels run
+      // 40-70 characters, far past any column width that would still fit the shorter rows
+      // on this sheet, so splitting them would always truncate one or the other on screen.
+      [`Dimensional Measurements meet drawing/specification requirements: ${dimensionalMeetsRequirements ? 'YES' : 'NO (see Dimensional Results sheet)'}`],
+      [`Material and Functional Tests meet requirements: ${warrant.materialFunctionalApplicable ? (warrant.materialFunctionalMeetsRequirements ? 'YES' : 'NO') : 'N/A'}`],
+      [`Appearance Criteria meet requirements: ${warrant.appearanceApplicable ? (warrant.appearanceMeetsRequirements ? 'YES' : 'NO') : 'N/A'}`],
+      [`Statistical Process Package meets requirements: ${warrant.statisticalPackageApplicable ? (warrant.statisticalPackageMeetsRequirements ? 'YES' : 'NO') : 'N/A'}`],
       ['Mold / Cavity / Production Process:', warrant.moldCavityProductionProcess],
       [],
       ['DECLARATION'],
@@ -93,7 +96,10 @@ export class PpapExcelExporter {
     ];
 
     const wsPsw = XLSX.utils.aoa_to_sheet(pswData);
-    wsPsw['!cols'] = [{ wch: 40 }, { wch: 32 }, { wch: 30 }, { wch: 28 }];
+    // Sized to the longest label/value actually placed in each column (e.g. "Safety and/or
+    // Government Regulated Part:" in A, "Checking Aid Engineering Change Level:" in C) so a
+    // non-empty neighbor cell never clips the one before it.
+    wsPsw['!cols'] = [{ wch: 44 }, { wch: 40 }, { wch: 40 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(wb, wsPsw, 'PSW');
 
     // ==========================================
@@ -162,7 +168,9 @@ export class PpapExcelExporter {
     ];
 
     const wsChecklist = XLSX.utils.aoa_to_sheet(checklistData);
-    wsChecklist['!cols'] = [{ wch: 10 }, { wch: 48 }, { wch: 16 }, { wch: 46 }];
+    // 62 fits the longest element name in full ("Records of Compliance with Customer-Specific
+    // Requirements"), so it is never clipped by the non-empty Status cell beside it.
+    wsChecklist['!cols'] = [{ wch: 10 }, { wch: 62 }, { wch: 16 }, { wch: 46 }];
     XLSX.utils.book_append_sheet(wb, wsChecklist, 'Element Status');
 
     return wb;

@@ -189,7 +189,7 @@ export function createDefaultPpapWarrant(): PpapWarrantData {
     authorizedSignatureTitle: '',
     authorizedSignaturePhone: '',
     authorizedSignatureEmail: '',
-    authorizedSignatureDate: new Date().toLocaleDateString(),
+    authorizedSignatureDate: new Date().toISOString().slice(0, 10),
     elementStatuses: defaultElementStatusesForLevel(3)
   };
 }
