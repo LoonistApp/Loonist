@@ -39,8 +39,16 @@ async function run() {
 
   const { characteristics, projectProps } = await DrawingExtractionService.extractCharacteristics(doc);
 
-  assert(characteristics.length === 26, `Expected exactly 26 characteristics from the sample blueprint, got ${characteristics.length}. A regex/clustering rule change silently altered extraction — verify it was intentional before updating this number.`);
-  console.log(`✓ Extracted exactly 26 characteristics (unchanged from golden baseline)`);
+  // Golden count deliberately changed 26 -> 18: the previous baseline included 8 spurious
+  // items (sheet 1 "1","2","3","4","5" and sheet 2 "1","2","3") that were actually the ASME
+  // Y14.1 border zone grid row at y=734, not real dimensions. findBorderGridLabels() only
+  // treated a token as a grid candidate within a fixed 36pt band of the sheet edge; this row
+  // sits ~58pt from the bottom edge (too far to qualify) so it leaked through as fake
+  // characteristics. Fixed by matching border grid rows/columns by their alignment signature
+  // (>=3 aligned labels spanning >=35% of the sheet, >=3 distinct values) instead of edge
+  // distance, which also fixed the same leak on real D-size drawings with large title blocks.
+  assert(characteristics.length === 18, `Expected exactly 18 characteristics from the sample blueprint, got ${characteristics.length}. A regex/clustering rule change silently altered extraction — verify it was intentional before updating this number.`);
+  console.log(`✓ Extracted exactly 18 characteristics (unchanged from golden baseline)`);
 
   assert(projectProps.partName === 'HIGH PRESSURE COMPRESSOR TURBINE MOUNT BRACKET', `Part name extraction changed: got "${projectProps.partName}"`);
   assert(projectProps.partNumber === 'AS9102-TMB-001', `Part number extraction changed: got "${projectProps.partNumber}"`);
@@ -59,12 +67,16 @@ async function run() {
   assert(char9!.type === 'thread', `Item #9 type changed: expected 'thread', got '${char9!.type}'`);
   assert(char9!.cleanNominal === 1.375, `Item #9 fractional-thread nominal changed: expected 1.375 (1 3/8"), got ${char9!.cleanNominal}`);
 
-  const char25 = byItem.get(25);
-  assert(!!char25, 'Item #25 missing from extraction');
-  assert(char25!.sheetNumber === 2, `Item #25 expected on sheet 2, got sheet ${char25!.sheetNumber}`);
-  assert(char25!.cleanNominal === 3, `Item #25 nominal changed: expected 3, got ${char25!.cleanNominal}`);
+  const cboreDepth = characteristics.find(c => c.sheetNumber === 2 && c.rawText === '↧ .250');
+  assert(!!cboreDepth, 'Sheet-2 counterbore depth callout ("↧ .250") missing from extraction');
+  assert(cboreDepth!.cleanNominal === 0.25, `Counterbore depth nominal changed: expected 0.25, got ${cboreDepth!.cleanNominal}`);
 
-  console.log('✓ Spot-checked characteristics (diameter, fractional thread, sheet-2 linear) match golden baseline');
+  // None of the extracted items should be the border zone grid labels (bare "1".."7") that
+  // leaked through before the findBorderGridLabels() fix above.
+  const leakedGridLabels = characteristics.filter(c => /^[1-9]$/.test(c.rawText.trim()));
+  assert(leakedGridLabels.length === 0, `Border grid labels leaked through as characteristics: ${leakedGridLabels.map(c => `#${c.itemNumber} "${c.rawText}"`).join(', ')}`);
+
+  console.log('✓ Spot-checked characteristics (diameter, fractional thread, sheet-2 counterbore depth) match golden baseline, and no border-grid labels leaked through');
   console.log('>>> GOLDEN-FILE EXTRACTION TEST PASSED! <<<');
 }
 

@@ -471,13 +471,18 @@ export function App() {
         samplingType: 'NORMAL',
         aql: '1.0'
       } : {
+        // Filename-derived placeholders only, pending real title-block extraction (Auto Extract
+        // must be run by the user for non-sample files — this is NOT extracted data). A CAGE
+        // code is a specific regulated identifier; defaulting it to a fake-but-plausible value
+        // here would risk it surviving unnoticed into a real AS9102 report if the user never
+        // overwrites it, so it stays blank until genuinely known.
         partName: fileName.replace(/\.[^/.]+$/, '').toUpperCase(),
-        partNumber: fileName.split('_')[0] || 'PART-001',
-        partRevision: 'A',
+        partNumber: fileName.split('_')[0] || '',
+        partRevision: '',
         drawingName: fileName,
         drawingNumber: fileName.replace(/\.[^/.]+$/, ''),
-        drawingRevision: 'A',
-        cageCode: '1A2B3',
+        drawingRevision: '',
+        cageCode: '',
         lotSize: 100,
         samplingLevel: 'II',
         samplingType: 'NORMAL',
@@ -532,7 +537,7 @@ export function App() {
       // Auto-extract characteristics for the sample blueprint so balloons and table are immediately populated
       if (fileName.includes('Sample') || fileName.includes('AS9102')) {
         try {
-          const result = await DrawingExtractionService.extractCharacteristics(loadedDoc, undefined, projectSettings);
+          const result = await DrawingExtractionService.extractCharacteristics(loadedDoc, undefined, projectSettings, undefined, undefined, true);
           setCharacteristics(result.characteristics);
           setProjectProps(result.projectProps);
           if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
@@ -772,6 +777,12 @@ export function App() {
           );
         }
       }
+
+      // Title block fields must never be silently wrong on a compliance record — surface this
+      // immediately rather than letting blank/stale identity fields go unnoticed.
+      if (result.titleBlockWarning) {
+        await showLoonistDialog(result.titleBlockWarning);
+      }
     } catch (err) {
       console.error('Failed to run Smart Extract:', err);
       await showLoonistDialog('Failed to extract characteristics. Please verify PDF stream.');
@@ -849,23 +860,41 @@ export function App() {
   // permanent record, never a silent bypass.
   const confirmExportReadiness = useCallback((exportLabel: string): boolean => {
     const { blockers } = evaluateExportReadiness(characteristics);
-    if (blockers.length === 0) return true;
+
+    // A blank part name/number/CAGE code reaching a customer-facing export is exactly the
+    // failure mode the title-block fallback fix was meant to prevent — removing the fake demo
+    // identity only helps if something still stops the resulting blank from silently shipping.
+    const missingIdentityFields = [
+      !projectProps.partName && 'Part Name',
+      !projectProps.partNumber && 'Part Number',
+      !projectProps.cageCode && 'CAGE Code'
+    ].filter((f): f is string => !!f);
+
+    if (blockers.length === 0 && missingIdentityFields.length === 0) return true;
+
+    const messages: string[] = [];
+    if (missingIdentityFields.length > 0) {
+      messages.push(`Missing: ${missingIdentityFields.join(', ')}. This ${exportLabel} will identify no part unless these are filled in.`);
+    }
+    if (blockers.length > 0) {
+      messages.push(`${blockers.length} characteristic${blockers.length === 1 ? '' : 's'} still need${blockers.length === 1 ? 's' : ''} review or measurement before this ${exportLabel} reflects verified inspection data.`);
+    }
 
     const proceed = window.confirm(
-      `${blockers.length} characteristic${blockers.length === 1 ? '' : 's'} still need${blockers.length === 1 ? 's' : ''} review or measurement before this ${exportLabel} reflects verified inspection data.\n\n` +
-      `Exporting now will include unverified/unmeasured values in a customer-facing document.\n\n` +
-      `Export anyway?`
+      `${messages.join('\n\n')}\n\nExporting now will include unverified/incomplete data in a customer-facing document.\n\nExport anyway?`
     );
 
     if (proceed) {
       AuditLedgerService.recordEntry({
         action: 'REPORT_EXPORTED',
-        details: `${exportLabel} exported with ${blockers.length} unresolved characteristic(s) (needs_review or unmeasured), overridden by explicit user acknowledgment.`
+        details: `${exportLabel} exported with ${blockers.length} unresolved characteristic(s)` +
+          (missingIdentityFields.length > 0 ? ` and missing identity field(s): ${missingIdentityFields.join(', ')}` : '') +
+          `, overridden by explicit user acknowledgment.`
       });
     }
 
     return proceed;
-  }, [characteristics]);
+  }, [characteristics, projectProps]);
 
   const handleExportExcel = useCallback(async (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (characteristics.length === 0) {
@@ -991,7 +1020,8 @@ export function App() {
           showLeaderLines: true,
           watermark: projectSettings.watermark,
           balloonPrefix: projectSettings.balloonPrefix
-        }
+        },
+        pdfDoc || undefined
       );
 
       const defaultName = `${projectProps.partNumber || 'Blueprint'}_BALLOONED_MARKED.pdf`;

@@ -141,13 +141,31 @@ export class GdtParser {
         isToleranceInherited: true,
         toleranceSource: `Compound Callout (${primary.subType})`,
         units: primary.units,
-        multiplier: primary.quantity || multiplier,
+        // `primary.quantity` comes from deconstructCompoundCallout's OWN internal multiplier
+        // detection (a trailing "N PLCS" inside the compound string itself), which defaults to
+        // 1 when it finds nothing — not "unknown". `primary.quantity || multiplier` therefore
+        // silently discarded a real leading "NX" multiplier (already extracted into the outer
+        // `multiplier` here) any time the inner default of 1 was in play, since 1 is truthy.
+        // Taking the max is correct either way: a real repeated-feature count is never lower
+        // than both signals, whichever one actually found it.
+        multiplier: Math.max(primary.quantity || 1, multiplier),
         holeCallout,
         subFeatures: compoundSubs
       };
     }
 
     // 4. Check for GD&T Feature Control Frame (single tier or composite dual tier)
+    // Space-delimited shape first: some CAD exporters draw a frame's compartment dividers as
+    // vector lines rather than literal "|" text glyphs, so the pipe-based detection below can
+    // never match them even once the leading symbol is correctly read — this variant is
+    // recognized by STRUCTURE (symbol, optional diameter marker, tolerance, 1-3 datum letters)
+    // instead.
+    const spaceDelimitedFrame = this.parseSpaceDelimitedFrame(cleanText);
+    if (spaceDelimitedFrame) {
+      const gdtResult = this.buildSpaceDelimitedFrameResult(text, spaceDelimitedFrame, multiplier, preset.unit);
+      if (holeCallout) gdtResult.holeCallout = holeCallout;
+      return gdtResult;
+    }
     if (this.isGdtFrame(cleanText)) {
       const gdtResult = this.parseFeatureControlFrame(text, cleanText, multiplier, preset.unit);
       if (holeCallout) gdtResult.holeCallout = holeCallout;
@@ -306,6 +324,47 @@ export class GdtParser {
         fractionStr,
         holeCallout
       };
+    }
+
+    // 10b. Stacked ISO 286 limit/deviation pair that the spatial clusterer joined from separate
+    // lines (e.g. "Ø10.5 / -0.08", or "0 / Ø10.5 / -0.08" when the upper deviation was written
+    // above the nominal) rather than a single "+0/-0.08" token. Recognized by segment CONTENT —
+    // exactly one segment is a plain nominal number, the other one or two segments are each a
+    // bare "0" or an explicitly signed number — regardless of which side of the nominal they
+    // were written on, since ISO limit dimensioning puts the upper deviation above and the
+    // lower deviation below. Without this, a real toleranced hole (e.g. 10.5 +0/-0.08) was
+    // silently falling through to this part's generic default tolerance class, discarding the
+    // drawing's actual limits.
+    {
+      const stackedSegments = textToParse.split('/').map(s => s.trim()).filter(s => s.length > 0);
+      const isDeviationSeg = (s: string) => s === '0' || /^[+-][0-9]*\.?[0-9]+$/.test(s);
+      if (stackedSegments.length >= 2 && stackedSegments.length <= 3) {
+        const nominalIdx = stackedSegments.findIndex(s => /^Ø?[0-9]*\.?[0-9]+$/.test(s) && !isDeviationSeg(s));
+        const deviationSegs = stackedSegments.filter((_, idx) => idx !== nominalIdx);
+        if (nominalIdx >= 0 && deviationSegs.length >= 1 && deviationSegs.every(isDeviationSeg)) {
+          const isDiameter = stackedSegments[nominalIdx].includes('Ø');
+          const nominal = parseFloat(stackedSegments[nominalIdx].replace('Ø', ''));
+          const devVals = deviationSegs.map(s => parseFloat(s));
+          const upper = Math.max(0, ...devVals);
+          const lower = Math.min(0, ...devVals);
+          return {
+            rawText: text,
+            nominal,
+            upperTol: upper,
+            lowerTol: Math.abs(lower),
+            minLimit: parseFloat((nominal + lower).toFixed(5)),
+            maxLimit: parseFloat((nominal + upper).toFixed(5)),
+            type: isDiameter ? 'diameter' : this.inferType(cleanText),
+            enclosure: 'limit',
+            isToleranceInherited: false,
+            toleranceSource: `ISO 286 Stacked Limit Deviation (+${upper}/${lower})`,
+            units: preset.unit,
+            multiplier,
+            fractionStr,
+            holeCallout
+          };
+        }
+      }
     }
 
     // 11. Check for Asymmetric / Unilateral Tolerance (e.g. "+0.010 / -0.000" or "+0.005 / -0.002")
@@ -854,8 +913,12 @@ export class GdtParser {
         });
       }
 
-      // 2. Spotface / Counterbore Diameter
-      const cboreMatch = text.match(/(?:⌴|X|CBORE|COUNTERBORE)\s*(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
+      // 2. Spotface / Counterbore Diameter.
+      // The bare "X" alternative must not match the "X" inside a metric thread's own pitch
+      // notation (e.g. "M6X1" — diameter 6, pitch 1, no counterbore at all): without the
+      // lookbehind, this matched that same "X" and misread the pitch digit as a fabricated
+      // counterbore diameter, inventing a second sub-feature that doesn't exist on the drawing.
+      const cboreMatch = text.match(/(?:⌴|CBORE|COUNTERBORE|(?<!\d)X)\s*(?:Ø|P)?\s*([0-9]*\.?[0-9]+)/i);
       if (cboreMatch) {
         const nom = parseFloat(cboreMatch[1]);
         const tol = ToleranceEngine.resolveTitleBlockTolerance(cboreMatch[1], false, preset);
@@ -919,10 +982,93 @@ export class GdtParser {
   }
 
   /**
+   * Recognizes a GD&T feature-control-frame rendered as space-separated tokens instead of the
+   * usual "|"-delimited compartments (see the call site comment for why). Matched strictly by
+   * ASME Y14.5 datum-reference STRUCTURE — leading symbol, optional diameter-zone marker,
+   * decimal tolerance, then 1-3 datum references — never by guessing what the symbol means, so
+   * this can't misfire on an ordinary dimension or note string. The leading symbol token is
+   * required to be lowercase (or an already-recognized GD&T unicode glyph): real ASME Y14.5
+   * datum letters are always uppercase, so a lowercase token in that position is structurally
+   * never a datum — it's always this font's substitute for the real symbol glyph — which keeps
+   * this from colliding with an unrelated "LETTER number LETTER" sequence elsewhere.
+   */
+  private static parseSpaceDelimitedFrame(
+    text: string
+  ): { symbol: string; hasDiameter: boolean; tolerance: number; datums: string[] } | null {
+    const tokens = text.trim().split(/\s+/);
+    if (tokens.length < 3 || tokens.length > 6) return null;
+
+    let idx = 0;
+    const symbol = tokens[idx];
+    if (!/^(?:[a-z]{1,3}|[⌖⏥—○⌭⟂∥∠⌒⌓↗⌰◎⌯])$/.test(symbol)) return null;
+    idx++;
+
+    let hasDiameter = false;
+    if (tokens[idx] === 'O' || tokens[idx] === 'Ø') {
+      hasDiameter = true;
+      idx++;
+    }
+
+    const tolToken = tokens[idx];
+    if (!tolToken || !/^\d+(?:\.\d+)?$/.test(tolToken)) return null;
+    const tolerance = parseFloat(tolToken);
+    idx++;
+
+    const datums: string[] = [];
+    for (; idx < tokens.length; idx++) {
+      if (!/^[A-Z](-[A-Z])?$/.test(tokens[idx])) return null;
+      datums.push(tokens[idx]);
+    }
+    if (datums.length === 0 || datums.length > 3) return null;
+
+    return { symbol, hasDiameter, tolerance, datums };
+  }
+
+  private static buildSpaceDelimitedFrameResult(
+    fullText: string,
+    parsed: { symbol: string; hasDiameter: boolean; tolerance: number; datums: string[] },
+    multiplier: number,
+    unit: 'in' | 'mm'
+  ): ParsedDimensionResult {
+    const charSymbol = this.normalizeGdtSymbol(parsed.symbol);
+    const characteristic = this.mapGdtSymbolToType(charSymbol);
+    const toDatum = (letter?: string) => (letter ? { datum: letter } : undefined);
+
+    const gdtFrame: GdtFeatureControlFrame = {
+      characteristic,
+      symbol: charSymbol,
+      toleranceValue: parsed.tolerance,
+      diameterSymbol: parsed.hasDiameter,
+      primaryDatum: toDatum(parsed.datums[0]),
+      secondaryDatum: toDatum(parsed.datums[1]),
+      tertiaryDatum: toDatum(parsed.datums[2]),
+      rawText: fullText
+    };
+
+    return {
+      rawText: fullText,
+      nominal: 0.0,
+      upperTol: parsed.tolerance,
+      lowerTol: 0.0,
+      minLimit: 0.0,
+      maxLimit: parsed.tolerance,
+      type: 'gdt',
+      enclosure: 'standard',
+      isToleranceInherited: false,
+      toleranceSource: characteristic === 'unknown'
+        ? `GD&T frame, symbol not recognized (raw glyph "${parsed.symbol}") — tolerance ${parsed.tolerance} to datum(s) ${parsed.datums.join(', ')}; verify characteristic type manually`
+        : `ASME Y14.5 GD&T Frame (${charSymbol} ${parsed.tolerance})`,
+      units: unit,
+      gdtFrame,
+      multiplier
+    };
+  }
+
+  /**
    * Deconstructs single-tier and composite dual-tier ASME Y14.5 Feature Control Frames.
    */
   private static parseFeatureControlFrame(
-    fullText: string, 
+    fullText: string,
     cleanText: string, 
     multiplier: number,
     unit: 'in' | 'mm'
@@ -1032,9 +1178,11 @@ export class GdtParser {
       case '⌰': return 'total_runout';
       case '◎': return 'concentricity';
       case '⌯': return 'symmetry';
-      case '⌖':
+      case '⌖': return 'position';
       default:
-        return 'position';
+        // Never silently guess a specific GD&T characteristic for a symbol we didn't actually
+        // recognize — see the 'unknown' doc comment on GdtFeatureControlFrame.characteristic.
+        return 'unknown';
     }
   }
 

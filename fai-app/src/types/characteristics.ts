@@ -73,7 +73,14 @@ export interface GdtFeatureControlFrame {
     | 'circular_runout'
     | 'total_runout'
     | 'concentricity'
-    | 'symmetry';
+    | 'symmetry'
+    // The leading frame symbol glyph wasn't one of the known ASME Y14.5 Unicode GD&T
+    // characters — some CAD exporters substitute a plain Latin letter for the real symbol when
+    // their font lacks a correct ToUnicode CMap entry for it (the same class of issue as a
+    // diameter symbol rendering as a literal "O"). Which specific letter maps to which real
+    // symbol is font-specific and was never verified, so this is reported as unknown rather
+    // than guessed — a wrong GD&T characteristic type is a compliance risk, not a cosmetic one.
+    | 'unknown';
   symbol: string;               // e.g. "⌖", "⏥", "⟂", "∥", "⌒"
   toleranceValue: number;       // e.g. 0.010
   diameterSymbol?: boolean;     // e.g. Ø .010

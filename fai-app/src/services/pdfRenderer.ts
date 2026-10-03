@@ -74,8 +74,16 @@ export class PDFRenderService {
     const page = await pdfDoc.getPage(sheetNumber);
     const dpr = window.devicePixelRatio || 1;
 
-    // Viewport matching the requested scale and rotation
-    const viewport = page.getViewport({ scale: scale * dpr, rotation });
+    // `rotation` here is the user's additional view rotation (from the rotate CW/CCW toolbar
+    // buttons), on top of whatever rotation the PDF page itself declares via its /Rotate entry.
+    // It must be added to page.rotate, not replace it: DrawingExtractionService computes every
+    // characteristic's bounding box with page.getViewport({ scale: 1.0 }) — no rotation
+    // override — which makes pdf.js default to the page's own intrinsic rotation. If this
+    // raster were drawn at `rotation` alone (ignoring page.rotate), a PDF with a non-zero
+    // intrinsic rotation (common for landscape CAD drawings exported in a portrait page
+    // container) would render in a different orientation than the one every balloon coordinate
+    // was computed in, making balloons land nowhere near the dimensions they annotate.
+    const viewport = page.getViewport({ scale: scale * dpr, rotation: (page.rotate + rotation) % 360 });
 
     // Backing buffer sized for Hi-DPI
     canvas.width = Math.floor(viewport.width);

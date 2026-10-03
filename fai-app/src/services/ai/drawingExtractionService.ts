@@ -1,4 +1,5 @@
 import type * as pdfjsLib from 'pdfjs-dist';
+import { Util } from 'pdfjs-dist';
 import type { 
   EngineeringCharacteristic, 
   InspectionMethod,
@@ -42,8 +43,13 @@ export class DrawingExtractionService {
     onProgress?: (progress: ExtractionProgress) => void,
     settings?: ProjectSettings,
     targetSheetNumber?: number,
-    existingCharacteristics?: EngineeringCharacteristic[]
-  ): Promise<{ characteristics: EngineeringCharacteristic[]; projectProps: ProjectProperties }> {
+    existingCharacteristics?: EngineeringCharacteristic[],
+    // Only the bundled sample-blueprint loader should pass true. A real customer drawing that
+    // the engine fails to parse (0 characteristics, no recognized title block) must never be
+    // silently repopulated with the canned demo part's fake dimensions — that's presenting
+    // fabricated data as a real extraction result on what could be a live inspection record.
+    allowDemoFallback: boolean = false
+  ): Promise<{ characteristics: EngineeringCharacteristic[]; projectProps: ProjectProperties; titleBlockWarning?: string }> {
     const characteristics: EngineeringCharacteristic[] = [];
     const sheetsMeta: Array<{ pageNumber: number; width: number; height: number }> = [];
     const step = Math.max(1, settings?.incrementStep ?? 1);
@@ -103,16 +109,13 @@ export class DrawingExtractionService {
         const rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
         for (const item of textContent.items) {
           if ('str' in item && item.str.trim().length > 0) {
-            const tx = item.transform[4];
-            const itemH = item.height || 14;
-            const ty = viewport.height - item.transform[5]; // top-down baseline
-            const topY = Math.max(0, ty - itemH); // top coordinate of text
+            const box = this.textItemToViewportBox(item as any, viewport);
             rawStrings.push({
               text: item.str.trim(),
-              x: tx,
-              y: topY,
-              width: item.width || 40,
-              height: itemH
+              x: box.x,
+              y: Math.max(0, box.y),
+              width: box.width,
+              height: box.height
             });
           }
         }
@@ -212,6 +215,18 @@ export class DrawingExtractionService {
           if (/^STEP\s*\d+/i.test(t) || /\b(?:ACTUALLY|WOULD|IF\s+YOU)\b/i.test(t)) return false;
           if (/SCALE\s*[:\s]\s*\d+\s*:\s*\d+/i.test(t)) return false;
           if (/\[SCALE\s+\d+:\d+\]/i.test(t)) return false;
+          // Bare "N:N" tokens (e.g. "1:1", "2:1", "1:5") are always a detail/section view scale
+          // ratio per ASME Y14.3 — this notation is never used for a dimension, so this is safe
+          // regardless of which specific ratio appears.
+          if (/^\d{1,3}\s*:\s*\d{1,3}$/.test(t)) return false;
+          // Title-block revision-table / metadata content, matched by SHAPE rather than position
+          // or language: the fixed corner title-block exclusion box below only covers ASME-style
+          // bottom-right title blocks, not e.g. a European full-height side-strip title block —
+          // so content that is structurally never a dimension (a date, an ISO paper size code, a
+          // bare "sheet N / N" count) is excluded regardless of where on the sheet it landed.
+          if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(t)) return false; // DD/MM/YYYY or MM/DD/YYYY revision date
+          if (/^A[0-4]$/.test(t)) return false; // ISO 5457 paper size code (A0-A4)
+          if (/^\d{1,3}\s*\/\s*\d{1,3}$/.test(t)) return false; // bilingual "Feuille/Sheet N / N" count
           if (/^(?:TOP|FRONT|SIDE|ISOMETRIC|AUXILIARY)\s+VIEW/i.test(t)) return false;
           if (/TOP VIEW\s*\(shown scaled down\)/i.test(t)) return false;
           if (t.includes('INTERNAL BORE & THREADS')) return false;
@@ -410,6 +425,7 @@ export class DrawingExtractionService {
               gdtType === 'total_runout' ? 'Total Runout' :
               gdtType === 'concentricity' ? 'Concentricity' :
               gdtType === 'symmetry' ? 'Symmetry' :
+              gdtType === 'unknown' ? 'Unrecognized GD&T Symbol — Verify Manually' :
               'Geometric Feature';
 
             // Master Quality Inspector Tooling Selection
@@ -419,6 +435,14 @@ export class DrawingExtractionService {
             } else if (gdtType === 'circular_runout') {
               method = 'Optical Comparator';
             }
+
+            // A frame whose leading symbol glyph wasn't recognized (see the 'unknown' doc
+            // comment on GdtFeatureControlFrame.characteristic) must never auto-accept — the
+            // tolerance value and datums are correctly captured, but WHICH GD&T characteristic
+            // this is (flatness vs. position vs. profile, each inspected completely
+            // differently) was never actually determined, so a human has to confirm it.
+            const gdtConfidence = gdtType === 'unknown' ? 0.4 : (isScannedSheet ? 0.88 : 0.98);
+            const gdtVerification = gdtType === 'unknown' ? 'needs_review' : (isScannedSheet ? 'needs_review' : 'auto_accepted');
 
             const gdtMultiplier = parsed.multiplier || 1;
             const gdtShouldSplit = gdtMultiplier > 1 &&
@@ -457,10 +481,10 @@ export class DrawingExtractionService {
                   isExpandedMultiplier: true,
                   parentCharacteristicId: gdtParentId,
                   inspectionMethod: method,
-                  confidenceScore: isScannedSheet ? 0.88 : 0.98,
-                  verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+                  confidenceScore: gdtConfidence,
+                  verificationStatus: gdtVerification,
                   extractionSource: isScannedSheet ? 'ocr' : 'vector',
-                  extractionConfidence: isScannedSheet ? 0.88 : 0.98,
+                  extractionConfidence: gdtConfidence,
                   isBasic: false,
                   forReference: false,
                   sourceCaptureOrSheet: `Sheet ${pageNum}`,
@@ -496,10 +520,10 @@ export class DrawingExtractionService {
                 holeCallout: parsed.holeCallout,
                 quantity: gdtMultiplier,
                 inspectionMethod: method,
-                confidenceScore: isScannedSheet ? 0.88 : 0.98,
-                verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+                confidenceScore: gdtConfidence,
+                verificationStatus: gdtVerification,
                 extractionSource: isScannedSheet ? 'ocr' : 'vector',
-                extractionConfidence: isScannedSheet ? 0.88 : 0.98,
+                extractionConfidence: gdtConfidence,
                 isBasic: false,
                 forReference: false,
                 sourceCaptureOrSheet: `Sheet ${pageNum}`,
@@ -570,6 +594,17 @@ export class DrawingExtractionService {
             if (parsed.enclosure === 'basic') confidence = 0.98;
             if (parsed.enclosure === 'limit') confidence = 0.98;
             if (parsed.isToleranceInherited && parsed.nominal < 0.2) confidence = 0.88;
+
+            // Orphan tolerance-deviation fragment: a cluster that is *only* a bare "0" or a
+            // signed number (e.g. "-0.08", "+0.025") is virtually never a real standalone
+            // dimension — a standalone dimension is practically always an unsigned magnitude.
+            // This exact shape is the signature of a one-sided limit deviation value that
+            // failed to merge with its parent nominal (see SpatialClusteringEngine's stacked
+            // limit-pair handling). Force it to needs_review instead of silently auto-accepting
+            // a fragment as if it were a verified, complete characteristic.
+            if (/^(?:0|[+-]\d+(?:\.\d+)?)$/.test(cluster.combinedText.trim())) {
+              confidence = 0.45;
+            }
 
             const verificationStatus = confidence < (settings?.ocrConfidenceThreshold ?? 0.85) ? 'needs_review' : 'auto_accepted';
 
@@ -748,26 +783,39 @@ export class DrawingExtractionService {
         ? RenumberingService.cascadeRenumber(combinedCharacteristics)
         : combinedCharacteristics;
 
-      // If document was an empty dummy mock, fallback to realistic pre-seeded AS9102 items ONLY for dummy 1-page mocks
-      if (renumbered.length === 0 && !targetSheetNumber && pdfDoc.numPages === 1 && !extractedProps.partName && !extractedProps.partNumber) {
+      // Demo/sample convenience ONLY: when explicitly loading the bundled sample blueprint and
+      // nothing was extracted, seed the canned demo characteristics so the UI has something to
+      // show. Gated behind an explicit caller opt-in (never inferred from "extraction found
+      // nothing"), because that same signature — 0 characteristics, no recognized title block —
+      // is indistinguishable from a REAL drawing the engine genuinely failed to parse, and a
+      // real failure must surface as a failure, not get silently replaced with fabricated data.
+      if (allowDemoFallback && renumbered.length === 0 && !targetSheetNumber && pdfDoc.numPages === 1 && !extractedProps.partName && !extractedProps.partNumber) {
         const fallbackItems = this.getStandardTurbineBracketCharacteristics();
         renumbered.push(...fallbackItems);
       }
 
+      // Title-block identity fields must reflect what was actually read off the drawing. A
+      // missing field is left blank (never backfilled with the demo part's name/number/CAGE
+      // code) so a report can't silently carry a fabricated identity for a real part — same
+      // reasoning as the demo-fallback gate above.
+      const titleBlockRecognized = !!(extractedProps.partName || extractedProps.partNumber);
       const defaultProps: ProjectProperties = {
-        partName: extractedProps.partName || 'TURBINE MOUNT BRACKET - HIGH PRESSURE COMPRESSOR',
-        partNumber: extractedProps.partNumber || 'AS9102-TMB-001',
-        partRevision: extractedProps.partRevision || 'C',
-        drawingName: extractedProps.drawingName || 'Turbine Mount Bracket',
-        drawingNumber: extractedProps.drawingNumber || 'AS9102-TMB-001',
-        drawingRevision: extractedProps.drawingRevision || 'C',
-        cageCode: extractedProps.cageCode || '1A2B3',
+        partName: extractedProps.partName || '',
+        partNumber: extractedProps.partNumber || '',
+        partRevision: extractedProps.partRevision || '',
+        drawingName: extractedProps.drawingName || '',
+        drawingNumber: extractedProps.drawingNumber || '',
+        drawingRevision: extractedProps.drawingRevision || '',
+        cageCode: extractedProps.cageCode || '',
         lotSize: 200,
         samplingLevel: 'II',
         samplingType: 'NORMAL',
         aql: '1.0',
         units: extractedProps.units || (settings?.units || 'in')
       };
+      const titleBlockWarning = (!allowDemoFallback && !titleBlockRecognized)
+        ? 'Could not recognize the title block layout on this drawing — part name, part number, and CAGE code were NOT extracted and must be entered manually. Do not rely on any pre-filled values for these fields.'
+        : undefined;
 
       if (onProgress) {
         onProgress({
@@ -781,7 +829,7 @@ export class DrawingExtractionService {
       // Compute optimal, collision-free balloon coordinates using Spatial R-Tree AABB algorithm
       const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(renumbered, sheetsMeta, true, drawingTextObstaclesBySheet);
 
-      return { characteristics: spatiallyPlaced, projectProps: defaultProps };
+      return { characteristics: spatiallyPlaced, projectProps: defaultProps, titleBlockWarning };
     } catch (err) {
       console.error('AI Extraction error:', err);
       if (onProgress) {
@@ -1117,21 +1165,17 @@ export class DrawingExtractionService {
         const matchedItems: Array<{ str: string; x: number; y: number }> = [];
         for (const item of textContent.items) {
           if ('str' in item && item.str.trim().length > 0) {
-            const tx = item.transform[4];
-            const itemH = item.height || 14;
-            const ty = viewport.height - item.transform[5];
-            const topY = Math.max(0, ty - itemH);
-            const itemW = item.width || 40;
+            const b = this.textItemToViewportBox(item as any, viewport);
 
             const overlaps = !(
-              tx + itemW < box.x ||
-              tx > box.x + box.width ||
-              topY + itemH < box.y ||
-              topY > box.y + box.height
+              b.x + b.width < box.x ||
+              b.x > box.x + box.width ||
+              b.y + b.height < box.y ||
+              b.y > box.y + box.height
             );
 
             if (overlaps) {
-              matchedItems.push({ str: item.str.trim(), x: tx, y: topY });
+              matchedItems.push({ str: item.str.trim(), x: b.x, y: Math.max(0, b.y) });
             }
           }
         }
@@ -1275,9 +1319,15 @@ export class DrawingExtractionService {
    * 'c' after numbers -> '°'
    * 'P' preceding digits -> 'Ø'
    * 'dia ' -> 'Ø'
+   * European decimal-comma ("28,5" / "±0,1") -> period decimal
    */
   private static normalizeCadSymbols(text: string): string {
     let t = text;
+    // Normalize decimal-comma notation before anything else, so downstream regexes (here and
+    // in GdtParser) only ever see period decimals. Only a comma flanked by digits on both
+    // sides is treated as a decimal separator, so datum/letter lists like "A, B, C" or
+    // "A,B-C" are left untouched.
+    t = t.replace(/(\d),(\d)/g, '$1.$2');
     t = t.replace(/(\d+(?:\.\d+)?)c\b/g, '$1°');
     t = t.replace(/(\d+(?:\.\d+)?)c\s/g, '$1° ');
     t = t.replace(/\bP(\d+(?:\.\d+)?)/g, 'Ø$1');
@@ -1298,21 +1348,45 @@ export class DrawingExtractionService {
 
     const allText = rawStrings.map(s => s.text).join(' ');
 
-    // 1. Explicit cover / handbook / practice booklet indicators
-    const hasStrongCoverKeywords = /\b(?:practice\s+part\s+drawings|detailed\s+drawings\s+of\s+miscellaneous\s+parts|practice\s+with\s+(?:autodesk|solidworks|catia|creo|inventor)|table\s+of\s+contents|course\s+(?:overview|syllabus)|training\s+(?:manual|guide)|workbook\s+(?:overview|exercises)|kkmsoft|all\s+rights\s+reserved|good\s+luck\s+to\s+you|good\s+luck\s+in\s+your|practice\s+files?|answers?\s+for\s+these|missing\s+dimension|exercise\s+best\s+practice)\b/i.test(allText);
+    // 0. Dimensional-content gate (checked FIRST, takes precedence over everything below):
+    // a sheet carrying real dimensional/GD&T callouts is never a cover page, no matter what
+    // boilerplate text (copyright notices, confidentiality stamps, legal disclaimers) also
+    // appears on it. Every real title block has some form of "All rights reserved" /
+    // "Proprietary and confidential" text — that must never be allowed to disqualify a sheet
+    // that otherwise has dimensions on it. Decimal numbers are matched with EITHER a period or
+    // a comma, since international drawings commonly use comma decimals (e.g. "28,5 ±0,1").
+    const dimensionalSignalCount = rawStrings.reduce((count, s) => {
+      const t = s.text.trim();
+      const isDimensionalToken =
+        /\d[.,]\d/.test(t) ||                 // decimal number, period or comma
+        t.includes('±') ||
+        t.includes('Ø') ||
+        /^[|⌖⏥⌯⏤⊥∠↗⌰⌭]/.test(t) ||           // GD&T feature control frame glyphs
+        /^R\s*\d/.test(t) ||                  // radius callout
+        /\d\s*°/.test(t) ||                   // angular callout
+        /^(?:SCALE|DETAIL|SECTION)\b/i.test(t);
+      return isDimensionalToken ? count + 1 : count;
+    }, 0);
+
+    if (dimensionalSignalCount >= 3) {
+      return false;
+    }
+
+    // 1. Explicit cover / handbook / practice booklet indicators.
+    // Deliberately excludes generic legal/copyright phrasing ("all rights reserved",
+    // "missing dimension") — those appear on real industrial title blocks too and are not,
+    // by themselves, reliable signals of a non-drawing page.
+    const hasStrongCoverKeywords = /\b(?:practice\s+part\s+drawings|detailed\s+drawings\s+of\s+miscellaneous\s+parts|practice\s+with\s+(?:autodesk|solidworks|catia|creo|inventor)|table\s+of\s+contents|course\s+(?:overview|syllabus)|training\s+(?:manual|guide)|workbook\s+(?:overview|exercises)|kkmsoft|good\s+luck\s+to\s+you|good\s+luck\s+in\s+your|practice\s+files?|answers?\s+for\s+these|exercise\s+best\s+practice)\b/i.test(allText);
 
     if (hasStrongCoverKeywords) {
       return true;
     }
 
-    // 2. High conversational prose density check
+    // 2. High conversational prose density check (only reached once we already know the
+    // sheet has fewer than 3 dimensional signals on it).
     const proseMatches = allText.match(/\b(?:the|this|that|these|those|contains?|containing|miscellaneous|practice|drawings?|parts?|challengi\w*|others?|none|impossible|intended|metric|modeling|units|holes?|produced|clearance|event|missing|advance|stop|instead|consider|opportunity|exercise|choices?|answers?|progression|geometries|features?|luck|tutorial|package|matter|welcome|overview|introduction|copyright)\b/gi) || [];
 
-    // Check if sheet has real GD&T frames or explicit tolerance callouts
-    const hasGdtFrames = rawStrings.some(s => /^[|⌖⏥⌯⏤⊥∠↗⌰⌭]/.test(s.text.trim()) || s.text.includes('±'));
-
-    // If there are many prose words and no authentic GD&T frames, it's a cover or text page
-    if (proseMatches.length >= 8 && !hasGdtFrames) {
+    if (proseMatches.length >= 8) {
       const hasDwgNumberField = rawStrings.some(s => /^(?:DWG\s+NO|DRAWING\s+NUMBER|PART\s+NO)\b/i.test(s.text));
       if (!hasDwgNumberField || proseMatches.length >= 15) {
         return true;
@@ -1320,6 +1394,70 @@ export class DrawingExtractionService {
     }
 
     return false;
+  }
+
+  /**
+   * Maps a pdf.js text item's PDF-space transform into the viewport's pixel space (top-left
+   * origin, y-down), honoring whatever rotation is baked into the viewport (page.rotate, plus
+   * any explicit rotation the caller requested). The naive `viewport.height - transform[5]`
+   * flip used previously only produces correct coordinates for an UNrotated page — for a
+   * 90/180/270-rotated page (common for landscape CAD drawings, and the actual layout of real
+   * customer drawings like multi-datum Amphenol/AUXEL-style sheets) it silently produces
+   * coordinates outside the sheet entirely, which then corrupts every downstream heuristic that
+   * trusts position: top-to-bottom sort order, line-grouping/clustering, title-block zone
+   * detection, and border-grid-label detection all rely on this being correct.
+   *
+   * `Util.transform(viewport.transform, item.transform)` is pdf.js's own composition of the
+   * glyph's PDF-space placement with the viewport's render transform — the same transform the
+   * canvas renderer uses — so this is correct for any rotation, not just the common cases.
+   */
+  private static textItemToViewportBox(
+    item: { transform: number[]; width?: number; height?: number },
+    viewport: { transform?: number[]; height?: number }
+  ): { x: number; y: number; width: number; height: number } {
+    // Defensive fallback for a viewport without a `transform` (a real pdf.js PageViewport always
+    // has one; this only guards a malformed/mocked caller) — assume no rotation.
+    if (!viewport.transform) {
+      const w = item.width || 40;
+      const h = item.height || 14;
+      const ty = (viewport.height || 0) - item.transform[5];
+      return { x: item.transform[4], y: Math.max(0, ty - h), width: w, height: h };
+    }
+
+    const m = Util.transform(viewport.transform as any, item.transform as any);
+    const w = item.width || 40;
+    const h = item.height || 14;
+
+    // pdf.js's reported item.width/height are already the glyph run's measured footprint IN
+    // FINAL PAGE UNITS (it has already baked in font size/scale) — they are NOT a local unit
+    // square needing the matrix's magnitude applied again. The matrix's linear part (m[0..3])
+    // here carries that same scale baked in too (it's the font/text matrix composed with the
+    // viewport transform), so applying it directly to w/h double-scales them — a few
+    // characters of text came out with a computed footprint of ~980x320pt. What we actually
+    // need from the matrix is only the ROTATION DIRECTION its two axes point in; the magnitude
+    // must come from pdf.js's own w/h. Normalize each axis to a unit vector before scaling.
+    const normalize = (dx: number, dy: number): [number, number] => {
+      const len = Math.hypot(dx, dy) || 1;
+      return [dx / len, dy / len];
+    };
+    const [uxW, uyW] = normalize(m[0], m[1]); // direction local +x (width/advance) maps to
+    const [uxH, uyH] = normalize(m[2], m[3]); // direction local +y (height/ascent) maps to
+
+    const corners = [
+      { x: m[4], y: m[5] },
+      { x: m[4] + uxW * w, y: m[5] + uyW * w },
+      { x: m[4] + uxH * h, y: m[5] + uyH * h },
+      { x: m[4] + uxW * w + uxH * h, y: m[5] + uyW * w + uyH * h }
+    ];
+    const xs = corners.map(c => c.x);
+    const ys = corners.map(c => c.y);
+
+    return {
+      x: Math.min(...xs),
+      y: Math.min(...ys),
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys)
+    };
   }
 
   /**
@@ -1366,12 +1504,21 @@ export class DrawingExtractionService {
           continue;
         }
 
-        const isNextNumberOrDim = /^\d/.test(next.text) || next.text.startsWith('Ø');
+        // A "4X"/"18x" repeated-feature multiplier starts with a digit but is a quantity label,
+        // not a dimension value — merging a diameter-symbol glyph into it (e.g. "O" + "18x" ->
+        // "Ø18x") would fabricate a nonsense 18mm/18-unit diameter where none exists.
+        const isMultiplierLabel = /^\d+\s*[xX]$/.test(next.text);
+        const isNextNumberOrDim = (/^\d/.test(next.text) || next.text.startsWith('Ø')) && !isMultiplierLabel;
         const isCurrNumberOrDim = /^\d/.test(current.text);
 
         // Check if next item is an immediate horizontal continuation
-        // Note: Standalone letters 'P', 'X', 'Y', 'Z' are only CAD symbols when accompanied by numbers/dimensions
+        // Note: Standalone letters 'O', 'P', 'X', 'Y', 'Z' are only CAD symbols when accompanied by numbers/dimensions.
+        // 'O' alongside 'P' covers CAD fonts/exporters that substitute a plain capital O for the
+        // diameter glyph (⌀) when the symbol font isn't embedded with a correct ToUnicode CMap —
+        // a common PDF-export issue, not specific to one vendor's drawings.
         const isSymbolMerge = (
+          (current.text === 'O' && isNextNumberOrDim && xGap < 18)
+        ) || (
           (current.text === 'P' && isNextNumberOrDim && xGap < 18)
         ) || (
           (current.text === 'X' && (isNextNumberOrDim || next.text === 'THRU') && xGap < 18)
@@ -1389,12 +1536,14 @@ export class DrawingExtractionService {
           let nextText = this.normalizeCadSymbols(next.text);
           let currText = current.text;
 
-          if (currText === 'P' && isNextNumberOrDim) currText = 'Ø';
+          if (currText === 'O' && isNextNumberOrDim) currText = 'Ø';
+          else if (currText === 'P' && isNextNumberOrDim) currText = 'Ø';
           else if (currText === 'X' && isNextNumberOrDim) currText = '⌴';
           else if (currText === 'Y' && isNextNumberOrDim) currText = '⌵';
           else if (currText === 'Z' && isNextNumberOrDim) currText = '↧';
 
-          if (nextText === 'P' && isCurrNumberOrDim) nextText = 'Ø';
+          if (nextText === 'O' && isCurrNumberOrDim) nextText = 'Ø';
+          else if (nextText === 'P' && isCurrNumberOrDim) nextText = 'Ø';
           else if (nextText === 'X' && isCurrNumberOrDim) nextText = '⌴';
           else if (nextText === 'Y' && isCurrNumberOrDim) nextText = '⌵';
           else if (nextText === 'Z' && isCurrNumberOrDim) nextText = '↧';
@@ -1411,7 +1560,83 @@ export class DrawingExtractionService {
       merged.push(current);
     }
 
-    return merged;
+    return this.reattachOrphanMultipliers(merged);
+  }
+
+  /**
+   * A "4X"/"18X" repeated-feature multiplier that should merge with the feature immediately to
+   * its right (rule 7 above only extends a merge rightward from whichever item becomes `current`
+   * first) can end up orphaned: the single global sort used above ties y-values within 4pt and
+   * then breaks by x, which is not a transitive ordering once several items are stacked within a
+   * few points of each other (a deviation line, a datum-reference letter, the multiplier, and the
+   * feature itself all within ~15pt of y). That can place the feature's own diameter-symbol glyph
+   * earlier in sort order than the multiplier sitting to its LEFT, so by the time the multiplier
+   * is visited, its target has already been consumed into a different merge and the
+   * strictly-forward scan can never reach backward to claim it.
+   *
+   * This mirrors SpatialClusteringEngine.reattachDeviationsAboveNominal (same underlying ordering
+   * issue, one companion shape earlier in the pipeline): find an orphaned bare "NX" item and
+   * re-attach it as a prefix on the nearest qualifying feature to its right, instead of letting it
+   * surface as its own fabricated "characteristic".
+   */
+  private static reattachOrphanMultipliers(
+    merged: Array<{ text: string; x: number; y: number; width: number; height: number }>
+  ): Array<{ text: string; x: number; y: number; width: number; height: number }> {
+    const isOrphanMultiplier = (t: { text: string }) => /^\d+\s*[xX]$/.test(t.text.trim());
+    const isFeatureLeading = (t: { text: string }) => /^Ø/.test(t.text) || /^\d/.test(t.text);
+
+    const orphanToTarget = new Map<number, number>();
+    const claimedTargets = new Set<number>();
+    for (let i = 0; i < merged.length; i++) {
+      if (!isOrphanMultiplier(merged[i])) continue;
+      const orphan = merged[i];
+
+      let bestMatch = -1;
+      let bestDist = Infinity;
+      for (let k = 0; k < merged.length; k++) {
+        if (k === i || claimedTargets.has(k)) continue;
+        const target = merged[k];
+        if (!isFeatureLeading(target)) continue;
+        if (Math.abs(target.y - orphan.y) > 6) continue;
+        const gap = target.x - (orphan.x + orphan.width);
+        if (gap < -3 || gap > 40) continue; // must sit to the right, within a short reading gap
+        if (gap < bestDist) {
+          bestDist = gap;
+          bestMatch = k;
+        }
+      }
+
+      if (bestMatch >= 0) {
+        orphanToTarget.set(i, bestMatch);
+        claimedTargets.add(bestMatch);
+      }
+    }
+
+    if (orphanToTarget.size === 0) return merged;
+
+    const targetToOrphan = new Map<number, number>();
+    for (const [o, t] of orphanToTarget) targetToOrphan.set(t, o);
+
+    const result: typeof merged = [];
+    for (let k = 0; k < merged.length; k++) {
+      if (orphanToTarget.has(k)) continue; // folded into its target below
+      const target = merged[k];
+      const orphanIdx = targetToOrphan.get(k);
+      if (orphanIdx === undefined) {
+        result.push(target);
+        continue;
+      }
+      const orphan = merged[orphanIdx];
+      result.push({
+        text: `${orphan.text.trim()} ${target.text}`.trim(),
+        x: Math.min(orphan.x, target.x),
+        y: Math.min(orphan.y, target.y),
+        width: Math.max(orphan.x + orphan.width, target.x + target.width) - Math.min(orphan.x, target.x),
+        height: Math.max(orphan.height, target.height)
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -1428,30 +1653,17 @@ export class DrawingExtractionService {
   ): Set<string> {
     const gridIds = new Set<string>();
 
-    // Margin band depth where border zone grids can reside (ASME Y14.1 peripheral channel)
-    const MARGIN_DEPTH = 36;
     const isGridCandidate = (t: string) => /^[A-Z]$|^[1-9]$|^1[0-6]$/.test(t);
 
-    const topCandidates: typeof strings = [];
-    const bottomCandidates: typeof strings = [];
-    const leftCandidates: typeof strings = [];
-    const rightCandidates: typeof strings = [];
-
-    for (const s of strings) {
-      if (!isGridCandidate(s.text)) continue;
-
-      if (s.y <= MARGIN_DEPTH) {
-        topCandidates.push(s);
-      } else if (s.y >= sheetHeight - MARGIN_DEPTH) {
-        bottomCandidates.push(s);
-      }
-
-      if (s.x <= MARGIN_DEPTH) {
-        leftCandidates.push(s);
-      } else if (s.x >= sheetWidth - MARGIN_DEPTH) {
-        rightCandidates.push(s);
-      }
-    }
+    // Border grids can sit anywhere from a few points to several hundred points inside the
+    // sheet edge, depending on page size and how much of that edge a title block eats into
+    // (large D/E-size sheets routinely have 150-700pt between the paper edge and the border
+    // frame). Rather than guess a fixed or proportional distance from the edge, we don't gate
+    // on edge proximity at all: every grid-shaped token on the page is grouped by alignment,
+    // and the existing structural checks below (>=3 labels, >=35% span, >=3 distinct values)
+    // are what actually discriminate a real grid row/column from real part dimensions that
+    // happen to share an axis.
+    const candidates = strings.filter(s => isGridCandidate(s.text));
 
     // Validate a candidate group along a horizontal margin (top or bottom)
     const validateHorizontalGroup = (candidates: typeof strings) => {
@@ -1523,10 +1735,8 @@ export class DrawingExtractionService {
       }
     };
 
-    validateHorizontalGroup(topCandidates);
-    validateHorizontalGroup(bottomCandidates);
-    validateVerticalGroup(leftCandidates);
-    validateVerticalGroup(rightCandidates);
+    validateHorizontalGroup(candidates);
+    validateVerticalGroup(candidates);
 
     return gridIds;
   }

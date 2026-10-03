@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
+import type * as pdfjsLib from 'pdfjs-dist';
 import type { EngineeringCharacteristic, BalloonAppearance } from '../../types/characteristics';
 import { formatBalloonNumber } from '../../utils/balloonFormat';
 
@@ -18,11 +19,35 @@ export class MarkedPdfExporter {
     pdfBuffer: ArrayBuffer,
     characteristics: EngineeringCharacteristic[],
     appearance?: Partial<BalloonAppearance>,
-    options: MarkedPdfExportOptions = { highlightNonConformance: true, showLeaderLines: true }
+    options: MarkedPdfExportOptions = { highlightNonConformance: true, showLeaderLines: true },
+    pdfJsDoc?: pdfjsLib.PDFDocumentProxy
   ): Promise<Uint8Array> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const numPages = pdfDoc.getPageCount();
+
+    // Every characteristic's boundingBox/customBalloonPosition is computed by
+    // DrawingExtractionService in pdf.js "viewport" space (top-left origin, y-down, with the
+    // PDF's own /Rotate already applied — see page.getViewport({ scale: 1.0 }) there). pdf-lib
+    // draws in the page's native, UN-rotated, bottom-left-origin MediaBox space, and
+    // page.getSize() does not account for /Rotate at all. For a page with a non-zero intrinsic
+    // rotation (common for landscape CAD drawings exported in a portrait page container —
+    // see pdfRenderer.ts), naively flipping Y with pageHeight would draw every balloon in the
+    // wrong place, up to 90 degrees off from the dimension it's meant to annotate. Build one
+    // pdf.js viewport per page (when the caller can give us the already-loaded document) and
+    // use its convertToPdfPoint(), which is pdf.js's own purpose-built inverse of that same
+    // transform, instead of re-deriving the rotation math by hand.
+    const pageViewports: Array<pdfjsLib.PageViewport | null> = [];
+    if (pdfJsDoc) {
+      for (let i = 0; i < numPages; i++) {
+        try {
+          const jsPage = await pdfJsDoc.getPage(i + 1);
+          pageViewports.push(jsPage.getViewport({ scale: 1.0 }));
+        } catch {
+          pageViewports.push(null);
+        }
+      }
+    }
 
     const fit = appearance?.fit ?? 2;
     const badgeRadius = fit === 1 ? 10 : fit === 3 ? 15 : 12;
@@ -51,23 +76,31 @@ export class MarkedPdfExporter {
 
       const page = pdfDoc.getPage(pageIndex);
       const { height: pageHeight } = page.getSize();
+      const viewport = pageViewports[pageIndex];
 
       const box = char.boundingBox || (char as any).calloutBoundingBox || { x: 50, y: 50, width: 40, height: 20 };
 
       // Viewport coordinates (Top-Left origin)
-      const balloonX = char.customBalloonPosition 
-        ? char.customBalloonPosition.x 
+      const balloonX = char.customBalloonPosition
+        ? char.customBalloonPosition.x
         : Math.max(12, box.x - 30);
-      const balloonY = char.customBalloonPosition 
-        ? char.customBalloonPosition.y 
+      const balloonY = char.customBalloonPosition
+        ? char.customBalloonPosition.y
         : Math.max(12, box.y + box.height / 2 - 14);
 
-      // Convert to PDF coordinates (Bottom-Left origin)
-      const badgeCenterX = balloonX + badgeRadius;
-      const badgeCenterY = pageHeight - (balloonY + badgeRadius);
-
-      const calloutCenterX = box.x + box.width / 2;
-      const calloutCenterY = pageHeight - (box.y + box.height / 2);
+      // Convert from pdf.js viewport space to pdf-lib's native page space. When we have the
+      // page's viewport, convertToPdfPoint() handles the rotation-aware transform correctly;
+      // otherwise fall back to the old rotation-naive flip (only correct for /Rotate 0 pages).
+      let badgeCenterX: number, badgeCenterY: number, calloutCenterX: number, calloutCenterY: number;
+      if (viewport) {
+        [badgeCenterX, badgeCenterY] = viewport.convertToPdfPoint(balloonX + badgeRadius, balloonY + badgeRadius);
+        [calloutCenterX, calloutCenterY] = viewport.convertToPdfPoint(box.x + box.width / 2, box.y + box.height / 2);
+      } else {
+        badgeCenterX = balloonX + badgeRadius;
+        badgeCenterY = pageHeight - (balloonY + badgeRadius);
+        calloutCenterX = box.x + box.width / 2;
+        calloutCenterY = pageHeight - (box.y + box.height / 2);
+      }
 
       // 1. Draw SVG/Vector Leader Line if balloon was repositioned away from callout
       const dist = Math.hypot(badgeCenterX - calloutCenterX, badgeCenterY - calloutCenterY);
