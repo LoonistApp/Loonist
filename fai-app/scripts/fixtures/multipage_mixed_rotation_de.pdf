@@ -1,0 +1,67 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+2 0 obj
+<< /Length 120 >>
+stream
+BT /F1 10 Tf 50 50 Td (PART NO: MIX-TEST-001) Tj ET
+BT /F1 10 Tf 350 320 Td (O) Tj ET
+BT /F1 10 Tf 350 305 Td (20) Tj ET
+endstream
+endobj
+3 0 obj
+<< /Length 297 >>
+stream
+BT /F1 9 Tf 50 550 Td (Allgemeintoleranz nach ISO 2768-mK) Tj ET
+BT /F1 9 Tf 50 535 Td (Alle Masse in Millimeter, wenn nicht anders angegeben) Tj ET
+BT /F1 9 Tf 50 520 Td (Vertraulich - Nachdruck nur mit Genehmigung) Tj ET
+BT /F1 10 Tf 400 400 Td (M8x1.25) Tj ET
+BT /F1 10 Tf 400 150 Td (35) Tj ET
+endstream
+endobj
+4 0 obj
+<<
+  /Type /Page
+  /Parent 7 0 R
+  /MediaBox [0 0 800 600]
+  /Rotate 0
+  /Contents 2 0 R
+  /Resources << /Font << /F1 1 0 R >> >>
+>>
+endobj
+5 0 obj
+<<
+  /Type /Page
+  /Parent 7 0 R
+  /MediaBox [0 0 800 600]
+  /Rotate 90
+  /Contents 3 0 R
+  /Resources << /Font << /F1 1 0 R >> >>
+>>
+endobj
+6 0 obj
+<< /Type /Pages /Kids [4 0 R 5 0 R] /Count 2 >>
+endobj
+7 0 obj
+<< /Type /Catalog /Pages 6 0 R >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000019 00000 n 
+0000000094 00000 n 
+0000000265 00000 n 
+0000000613 00000 n 
+0000000761 00000 n 
+0000000910 00000 n 
+0000000973 00000 n 
+trailer
+<<
+  /Size 8
+  /Root 7 0 R
+>>
+startxref
+1022
+%%EOF

@@ -26,6 +26,30 @@ const testSuites: TestSuite[] = [
     description: 'Runs the full extraction pipeline end to end against the bundled sample PDF and asserts against hand-verified expected output, to catch silent regressions in the regex/heuristic parsing rules'
   },
   {
+    name: 'Rotated Real Customer Drawing Extraction',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_rotated_customer_drawing_extraction.ts',
+    description: 'Runs the full extraction pipeline against a real, 90-degree-rotated, French ISO-5457-title-block customer drawing — covers a bug class (rotation/coordinate handling, fabricated title-block fallback, discarded stacked limit tolerances) the synthetic sample PDF cannot exercise'
+  },
+  {
+    name: 'Coordinate Transform Rotation Invariance',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_rotation_invariance.ts',
+    description: 'Verifies the same dimensions extract correctly across /Rotate 0, 90, 180, and 270 on identical content — the real customer fixture only covers 90, so this closes the other three untested rotations'
+  },
+  {
+    name: 'Metric Thread Callout Parsing',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_metric_thread_parsing.ts',
+    description: 'Exercises GdtParser directly against realistic ISO 965 metric thread notation variants (M6X1, M8x1.25 THRU, 4X M6X1, etc.) — an untested surface since neither fixture to date contained a metric thread callout'
+  },
+  {
+    name: 'Multi-Page Mixed-Rotation + Non-English Boilerplate',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_multipage_mixed_rotation_language.ts',
+    description: 'Verifies per-sheet rotation handling, sheet-to-sheet isolation, and that non-English (German) boilerplate does not leak through as a fake characteristic, in one multi-page document'
+  },
+  {
     name: 'Multi-Document Switching & Cache',
     sprint: 'Sprint 3',
     script: 'scripts/test_multidoc_switching.ts',
