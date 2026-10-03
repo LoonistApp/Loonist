@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Sparkles,
+  ScanSearch,
   Search,
   Circle,
   Triangle,
@@ -102,7 +102,7 @@ export const HomeRibbonTab: React.FC<HomeRibbonTabProps> = ({
         <RibbonButton
           variant="large"
           icon={
-            <Sparkles className="w-5 h-5 text-slate-700" />
+            <ScanSearch className="w-5 h-5 text-slate-700" />
           }
           label={isExtracting ? 'Extracting...' : 'Auto Extract'}
           disabled={!hasDrawing || isExtracting}
