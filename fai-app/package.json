@@ -6,9 +6,9 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
-    "predev": "node scripts/copy-pdfjs-assets.mjs",
+    "predev": "node scripts/copy-pdfjs-assets.mjs && node scripts/copy-tesseract-assets.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs && node scripts/copy-tesseract-assets.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@noble/curves": "^2.4.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "better-sqlite3": "^13.0.3",
     "fflate": "^0.8.3",
     "lucide-react": "^1.45.0",

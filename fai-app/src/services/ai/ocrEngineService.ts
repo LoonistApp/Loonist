@@ -1,4 +1,9 @@
-import { createWorker, type Worker } from 'tesseract.js';
+import { createWorker, OEM, type Worker } from 'tesseract.js';
+
+// WASM core and English trained-data model are bundled into public/tessdata at build time
+// (scripts/copy-tesseract-assets.mjs — same pattern as copy-pdfjs-assets.mjs). Resolved against
+// the page so this works both on the dev server and from file:// in the packaged app.
+const tessdataAsset = (dir: string) => new URL(`tessdata/${dir}/`, document.baseURI).href;
 
 export interface OcrTextResult {
   text: string;
@@ -39,10 +44,24 @@ export class OcrEngineService {
 
     this.initPromise = (async () => {
       try {
-        const worker = await createWorker('eng');
-        // Whitelist common engineering characters for high precision
+        // Dynamic (not static top-level) import: this file is imported by
+        // DrawingExtractionService, which the Node test harness (tsx, no Vite) loads directly —
+        // a static `?url` import gets evaluated at parse time regardless of whether this branch
+        // ever runs, and tsx has no Vite-style `?url` resolver, so it tries to load the actual
+        // worker script as a CommonJS module and crashes. A dynamic import here only ever
+        // executes when getWorker() is actually called, which the test suite never does.
+        const { default: tesseractWorkerUrl } = await import('tesseract.js/dist/worker.min.js?url');
+        const worker = await createWorker('eng', OEM.LSTM_ONLY, {
+          workerPath: tesseractWorkerUrl,
+          corePath: tessdataAsset('core'),
+          langPath: tessdataAsset('lang')
+        });
+        // Whitelist common engineering characters for high precision. Includes common Western
+        // European accented Latin characters (not just plain A-Z) — a whitelist that excludes
+        // them doesn't just mis-recognize an accented letter, Tesseract drops it from the
+        // output entirely, silently corrupting any non-English scanned drawing's text.
         await worker.setParameters({
-          tessedit_char_whitelist: '0123456789.+-xX/°ØRrcCA-Za-z(),#:%|= ',
+          tessedit_char_whitelist: '0123456789.+-xX/°ØRrcCA-Za-z(),#:%|= àâäéèêëïîôöùûüçñÀÂÄÉÈÊËÏÎÔÖÙÛÜÇÑß',
           tessedit_pageseg_mode: '6' as any // Assume a single uniform block of text
         });
         this.workerInstance = worker;
