@@ -661,6 +661,12 @@ export function App() {
 
 
   // Global CAD Hotkeys
+  // Holding Space is meant to temporarily switch to the Pan tool (per the Hand button's own
+  // tooltip), like Photoshop/Figma - but it must restore whatever tool was active before Space
+  // was pressed once released. Without that, the first accidental Space press (which also
+  // activates a just-clicked, still-focused toolbar button by default) permanently stuck the
+  // tool on Pan with no way back via the toolbar clicks alone.
+  const toolBeforeSpaceRef = useRef<ViewportTool | null>(null);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
@@ -674,12 +680,32 @@ export function App() {
       } else if (e.key.toLowerCase() === 'r') {
         setRotation((r) => (r + 90) % 360);
       } else if (e.key === ' ') {
-        setActiveTool('pan');
+        e.preventDefault(); // stop page scroll and the focused toolbar button's own space-click
+        if (toolBeforeSpaceRef.current === null) {
+          setActiveTool((current) => {
+            toolBeforeSpaceRef.current = current;
+            return 'pan';
+          });
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (toolBeforeSpaceRef.current !== null) {
+          setActiveTool(toolBeforeSpaceRef.current);
+          toolBeforeSpaceRef.current = null;
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
   // Zoom controls
