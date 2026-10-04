@@ -1447,7 +1447,7 @@ export class GdtParser {
     }
 
     // 1. Extreme prose / tutorial / book disclaimer indicators - ALWAYS prose even if numbered
-    const STRONG_PROSE_REGEX = /\b(?:autodesk|solidworks|catia|creo|inventor|kkmsoft|tutorial|workbook|handbook|course|lesson|disclaimer|copyright|rights\s+reserved|all\s+rights|apologies\s+in\s+advance|practice\s+with|designer'?s?\s+choice|luck\s+in\s+your|good\s+luck|miscellaneous\s+parts|detailed\s+drawings|simple\s+sketches|answers?\s+here|challengi\w*|practic\w*|miscellan\w*|missing\s+dimension|exercise\s+best|practice\s+files?|rougher\s+geometr\w*|chained\s+combination|intended\s+for|metric\s+modeling|clearance\s+hole)\b/i;
+    const STRONG_PROSE_REGEX = /\b(?:autodesk|solidworks|catia|creo|inventor|tutorial|workbook|handbook|course|lesson|disclaimer|copyright|rights\s+reserved|all\s+rights|apologies\s+in\s+advance|practice\s+with|designer'?s?\s+choice|miscellaneous\s+parts|detailed\s+drawings|simple\s+sketches|answers?\s+here|challengi\w*|practic\w*|miscellan\w*|missing\s+dimension|exercise\s+best|practice\s+files?|rougher\s+geometr\w*|chained\s+combination)\b/i;
     if (STRONG_PROSE_REGEX.test(clean)) {
       return true;
     }
@@ -1476,14 +1476,14 @@ export class GdtParser {
 
     // Standard GD&T frames or symbol-led callouts are preserved ONLY if they don't contain conversational prose
     if (clean.includes('|') || clean.includes('⌖') || clean.includes('⏥') || clean.includes('Ø') || clean.includes('±')) {
-      if (conversationalMatches.length > 0 || /\b(?:parts?|drawings?|practice|challenging|others?|luck|package|matter|answers?)\b/i.test(clean)) {
+      if (conversationalMatches.length > 0 || /\b(?:parts?|drawings?|practice|challenging|others?|package|matter|answers?)\b/i.test(clean)) {
         return true;
       }
       return false;
     }
 
     // 4. Natural language prose words common in book/tutorial/instructional paragraphs
-    const PROSE_WORDS_REGEX = /\b(?:this|that|these|those|contains?|containing|detailed|drawings?|miscellaneous|parts?|practice|practicing|inventor|package|matter|some|challengi\w*|others?|none|meant|difficult|however|intended|specific|modeling|tools?|hints?|provided|cases?|event|find|missing|please|accept|apologies|advance|don't|stop|instead|consider|opportunity|exercise|exercises|designer'?s?|choice|provide|liking|right|wrong|answers?|work|through|keep|mind|best|creating|simple|sketches|build|constructed|features?|which|more|complex|luck|pursuits?|software|copyright|rights?\s+reserved|autodesk|kkmsoft|all\s+rights|disclaimer|tutorial|guide|course|lesson|sample|workbook|handbook|instructions?|overview|introduction|preface|chapter|page|website|email|author|publish|published|edition)\b/i;
+    const PROSE_WORDS_REGEX = /\b(?:this|that|these|those|contains?|containing|detailed|drawings?|miscellaneous|parts?|practice|practicing|inventor|package|matter|some|challengi\w*|others?|none|meant|difficult|however|specific|tools?|hints?|provided|cases?|event|find|missing|please|accept|apologies|advance|don't|stop|instead|consider|opportunity|exercise|exercises|designer'?s?|choice|provide|liking|right|wrong|answers?|work|through|keep|mind|best|creating|simple|sketches|build|constructed|features?|which|more|complex|pursuits?|software|copyright|rights?\s+reserved|autodesk|all\s+rights|disclaimer|tutorial|guide|course|lesson|sample|workbook|handbook|instructions?|overview|introduction|preface|chapter|page|website|email|author|publish|published|edition)\b/i;
 
     if (PROSE_WORDS_REGEX.test(clean)) {
       return true;

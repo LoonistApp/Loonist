@@ -344,8 +344,7 @@ export class DrawingExtractionService {
           if (t.includes('TOLERANCES UNLESS NOTED') || t.includes('UNLESS OTHERWISE SPECIFIED')) return false;
           if (/SHEET\s+\d+\s+OF\s+\d+/i.test(t) || /^\d+\s+OF\s+\d+$/i.test(t)) return false;
           if (/\b(?:SHEET\s+\d+|\bOF\s+\d+)\b/i.test(t)) return false;
-          if (/\b(?:FILE NAME|DESCRIPTION|Curtis\s+Waguespack|FROM\s+THE\s+DESK\s+OF)\b/i.test(t)) return false;
-          if (/\b(?:Hardware|Component|Concept Model|Machined|Laser Cut|Bino Challenge)\b/i.test(t) && s.y > viewport.height - 130) return false;
+          if (/\b(?:FILE NAME|DESCRIPTION)\b/i.test(t)) return false;
           if (t === 'ALL DIMENSIONS' || t === 'ARE IN MILLIMETERS') return false;
 
           // 4f. Adaptive Title block bounding box:
@@ -1918,7 +1917,7 @@ export class DrawingExtractionService {
     // Deliberately excludes generic legal/copyright phrasing ("all rights reserved",
     // "missing dimension") — those appear on real industrial title blocks too and are not,
     // by themselves, reliable signals of a non-drawing page.
-    const hasStrongCoverKeywords = /\b(?:practice\s+part\s+drawings|detailed\s+drawings\s+of\s+miscellaneous\s+parts|practice\s+with\s+(?:autodesk|solidworks|catia|creo|inventor)|table\s+of\s+contents|course\s+(?:overview|syllabus)|training\s+(?:manual|guide)|workbook\s+(?:overview|exercises)|kkmsoft|good\s+luck\s+to\s+you|good\s+luck\s+in\s+your|practice\s+files?|answers?\s+for\s+these|exercise\s+best\s+practice)\b/i.test(allText);
+    const hasStrongCoverKeywords = /\b(?:practice\s+part\s+drawings|detailed\s+drawings\s+of\s+miscellaneous\s+parts|practice\s+with\s+(?:autodesk|solidworks|catia|creo|inventor)|table\s+of\s+contents|course\s+(?:overview|syllabus)|training\s+(?:manual|guide)|workbook\s+(?:overview|exercises)|practice\s+files?|answers?\s+for\s+these|exercise\s+best\s+practice)\b/i.test(allText);
 
     if (hasStrongCoverKeywords) {
       return true;
@@ -1926,7 +1925,7 @@ export class DrawingExtractionService {
 
     // 2. High conversational prose density check (only reached once we already know the
     // sheet has fewer than 3 dimensional signals on it).
-    const proseMatches = allText.match(/\b(?:the|this|that|these|those|contains?|containing|miscellaneous|practice|drawings?|parts?|challengi\w*|others?|none|impossible|intended|metric|modeling|units|holes?|produced|clearance|event|missing|advance|stop|instead|consider|opportunity|exercise|choices?|answers?|progression|geometries|features?|luck|tutorial|package|matter|welcome|overview|introduction|copyright)\b/gi) || [];
+    const proseMatches = allText.match(/\b(?:the|this|that|these|those|contains?|containing|miscellaneous|practice|drawings?|parts?|challengi\w*|others?|none|impossible|event|missing|advance|stop|instead|consider|opportunity|exercise|choices?|answers?|progression|geometries|features?|tutorial|package|matter|welcome|overview|introduction|copyright)\b/gi) || [];
 
     if (proseMatches.length >= 8) {
       const hasDwgNumberField = rawStrings.some(s => /^(?:DWG\s+NO|DRAWING\s+NUMBER|PART\s+NO)\b/i.test(s.text));

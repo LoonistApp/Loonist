@@ -6,6 +6,7 @@
  * while genuine ASME Y14.5 CAD callouts and engineering notes remain 100% intact.
  */
 import { GdtParser } from '../src/services/ai/gdtParser';
+import { DrawingExtractionService } from '../src/services/ai/drawingExtractionService';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -87,7 +88,17 @@ const validNotes = [
   '2. FINISH: ANODIZE PER MIL-A-8625 TYPE II CLASS 1',
   '3. BREAK ALL SHARP EDGES 0.005-0.015 MAX',
   '4. HEAT TREAT TO RC 58-62',
-  '5. ALL DIMENSIONS APPLY AFTER PLATING'
+  '5. ALL DIMENSIONS APPLY AFTER PLATING',
+  // Regression coverage for 2026-10-04's overfitting cleanup: "clearance", "holes", "metric",
+  // "units", "intended", "produced", "modeling" were previously in the prose/cover-sheet word
+  // lists (lifted from one specific tutorial PDF's disclaimer text, e.g. "metric modeling" /
+  // "clearance hole"), which risked misclassifying these exact real, common engineering terms
+  // as tutorial prose. Confirms they're gone without reopening the hole they were patching.
+  '6. DRILL #7 (.201) CLEARANCE HOLE FOR 1/4-20 SCREW',
+  '7. 4X DIA .201 HOLES EQUALLY SPACED ON A 2.500 BOLT CIRCLE',
+  '8. ALL DIMENSIONS IN METRIC UNITS PER ISO 2768',
+  '9. NOT INTENDED FOR STRUCTURAL USE',
+  '10. PART PRODUCED PER CURRENT REVISION LEVEL'
 ];
 
 for (const note of validNotes) {
@@ -97,6 +108,16 @@ for (const note of validNotes) {
   assert(!isBoilerplate, `Legitimate manufacturing note falsely flagged as administrative boilerplate: "${note}"`);
 }
 console.log(`✓ Verified all ${validNotes.length} authentic drawing notes are preserved for characteristic generation`);
+
+// 3b. Same regression coverage, but as bare short callout-style text (no note-number prefix) —
+// exercises the PROSE_WORDS_REGEX / proseMatches path directly rather than the numbered-note
+// branch's own separate safety net.
+const validBareCallouts = ['CLEARANCE HOLE', 'HOLES EQUALLY SPACED', 'METRIC UNITS', 'PRODUCED PER REV B', 'INTENDED USE: GENERAL'];
+for (const text of validBareCallouts) {
+  const isProse = GdtParser.isProseOrInstructionalText(text);
+  assert(!isProse, `Legitimate bare callout-style text was falsely flagged as prose: "${text}"`);
+}
+console.log(`✓ Verified all ${validBareCallouts.length} bare callout-style phrases using the removed overfit words are preserved`);
 
 // 4. Administrative Boilerplate & Non-Inspectable Notes must be detected and excluded
 const administrativeBoilerplateSamples = [
@@ -117,5 +138,21 @@ for (const sample of administrativeBoilerplateSamples) {
   assert(isProse, `Administrative boilerplate was NOT excluded by prose filter: "${sample}"`);
 }
 console.log(`✓ Verified all ${administrativeBoilerplateSamples.length} administrative boilerplate statements are strictly excluded`);
+
+// 5. Same 2026-10-04 overfitting cleanup, for the other function it touched: a sparse real
+// sheet (few dimensional signals, so it doesn't short-circuit past the keyword checks) whose
+// notes use the same previously-flagged words must NOT be misclassified as a cover/tutorial
+// page and skipped entirely.
+const sparseRealSheet = [
+  { text: '0.201', x: 100, y: 100, width: 30, height: 10 },
+  { text: 'CLEARANCE HOLE', x: 100, y: 120, width: 60, height: 10 },
+  { text: 'HOLES EQUALLY SPACED', x: 100, y: 140, width: 80, height: 10 },
+  { text: 'METRIC UNITS PER ISO 2768', x: 100, y: 160, width: 100, height: 10 },
+  { text: 'NOT INTENDED FOR STRUCTURAL USE', x: 100, y: 180, width: 110, height: 10 },
+  { text: 'PRODUCED PER REV B', x: 100, y: 200, width: 70, height: 10 }
+];
+const isCoverSheet = DrawingExtractionService.isCoverOrIntroductorySheet(sparseRealSheet);
+assert(!isCoverSheet, 'A real sheet using legitimate engineering terms (clearance hole, metric units, intended, produced) was misclassified as a cover/tutorial page');
+console.log('✓ A sparse real sheet using the same removed overfit words is correctly NOT classified as a cover/tutorial page');
 
 console.log('\n✅ ALL PROSE & ADMINISTRATIVE BOILERPLATE EXCLUSION TESTS PASSED!');
