@@ -50,6 +50,42 @@ const testSuites: TestSuite[] = [
     description: 'Verifies per-sheet rotation handling, sheet-to-sheet isolation, and that non-English (German) boilerplate does not leak through as a fake characteristic, in one multi-page document'
   },
   {
+    name: 'Title-Block Label Synonym Matching',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_title_block_label_synonyms.ts',
+    description: 'Verifies the title-block matcher recognizes standard label synonyms (P/N, REVISION, CAGE CODE, DESCRIPTION) beyond the original hardcoded PART NO:/REV:/CAGE:/TITLE: strings'
+  },
+  {
+    name: 'Title-Block Split Label/Value Cell Matching',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_title_block_split_label_value_cells.ts',
+    description: 'Verifies the title-block matcher recovers field values when the label and value are emitted as two separate adjacent PDF text runs (same-row and stacked layouts), not glued into one "LABEL: value" run'
+  },
+  {
+    name: 'Title-Block Search Zones & Multi-Fragment Values',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_title_block_zones_and_fragments.ts',
+    description: 'Verifies the title-block matcher reaches a left-margin-strip title block (not just the bottom-right corner), and rejoins a value split across three separate text runs rather than only reading the first fragment'
+  },
+  {
+    name: 'Title-Block German/French Label Synonyms',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_title_block_language_synonyms.ts',
+    description: 'Verifies standard German (TEIL NR) and French (INDICE, CODE CAGE, DESIGNATION) single-word title-block labels are recognized in the same simple "LABEL: value" structure English synonyms already cover'
+  },
+  {
+    name: 'OCR Fuzzy Label Matching & Plausibility Guard',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_title_block_fuzzy_ocr_matching.ts',
+    description: 'Verifies OCR-sourced garbled labels (zero/O confusion, dropped letters) still resolve via edit-distance fuzzy matching, that a short unrelated word ("CASE") cannot false-match "CAGE", and that the plausibility guard rejects bilingual table-header captions and sentence-length text as values'
+  },
+  {
+    name: 'Title-Block Table Structure Generalization',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_title_block_table_generalization.ts',
+    description: 'Verifies the row/column table-extraction logic built for the real CINH91CDB11-B.pdf fixture generalizes to a different bilingual pairing, a different zone, and a revision-history table whose latest-dated row sits in the middle rather than first or last'
+  },
+  {
     name: 'Multi-Document Switching & Cache',
     sprint: 'Sprint 3',
     script: 'scripts/test_multidoc_switching.ts',

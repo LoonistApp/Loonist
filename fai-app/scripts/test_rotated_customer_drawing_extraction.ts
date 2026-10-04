@@ -35,6 +35,21 @@
  *      and reporting the characteristic as 'unknown' + forcing needs_review rather than guessing
  *      which specific GD&T symbol it is.
  *
+ * Follow-up pass (2026-10-04), after the user manually verified this drawing's title block
+ * against the real PDF and asked for it to be read structurally rather than left blank:
+ *   7. The title block here is a genuine bilingual TABLE — "Référence / Part number" sits in
+ *      one row with its value ("CINH91CDB11") in a different, stacked row below it, and the
+ *      revision is a multi-row dated history ("A" 14/05/2025, "B" 27/05/2025), not a single
+ *      "REV: X" field. Reading it correctly needed real structural support — diacritic-aware
+ *      label matching, telling a bilingual label's OTHER half apart from a real value
+ *      (isBilingualLabelResidue), and a dedicated date-anchored revision-history-table reader
+ *      (findCurrentRevisionFromHistoryTable) that picks the row with the latest date rather
+ *      than guessing a position — not AUXEL-specific hardcoding of these 3 values. This test's
+ *      assertions below were updated FROM "stays blank, unrecognized" TO these user-verified
+ *      correct values once that support existed; see drawingExtractionService.ts's
+ *      TITLE_BLOCK_FIELD_SYNONYMS doc comment for what's still deliberately out of scope
+ *      (ISO 7200 numbered fields — no verified mapping exists to build against).
+ *
  * If a future change legitimately alters these numbers, update the expectations deliberately
  * (and say why in the commit) — don't just delete the assertion.
  */
@@ -64,15 +79,28 @@ async function run() {
   const page = await doc.getPage(1);
   assert((page as any).rotate === 90, `Fixture is expected to carry an intrinsic /Rotate 90 — got ${(page as any).rotate}. This fixture exists specifically to cover rotated-page handling.`);
 
-  const { characteristics, projectProps, titleBlockWarning } = await DrawingExtractionService.extractCharacteristics(doc as any);
+  const { characteristics, projectProps, titleBlockWarning, titleBlockFields } = await DrawingExtractionService.extractCharacteristics(doc as any);
 
-  // 1. Title block identity must NOT be silently backfilled with fake demo data when the
-  // (French, ISO-layout) title block isn't recognized — it must come back blank with a warning.
-  assert(projectProps.partName === '', `Title block fallback regressed: partName should be blank when unrecognized, got "${projectProps.partName}"`);
-  assert(projectProps.partNumber === '', `Title block fallback regressed: partNumber should be blank when unrecognized, got "${projectProps.partNumber}"`);
-  assert(projectProps.cageCode === '', `Title block fallback regressed: cageCode should be blank when unrecognized, got "${projectProps.cageCode}"`);
-  assert(!!titleBlockWarning, 'Expected a titleBlockWarning when the title block could not be recognized, got none');
-  console.log('✓ Unrecognized title block left blank with an explicit warning (no fabricated identity)');
+  // 1. Title block identity, manually verified by the user against the real PDF (2026-10-04):
+  // part number / part name / revision must be read correctly from this bilingual table-style
+  // title block, and no titleBlockWarning should fire now that it's recognized. No CAGE code
+  // exists on this drawing (a European ISO title block, not a US/NATO contracting one) — it
+  // should stay blank, which is the correct answer here, not a fallback.
+  assert(projectProps.partNumber === 'CINH91CDB11', `Part number: expected "CINH91CDB11", got "${projectProps.partNumber}"`);
+  assert(projectProps.partName === 'Conductor', `Part name: expected "Conductor", got "${projectProps.partName}"`);
+  assert(projectProps.partRevision === 'B', `Revision: expected "B" (the latest-dated history-table entry, 27/05/2025), got "${projectProps.partRevision}"`);
+  assert(projectProps.cageCode === '', `CAGE code: this drawing has none — expected blank, got "${projectProps.cageCode}"`);
+  assert(!titleBlockWarning, `Expected no titleBlockWarning now that the title block is recognized, got: "${titleBlockWarning}"`);
+  console.log('✓ Part number, part name, and current revision (from the dated history table) all match the user-verified ground truth; no CAGE code fabricated');
+
+  // 1b. Supplementary title-block fields (not part of the persisted ProjectProperties model),
+  // same user-verified ground truth.
+  assert(titleBlockFields?.material === 'Cu-ETP H12', `Material: expected "Cu-ETP H12", got "${titleBlockFields?.material}"`);
+  assert(titleBlockFields?.scale === '1:2', `Scale: expected "1:2", got "${titleBlockFields?.scale}"`);
+  assert(titleBlockFields?.mass === '881.87 g', `Mass: expected "881.87 g", got "${titleBlockFields?.mass}"`);
+  assert(titleBlockFields?.sheet === '1 / 1', `Sheet: expected "1 / 1", got "${titleBlockFields?.sheet}"`);
+  assert(titleBlockFields?.format === 'A1', `Format: expected "A1", got "${titleBlockFields?.format}"`);
+  console.log('✓ Supplementary fields (material, scale, mass, sheet, format) all match the user-verified ground truth');
 
   // 2. Real ISO 286 stacked limit/deviation tolerances on the Ø10.5 holes must be recovered,
   // not silently discarded in favor of a generic default tolerance class. All 5 holes recover it

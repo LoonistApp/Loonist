@@ -49,12 +49,22 @@ export class DrawingExtractionService {
     // silently repopulated with the canned demo part's fake dimensions — that's presenting
     // fabricated data as a real extraction result on what could be a live inspection record.
     allowDemoFallback: boolean = false
-  ): Promise<{ characteristics: EngineeringCharacteristic[]; projectProps: ProjectProperties; titleBlockWarning?: string }> {
+  ): Promise<{
+    characteristics: EngineeringCharacteristic[];
+    projectProps: ProjectProperties;
+    titleBlockWarning?: string;
+    // Supplementary title-block fields that aren't part of the persisted ProjectProperties
+    // model (material, scale, mass, sheet count, paper format) — recognized by the same
+    // structural label/value matching as the 4 core identity fields, surfaced separately so
+    // they don't ripple into the forms/exports wired to ProjectProperties.
+    titleBlockFields?: Partial<Record<'material' | 'scale' | 'mass' | 'sheet' | 'format', string>>;
+  }> {
     const characteristics: EngineeringCharacteristic[] = [];
     const sheetsMeta: Array<{ pageNumber: number; width: number; height: number }> = [];
     const step = Math.max(1, settings?.incrementStep ?? 1);
     const subDelim = settings?.subDelimiter ?? '.';
     const extractedProps: Partial<ProjectProperties> = {};
+    const extractedTitleBlockFields: Partial<Record<'material' | 'scale' | 'mass' | 'sheet' | 'format', string>> = {};
     const drawingTextObstaclesBySheet = new Map<number, Array<{ x: number; y: number; width: number; height: number }>>();
 
     // If extracting a specific target sheet, retain characteristics belonging to all other sheets
@@ -106,7 +116,7 @@ export class DrawingExtractionService {
         const textContent = await page.getTextContent();
 
         // 1. Scan text elements in the vector drawing
-        const rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
+        const rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number; source: 'vector' | 'ocr' }> = [];
         for (const item of textContent.items) {
           if ('str' in item && item.str.trim().length > 0) {
             const box = this.textItemToViewportBox(item as any, viewport);
@@ -115,7 +125,8 @@ export class DrawingExtractionService {
               x: box.x,
               y: Math.max(0, box.y),
               width: box.width,
-              height: box.height
+              height: box.height,
+              source: 'vector'
             });
           }
         }
@@ -159,7 +170,8 @@ export class DrawingExtractionService {
                   x: Math.round(b.x / ocrScale),
                   y: Math.round(b.y / ocrScale),
                   width: Math.round(b.width / ocrScale),
-                  height: Math.round(b.height / ocrScale)
+                  height: Math.round(b.height / ocrScale),
+                  source: 'ocr'
                 });
               }
             }
@@ -173,22 +185,109 @@ export class DrawingExtractionService {
 
         // 3. Parse Title Block metadata: Sheet 1 establishes the master part metadata
         // Subsequent sheets must NOT overwrite master part name or drawing number
+        // Boxes consumed by a matched title-block label/value pair — excluded from dimension
+        // candidates below regardless of position, since the broadened search zones here (not
+        // just the bottom-right corner) can otherwise let a matched value leak through as a
+        // fake dimension if it happens to contain digits (e.g. a part number or CAGE code).
+        const consumedTitleBlockBoxes: Array<{ x: number; y: number; width: number; height: number }> = [];
         if (pageNum === 1 || !extractedProps.partName) {
-          for (const s of rawStrings) {
-            if (s.x > viewport.width - 380 && s.y > viewport.height - 180) {
-              if (s.text.includes('PART NO:') && !extractedProps.partNumber) {
-                extractedProps.partNumber = s.text.replace('PART NO:', '').trim();
-                extractedProps.drawingNumber = extractedProps.partNumber;
-              } else if (s.text.includes('REV:') && !extractedProps.partRevision) {
-                extractedProps.partRevision = s.text.replace('REV:', '').trim();
-                extractedProps.drawingRevision = extractedProps.partRevision;
-              } else if (s.text.includes('CAGE:') && !extractedProps.cageCode) {
-                const match = s.text.match(/CAGE:\s*([A-Z0-9]+)/i);
-                if (match) extractedProps.cageCode = match[1];
-              } else if (s.text.includes('TITLE:') && !extractedProps.partName) {
-                extractedProps.partName = s.text.replace('TITLE:', '').trim();
-                extractedProps.drawingName = extractedProps.partName;
+          const zones = this.getTitleBlockSearchZones(viewport.width, viewport.height);
+          const boxItems = rawStrings.filter(s =>
+            zones.some(z => s.x >= z.xMin && s.x <= z.xMax && s.y >= z.yMin && s.y <= z.yMax)
+          );
+
+          // 3a. Revision history is a table, not a single field: reading the row nearest a
+          // "Revision" label would get the wrong answer if entries aren't appended where
+          // expected. Resolving the current revision from whichever row carries the latest
+          // date is a structural fact, not a per-template guess, so it's tried first and wins
+          // over the simpler single-field match below when both are present.
+          if (!extractedProps.partRevision) {
+            const historyResult = this.findCurrentRevisionFromHistoryTable(boxItems);
+            if (historyResult) {
+              extractedProps.partRevision = historyResult.revision;
+              extractedProps.drawingRevision = historyResult.revision;
+              consumedTitleBlockBoxes.push(...historyResult.consumed);
+            }
+          }
+
+          for (const s of boxItems) {
+            for (const { field, regex } of this.TITLE_BLOCK_FIELD_PATTERNS) {
+              if (this.titleBlockFieldAlreadySet(extractedProps, extractedTitleBlockFields, field)) continue;
+
+              // Match against a diacritic-stripped copy so "Référence"/"Désignation" match the
+              // plain "REFERENCE"/"DESIGNATION" synonyms, but slice the VALUE out of the
+              // original text (stripping diacritics never changes string length for the
+              // accented Latin letters these labels use) so an accented real value isn't mangled.
+              const strippedText = this.stripDiacritics(s.text);
+              const exactMatch = strippedText.match(regex);
+              let value: string | undefined;
+              if (exactMatch) {
+                const labelLen = exactMatch[0].length - (exactMatch[1] || '').length;
+                value = s.text.slice(labelLen).trim();
+              } else if (s.source === 'ocr') {
+                const fuzzy = this.fuzzyMatchTitleBlockLabel(s.text, field);
+                if (fuzzy) value = fuzzy.value.trim();
               }
+              if (value === undefined) continue;
+
+              // A bilingual label glued into one run ("Référence / Part number") leaves its
+              // OTHER half as the captured "value" once the first half is stripped as the
+              // label — recognized generically as residue (the leftover segment is itself a
+              // known label word in some language), not guessed per drawing. Treat it as no
+              // inline value and fall through to the neighbor-cell search below, same as a
+              // label run that captured nothing at all.
+              if (value && this.isBilingualLabelResidue(value)) {
+                value = '';
+              }
+
+              // A bilingual table-header CAPTION ("Description de la modification /
+              // Description of the modification") starts with a real label word too, but what
+              // follows is a sentence, not a value or label residue — accepting it would
+              // silently fabricate a field from column-header text. Reject it outright rather
+              // than falling through to the neighbor search, which would be equally wrong here.
+              if (value && !this.isPlausibleTitleBlockValue(value)) continue;
+
+              const consumed: Array<{ text: string; x: number; y: number; width: number; height: number }> = [
+                { text: s.text, x: s.x, y: s.y, width: s.width, height: s.height }
+              ];
+
+              // Label run captured nothing inline — the value is split into a separate
+              // adjacent cell (or several fragments of one value), possibly stacked below a
+              // bilingual label row rather than beside it; look for it next to the label.
+              if (!value) {
+                const neighbor = this.findNeighborValueText(s, boxItems, this.TITLE_BLOCK_FIELD_PATTERNS);
+                const candidate = neighbor?.text.trim();
+                if (candidate && !this.isBilingualLabelResidue(candidate) && this.isPlausibleTitleBlockValue(candidate)) {
+                  value = candidate;
+                  consumed.push(...neighbor!.consumed);
+                }
+              }
+              if (!value) continue;
+
+              switch (field) {
+                case 'partNumber':
+                  extractedProps.partNumber = value;
+                  extractedProps.drawingNumber = value;
+                  break;
+                case 'partRevision':
+                  extractedProps.partRevision = value;
+                  extractedProps.drawingRevision = value;
+                  break;
+                case 'cageCode': {
+                  const codeMatch = value.match(/[A-Z0-9]+/i);
+                  if (codeMatch) extractedProps.cageCode = codeMatch[0].toUpperCase();
+                  break;
+                }
+                case 'partName':
+                  extractedProps.partName = value;
+                  extractedProps.drawingName = value;
+                  break;
+                default:
+                  extractedTitleBlockFields[field] = value;
+                  break;
+              }
+              consumedTitleBlockBoxes.push(...consumed);
+              break;
             }
           }
         }
@@ -205,6 +304,14 @@ export class DrawingExtractionService {
 
           // 4b. Exclude drawing border grid labels identified by multi-label sequence alignment
           if (borderGridKeySet.has(`${Math.round(s.x)}_${Math.round(s.y)}_${s.text}`)) return false;
+
+          // 4b-bis. Exclude anything already consumed as a title-block label/value pair above.
+          // Matched by bounding-box overlap rather than exact key equality because this item may
+          // have been fused with a neighbor by mergeHorizontalLineItems since then, changing its
+          // text/coordinates — the overlap still holds against whichever raw fragment(s) fed it.
+          if (consumedTitleBlockBoxes.some(b =>
+            !(s.x + s.width < b.x || s.x > b.x + b.width || s.y + s.height < b.y || s.y > b.y + b.height)
+          )) return false;
 
           // 4c. Exclude standalone section cutting plane letters
           if (t === 'A' || t === 'B' || t === 'C' || t === 'D') return false;
@@ -233,7 +340,7 @@ export class DrawingExtractionService {
           if (/\.(?:pdf|dwg|dxf|sldprt|step|stp|ipt|iam|idw|prt|asm|catpart|catproduct)$/i.test(t) || t.includes('_fsi') || t.includes('_rd')) return false;
 
           // 4e. Exclude Title Block metadata fields & tolerance block headers
-          if (/^(?:PART NO|REV|CAGE|DWG NO|TITLE)\b/i.test(t) || t.includes('PART NO:') || t.includes('DWG NO:') || t.includes('CAGE:')) return false;
+          if (/^(?:PART\s*(?:NO\.?|NUMBER|NAME)|P\/N|REV(?:ISION)?|CAGE(?:\s*CODE|\s*CD)?|DWG\s*(?:NO\.?|NUMBER)|DRAWING\s*(?:NO\.?|NUMBER)|TITLE|DESCRIPTION)\b/i.test(t)) return false;
           if (t.includes('TOLERANCES UNLESS NOTED') || t.includes('UNLESS OTHERWISE SPECIFIED')) return false;
           if (/SHEET\s+\d+\s+OF\s+\d+/i.test(t) || /^\d+\s+OF\s+\d+$/i.test(t)) return false;
           if (/\b(?:SHEET\s+\d+|\bOF\s+\d+)\b/i.test(t)) return false;
@@ -242,11 +349,9 @@ export class DrawingExtractionService {
           if (t === 'ALL DIMENSIONS' || t === 'ARE IN MILLIMETERS') return false;
 
           // 4f. Adaptive Title block bounding box:
-          // Large D-size drawings (width >= 1000) have ~380x180 pt title blocks; standard Letter/Tabloid drawings have ~245x135 pt title blocks
           // In standard drafting (ASME Y14.1 / ISO 5457), the title block is strictly non-dimensional metadata (Part Name, Number, Sheet, File Name)
-          const tbWidth = viewport.width >= 1000 ? 380 : 245;
-          const tbHeight = viewport.width >= 1000 ? 180 : 135;
-          const inTitleBlockBox = (s.x > viewport.width - tbWidth && s.y > viewport.height - tbHeight);
+          const tbBoxSize = this.getTitleBlockBoxSize(viewport.width);
+          const inTitleBlockBox = (s.x > viewport.width - tbBoxSize.width && s.y > viewport.height - tbBoxSize.height);
           if (inTitleBlockBox) return false;
 
           // 4g. Exclude administrative boilerplate (ASME Y14.5 drafting standards, ITAR, AS9102 statements)
@@ -829,7 +934,7 @@ export class DrawingExtractionService {
       // Compute optimal, collision-free balloon coordinates using Spatial R-Tree AABB algorithm
       const spatiallyPlaced = SpatialPlacementService.recalculateAllSheets(renumbered, sheetsMeta, true, drawingTextObstaclesBySheet);
 
-      return { characteristics: spatiallyPlaced, projectProps: defaultProps, titleBlockWarning };
+      return { characteristics: spatiallyPlaced, projectProps: defaultProps, titleBlockWarning, titleBlockFields: extractedTitleBlockFields };
     } catch (err) {
       console.error('AI Extraction error:', err);
       if (onProgress) {
@@ -1312,6 +1417,443 @@ export class DrawingExtractionService {
         y: Math.round(box.y + box.height / 2 - 14)
       }
     };
+  }
+
+  /**
+   * ============================================================================================
+   * DELIBERATELY UNSUPPORTED: ISO 7200 numbered title-block fields.
+   * ============================================================================================
+   *
+   * Some drawings (particularly ISO 7200 / ISO 5457-conformant European title blocks) label
+   * their fields by NUMBER instead of a word — e.g. a small "3" or "5" printed next to a box,
+   * with no "TITLE:"/"PART NO:"-style text anywhere for TITLE_BLOCK_FIELD_SYNONYMS above to
+   * match. This engine does not read those at all; a drawing that ONLY uses numbered fields
+   * still comes back with the blank-fields-plus-titleBlockWarning fallback.
+   *
+   * This was investigated (2026-10-04) and found to be a harder problem than "add another
+   * synonym list": ISO 7200:2004 standardizes a set of DATA FIELDS AND THEIR SEMANTICS (legal
+   * owner, identification number, revision index, date of issue, segment/sheet number, number
+   * of segments, language code, creator, approval person, document type, responsible
+   * department, technical reference, document status, and others) — but it does NOT mandate a
+   * universal physical numbered-box layout that every company's title block follows. Which
+   * physical box number corresponds to which semantic field is a PER-TEMPLATE convention, not
+   * something the standard itself fixes. "Field 3 = Title" or "Field 5 = Part Number" is true
+   * for some templates and false for others — there is no single table to hardcode.
+   *
+   * So: do not add a numbered-field mapping here without a verified drawing or company
+   * template specification to build it against (same bar as everything else in this file —
+   * see the CINH91CDB11-B.pdf-verified "REFERENCE"/"DESIGNATION" entries below for what
+   * "verified" means in practice). Guessing a mapping risks writing a WRONG value into a real
+   * field with high confidence, which is worse than today's honest blank + warning.
+   *
+   * When a verified mapping does exist, add it as its own separate detection function (same
+   * pattern as findCurrentRevisionFromHistoryTable below: a dedicated reader, tried before or
+   * alongside the label-based matching, that owns its own column/field semantics) rather than
+   * folding numbered-field logic into TITLE_BLOCK_FIELD_SYNONYMS/TITLE_BLOCK_FIELD_PATTERNS,
+   * which are inherently a WORD-label mechanism and shouldn't be overloaded with a
+   * position/number-based one. This keeps the two mechanisms independently testable and means
+   * adding numbered-field support later doesn't require touching the word-label matching this
+   * comment sits next to.
+   */
+
+  /**
+   * Title-block field label synonyms, matched case-insensitively and diacritic-insensitively
+   * (stripDiacritics runs before every match, so "Référence"/"Désignation" match the plain
+   * "REFERENCE"/"DESIGNATION" entries below). English covers the common ASME/MIL-STD wording
+   * variants; German and French add the standard DIN/NF labels for the same field.
+   *
+   * `partNumber`/`partRevision`/`cageCode`/`partName` are the 4 persisted ProjectProperties
+   * identity fields; `material`/`scale`/`mass`/`sheet`/`format` are supplementary fields
+   * surfaced via the separate `titleBlockFields` result (see extractCharacteristics) rather
+   * than written into ProjectProperties, since that model is wired into forms/exports this
+   * change doesn't touch.
+   *
+   * "REFERENCE" and "DESIGNATION" (French) were verified against a real customer fixture in
+   * this repo (CINH91CDB11-B.pdf) rather than guessed — see isBilingualLabelResidue() for how
+   * a bilingual caption like "Référence / Part number" (label text in two languages glued into
+   * one run, value in a separate cell) is told apart from a real inline value.
+   */
+  private static readonly TITLE_BLOCK_FIELD_SYNONYMS: Record<
+    'partNumber' | 'partRevision' | 'cageCode' | 'partName' | 'material' | 'scale' | 'mass' | 'sheet' | 'format',
+    string[]
+  > = {
+    partNumber: [
+      'PART NUMBER', 'PART NO', 'P/N', 'DRAWING NUMBER', 'DRAWING NO', 'DWG NUMBER', 'DWG NO',
+      'TEILENUMMER', 'TEIL NR', 'ZEICHNUNGSNUMMER', 'ZEICHNUNGS NR', // German
+      'NUMERO DE PIECE', 'N DE PIECE', 'NUMERO DE PLAN', 'N DE PLAN', 'REFERENCE' // French
+    ],
+    cageCode: ['CAGE CODE', 'CAGE CD', 'CODE CAGE', 'CAGE'],
+    partRevision: ['REVISION', 'INDICE', 'REV'], // "Indice" is the standard French revision-index label
+    partName: ['PART NAME', 'DESCRIPTION', 'BENENNUNG', 'DESIGNATION', 'TITLE'],
+    material: ['RAW MATERIAL', 'MATERIAL', 'MATIERE', 'WERKSTOFF'],
+    scale: ['SCALE', 'ECHELLE', 'MASSTAB'],
+    mass: ['ESTIMATED MASS', 'MASS', 'MASSE ESTIMEE', 'WEIGHT', 'GEWICHT'],
+    sheet: ['SHEET', 'FEUILLET', 'FEUILLE', 'BLATT'],
+    format: ['FORMAT', 'SIZE']
+  };
+
+  private static escapeRegexLiteral(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Builds one anchored "label [:-]? (value)" regex per field from TITLE_BLOCK_FIELD_SYNONYMS.
+   * Longer/more specific synonyms are tried before shorter ones within each alternation (e.g.
+   * "CAGE CODE" before "CAGE") so a short label never partially swallows a longer one. The
+   * capture group holds an inline value ("PART NO: 12345-A" in one run); it is empty when the
+   * label and value are split into separate adjacent cells, a common CAD-export layout.
+   */
+  private static buildTitleBlockFieldPatterns(): Array<{
+    field: keyof typeof DrawingExtractionService.TITLE_BLOCK_FIELD_SYNONYMS;
+    regex: RegExp;
+  }> {
+    const fields = Object.keys(this.TITLE_BLOCK_FIELD_SYNONYMS) as Array<keyof typeof DrawingExtractionService.TITLE_BLOCK_FIELD_SYNONYMS>;
+    return fields.map(field => {
+      const alternation = [...this.TITLE_BLOCK_FIELD_SYNONYMS[field]]
+        .sort((a, b) => b.length - a.length)
+        .map(syn => this.escapeRegexLiteral(syn).replace(/ /g, '\\s*'))
+        .join('|');
+      return { field, regex: new RegExp(`^\\s*(?:${alternation})\\s*[:\\-]?\\s*(.*)$`, 'i') };
+    });
+  }
+
+  private static readonly TITLE_BLOCK_FIELD_PATTERNS = DrawingExtractionService.buildTitleBlockFieldPatterns();
+
+  private static stripDiacritics(s: string): string {
+    return s.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  }
+
+  /**
+   * True when `value` is just the OTHER half of a bilingual label glued into the same text run
+   * as the label that already matched (e.g. matching "REFERENCE" against "Référence / Part
+   * number" leaves the remainder "/ Part number" — itself just the English word for the same
+   * field, not real data). Detected generically: split on "/", and check whether any trimmed
+   * segment is, by itself, an exact synonym of ANY field — not guessing this drawing's
+   * template, just recognizing "this text is label vocabulary, not a value" in any language
+   * this engine already knows a label word for. When true, the caller should treat the inline
+   * capture as empty and look for the real value in a separate adjacent/stacked cell instead.
+   */
+  private static isBilingualLabelResidue(value: string): boolean {
+    if (!value.includes('/')) return false;
+    const allSynonyms = new Set(
+      Object.values(this.TITLE_BLOCK_FIELD_SYNONYMS).flat().map(s => s.toUpperCase())
+    );
+    return value.split('/').some(seg => {
+      const norm = this.stripDiacritics(seg).trim().toUpperCase();
+      return norm.length > 0 && allSynonyms.has(norm);
+    });
+  }
+
+  private static levenshteinDistance(a: string, b: string): number {
+    const m = a.length;
+    const n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  /**
+   * Fuzzy fallback for when the exact/synonym regex above doesn't match. Only ever called for
+   * OCR-sourced text (scanned drawings), never vector CAD text — a vector export's label is
+   * always exactly the string the CAD tool wrote, so fuzzing it would only add false-positive
+   * risk (e.g. a stray word 1 edit from "CAGE") for zero benefit. OCR noise is the one place a
+   * label can legitimately come out as "PART N0" or "CAGE" missing its colon, so the tolerance
+   * is scoped tightly to that channel. Synonyms of 4 characters or less ("REV", "P/N", "CAGE")
+   * are skipped entirely — too short to fuzz without matching unrelated words (bare "CAGE" is
+   * edit-distance 1 from the ordinary English word "CASE", which would otherwise false-match
+   * any OCR'd note that happened to contain it). The longer forms ("CAGE CODE", "CAGE CD")
+   * still fuzz normally.
+   */
+  private static fuzzyMatchTitleBlockLabel(
+    text: string,
+    field: 'partNumber' | 'partRevision' | 'cageCode' | 'partName'
+  ): { value: string } | undefined {
+    const collapsed = text.replace(/\s+/g, ' ').trim();
+    const upper = this.stripDiacritics(collapsed).toUpperCase();
+    const synonyms = [...this.TITLE_BLOCK_FIELD_SYNONYMS[field]].sort((a, b) => b.length - a.length);
+
+    for (const syn of synonyms) {
+      if (syn.length <= 4) continue;
+      const tolerance = syn.length <= 7 ? 1 : 2;
+      const headLen = Math.min(upper.length, syn.length);
+      if (headLen === 0) continue;
+      const head = upper.slice(0, headLen);
+      if (this.levenshteinDistance(head, syn) > tolerance) continue;
+      const rest = collapsed.slice(headLen).trim().replace(/^[:\-]\s*/, '');
+      return { value: rest };
+    }
+    return undefined;
+  }
+
+  /**
+   * Candidate zones the title block may live in. ASME Y14.1 puts it in the bottom-right
+   * corner, but that's a convention, not a rule: a title block can span the full bottom edge,
+   * run down the left or right margin (ISO 5457 side-strip style), or carry an identification
+   * block at the top-right instead. All zones share the field-matching logic below, so the
+   * only new false-positive surface is a body note that happens to start with one of the
+   * label words while sitting in one of these edge regions — unchanged risk from the
+   * content-anchored matching the engine already used in the single corner box.
+   */
+  private static getTitleBlockSearchZones(
+    viewportWidth: number,
+    viewportHeight: number
+  ): Array<{ xMin: number; xMax: number; yMin: number; yMax: number }> {
+    const box = this.getTitleBlockBoxSize(viewportWidth);
+    return [
+      { xMin: viewportWidth - box.width, xMax: viewportWidth, yMin: viewportHeight - box.height, yMax: viewportHeight }, // bottom-right (ASME default)
+      { xMin: 0, xMax: viewportWidth, yMin: viewportHeight - box.height, yMax: viewportHeight }, // full-width bottom strip
+      { xMin: 0, xMax: box.width, yMin: 0, yMax: viewportHeight }, // left margin strip
+      { xMin: viewportWidth - box.width, xMax: viewportWidth, yMin: 0, yMax: viewportHeight }, // right margin strip
+      { xMin: viewportWidth - box.width, xMax: viewportWidth, yMin: 0, yMax: box.height } // top-right identification block
+    ];
+  }
+
+  /**
+   * Large D-size drawings (width >= 1000 pt) use a ~380x180 pt title block; standard
+   * Letter/Tabloid drawings use a ~245x135 pt title block (ASME Y14.1 / ISO 5457).
+   */
+  private static getTitleBlockBoxSize(viewportWidth: number): { width: number; height: number } {
+    return viewportWidth >= 1000 ? { width: 380, height: 180 } : { width: 245, height: 135 };
+  }
+
+  /**
+   * Guards against a label word that's actually the start of a table-header caption rather
+   * than a real "label: value" row — e.g. a bilingual revision-table column header
+   * ("Description de la modification / Description of the modification") starts with
+   * "Description" too, but everything after it is a sentence, not a part name. Real
+   * title-block values are short identifiers or names, never a sentence spanning two languages.
+   * A short "N / N" sheet-count style value (e.g. "1 / 1") is legitimate data, not a caption, so
+   * the slash check only kicks in once the string is long enough to plausibly be a sentence.
+   */
+  private static isPlausibleTitleBlockValue(value: string): boolean {
+    if (!value) return false;
+    if (value.length > 80) return false;
+    if (value.includes(' / ') && value.length > 20) return false;
+    return true;
+  }
+
+  private static titleBlockFieldAlreadySet(
+    props: Partial<ProjectProperties>,
+    extraFields: Partial<Record<string, string>>,
+    field: keyof typeof DrawingExtractionService.TITLE_BLOCK_FIELD_SYNONYMS
+  ): boolean {
+    switch (field) {
+      case 'partNumber': return !!props.partNumber;
+      case 'partRevision': return !!props.partRevision;
+      case 'cageCode': return !!props.cageCode;
+      case 'partName': return !!props.partName;
+      default: return !!extraFields[field];
+    }
+  }
+
+  /**
+   * Finds the value for a split label/value title-block pair (label and value emitted as
+   * separate PDF text runs, no shared run, often no colon at all). Prefers the same row to the
+   * right, walking fragment-by-fragment so a value broken across several runs by font kerning
+   * or table-cell boundaries (e.g. "7788" + "-XY") is rejoined into one string rather than only
+   * the first fragment being read. Falls back to the nearest cell directly below (stacked
+   * label-above-value layout) when nothing qualifies to the right. Candidates that themselves
+   * look like another field's label are skipped so e.g. "TITLE" never grabs an adjacent
+   * "CAGE:" cell as its value.
+   */
+  /**
+   * General shape test for "this is a bilingual table-header caption" (e.g. "Traitement /
+   * Treatment", "Tolérances générales / All Tolerances"), independent of whether this engine
+   * happens to track that specific field. A neighbor-cell search can't rely solely on excluding
+   * our OWN known label synonyms — a title block has plenty of fields we don't track, and any
+   * one of them sitting near our target label would otherwise get grabbed as if it were the
+   * value. The shape itself is the signal: two slash-separated segments, each 1-5 words with no
+   * digits and starting with a capital letter — a real value either has no slash, or (like a
+   * sheet count "1 / 1") contains digits.
+   */
+  private static looksLikeCaptionLabel(text: string): boolean {
+    const segments = text.trim().split('/').map(s => s.trim());
+    if (segments.length !== 2) return false;
+    const isCaptionSegment = (seg: string) => {
+      if (!seg || /\d/.test(seg)) return false;
+      const words = seg.split(/\s+/);
+      return words.length <= 5 && /^[A-Z]/.test(this.stripDiacritics(words[0]));
+    };
+    return isCaptionSegment(segments[0]) && isCaptionSegment(segments[1]);
+  }
+
+  private static findNeighborValueText(
+    label: { text: string; x: number; y: number; width: number; height: number },
+    candidates: Array<{ text: string; x: number; y: number; width: number; height: number }>,
+    labelPatterns: Array<{ regex: RegExp }>
+  ): { text: string; consumed: Array<{ text: string; x: number; y: number; width: number; height: number }> } | undefined {
+    const sameRowTolerance = Math.max(4, label.height * 0.6);
+    // pt — spans an adjacent title-block cell, not unrelated text that happens to share a
+    // baseline (e.g. a company address line starting a few dozen points after a label on the
+    // same row). Real adjacent label/value cells sit tightly packed; this stays well under the
+    // ~140pt+ gap a coincidentally-aligned but unrelated cell can have.
+    const initialGap = 40;
+    const fragmentGap = 24; // pt — tight gap expected between pieces of ONE split value
+
+    const isUsable = (c: typeof candidates[0]) =>
+      c !== label && !!c.text.trim() && !labelPatterns.some(p => p.regex.test(c.text)) && !this.looksLikeCaptionLabel(c.text);
+
+    const rowFragments: typeof candidates = [];
+    const usedIndices = new Set<number>();
+    let cursor = { x: label.x, width: label.width, y: label.y };
+    while (rowFragments.length < 6) {
+      let bestIdx = -1;
+      let bestGap = Infinity;
+      for (let i = 0; i < candidates.length; i++) {
+        if (usedIndices.has(i)) continue;
+        const c = candidates[i];
+        if (!isUsable(c)) continue;
+        const sameRow = Math.abs(c.y - cursor.y) <= sameRowTolerance;
+        const gap = c.x - (cursor.x + cursor.width);
+        const gapLimit = rowFragments.length === 0 ? initialGap : fragmentGap;
+        if (sameRow && gap >= -2 && gap < gapLimit && gap < bestGap) {
+          bestGap = gap;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx === -1) break;
+      const next = candidates[bestIdx];
+      rowFragments.push(next);
+      usedIndices.add(bestIdx);
+      cursor = { x: next.x, width: next.width, y: next.y };
+    }
+    if (rowFragments.length > 0) {
+      return {
+        text: rowFragments.map(c => c.text.trim()).join(' ').replace(/\s+/g, ' ').trim(),
+        consumed: rowFragments.map(c => ({ text: c.text, x: c.x, y: c.y, width: c.width, height: c.height }))
+      };
+    }
+
+    let bestBelow: typeof candidates[0] | undefined;
+    let bestBelowGap = Infinity;
+    for (const c of candidates) {
+      if (!isUsable(c)) continue;
+      const sameColumn = c.x < label.x + label.width && c.x + c.width > label.x;
+      const gap = c.y - label.y;
+      if (sameColumn && gap > 0 && gap < 40 && gap < bestBelowGap) {
+        bestBelow = c;
+        bestBelowGap = gap;
+      }
+    }
+    if (bestBelow) {
+      return { text: bestBelow.text, consumed: [{ text: bestBelow.text, x: bestBelow.x, y: bestBelow.y, width: bestBelow.width, height: bestBelow.height }] };
+    }
+    return undefined;
+  }
+
+  /** Clusters text items into rows by y-coordinate (within `tolerance`), each row sorted left to right. */
+  private static groupIntoRows<T extends { x: number; y: number }>(items: T[], tolerance = 6): T[][] {
+    const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+    const rows: T[][] = [];
+    for (const item of sorted) {
+      const row = rows.find(r => Math.abs(r[0].y - item.y) <= tolerance);
+      if (row) row.push(item); else rows.push([item]);
+    }
+    for (const row of rows) row.sort((a, b) => a.x - b.x);
+    return rows;
+  }
+
+  /**
+   * Parses a date in DD/MM/YYYY, DD-MM-YYYY or DD.MM.YYYY order (the international convention
+   * used on the vast majority of non-US engineering drawings) into a YYYYMMDD integer for
+   * comparison. Falls back to MM/DD if the first component can't be a day (>12 and the second
+   * can), since that's an unambiguous signal regardless of which convention produced it.
+   * 2-digit years are assumed 2000+yy. Returns undefined if the text isn't a plausible date.
+   */
+  private static parseRevisionDate(text: string): number | undefined {
+    const m = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+    if (!m) return undefined;
+    let [d, mo] = [parseInt(m[1], 10), parseInt(m[2], 10)];
+    let y = parseInt(m[3], 10);
+    if (y < 100) y += 2000;
+    if (d > 12 && mo <= 12) {
+      // already day/month order
+    } else if (mo > 12 && d <= 12) {
+      [d, mo] = [mo, d];
+    }
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return undefined;
+    return y * 10000 + mo * 100 + d;
+  }
+
+  /**
+   * Finds the CURRENT revision from a revision-history table by reading the table structurally
+   * rather than guessing one company's layout: it locates the header row (a cell matching a
+   * revision-field synonym sitting in the same row as a "DATE"/"DATUM" cell — whatever that
+   * row's column order or language, that combination is what makes it a revision-history
+   * header), reads the two columns' x-positions off that row, then scans other rows for a date
+   * near the date column and a short alphanumeric code near the revision column. The row with
+   * the latest parsed date wins — "current revision" is a structural fact (newest dated entry),
+   * not a position convention that differs row-to-row, so this works regardless of whether new
+   * entries are appended above or below the header.
+   *
+   * Returns undefined (no history table found) when there's no header row with that
+   * revision+date column pairing — callers fall back to a plain "REVISION: X" field match.
+   */
+  private static findCurrentRevisionFromHistoryTable(
+    items: Array<{ text: string; x: number; y: number; width: number; height: number }>
+  ): { revision: string; consumed: Array<{ text: string; x: number; y: number; width: number; height: number }> } | undefined {
+    const revisionSynonyms = new Set(this.TITLE_BLOCK_FIELD_SYNONYMS.partRevision.map(s => s.toUpperCase()));
+    const isDateHeaderWord = (t: string) => /^(DATE|DATUM)$/i.test(this.stripDiacritics(t).trim());
+    const isRevisionHeaderWord = (t: string) => revisionSynonyms.has(this.stripDiacritics(t).trim().toUpperCase());
+
+    const rows = this.groupIntoRows(items, 6);
+    let headerRow: typeof items | undefined;
+    let revisionColX = 0;
+    let dateColX = 0;
+    for (const row of rows) {
+      const revCell = row.find(c => isRevisionHeaderWord(c.text));
+      const dateCell = row.find(c => isDateHeaderWord(c.text));
+      if (revCell && dateCell) {
+        headerRow = row;
+        revisionColX = revCell.x;
+        dateColX = dateCell.x;
+        break;
+      }
+    }
+    if (!headerRow) return undefined;
+
+    const colTolerance = 100; // pt — generous enough for column-width variance, tight enough to stay in-column
+    const maxRowsFromHeader = 350; // pt — entries sit in a handful of rows adjacent to the header; bounds the scan so an unrelated stamped date elsewhere on the sheet can't qualify
+
+    type Entry = { revision: string; date: number; rowItems: typeof items };
+    const entries: Entry[] = [];
+    for (const row of rows) {
+      if (row === headerRow) continue;
+      if (Math.abs(row[0].y - headerRow[0].y) > maxRowsFromHeader) continue;
+      const dateCell = row.find(c => Math.abs(c.x - dateColX) <= colTolerance && this.parseRevisionDate(c.text) !== undefined);
+      if (!dateCell) continue;
+      const date = this.parseRevisionDate(dateCell.text);
+      if (date === undefined) continue;
+
+      let bestRevCell: typeof items[0] | undefined;
+      let bestDist = Infinity;
+      for (const c of row) {
+        if (c === dateCell) continue;
+        if (!/^[A-Z0-9]{1,3}$/i.test(c.text.trim())) continue; // revision codes are short alphanumeric, never "/" placeholders or prose
+        const dist = Math.abs(c.x - revisionColX);
+        if (dist <= colTolerance && dist < bestDist) {
+          bestRevCell = c;
+          bestDist = dist;
+        }
+      }
+      if (!bestRevCell) continue;
+      entries.push({ revision: bestRevCell.text.trim().toUpperCase(), date, rowItems: row });
+    }
+    if (entries.length === 0) return undefined;
+
+    entries.sort((a, b) => b.date - a.date);
+    const winner = entries[0];
+    const consumed = [...headerRow, ...entries.flatMap(e => e.rowItems)]
+      .map(c => ({ text: c.text, x: c.x, y: c.y, width: c.width, height: c.height }));
+    return { revision: winner.revision, consumed };
   }
 
   /**
