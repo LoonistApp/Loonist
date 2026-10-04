@@ -151,7 +151,13 @@ export class SpatialClusteringEngine {
   private static reattachDeviationsAboveNominal(clusters: ClusteredCallout[]): ClusteredCallout[] {
     const isOrphanDeviation = (c: ClusteredCallout) =>
       c.lines.length === 1 && (c.lines[0].trim() === '0' || /^[+-]\d+(?:\.\d+)?$/.test(c.lines[0].trim()));
-    const isNominalLeading = (c: ClusteredCallout) => /^Ø?\d+(?:\.\d+)?$/.test(c.lines[0].trim());
+    // Optional leading quantity multiplier ("18x ", "4X ") tolerated: a repeated-feature nominal
+    // like "18x Ø10.5" is just as valid a reattachment target as a plain "Ø10.5" — without this,
+    // an orphaned upper-deviation line above a MULTIPLIED hole's nominal (e.g. "0" above
+    // "18x Ø10.5" above "-0.08") never finds its match here even though the main clustering pass's
+    // own stacked-limit rule (isCompanionCallout, rule 6) already tolerates the same prefix for
+    // the LOWER deviation line, so it silently surfaced as its own fabricated characteristic.
+    const isNominalLeading = (c: ClusteredCallout) => /^(?:\d+\s*[xX]\s*)?Ø?\d+(?:\.\d+)?$/.test(c.lines[0].trim());
 
     // Pass 1: find each orphan's best nominal partner, searching the WHOLE array in both
     // directions (see note above on why array order doesn't track vertical position reliably).
@@ -209,7 +215,17 @@ export class SpatialClusteringEngine {
       }
 
       const singleton = clusters[orphanIdx];
-      const lines = [...singleton.lines, ...target.lines];
+      // A target whose first line carries a leading quantity multiplier (e.g. "18x Ø10.5") must
+      // keep that line FIRST — GdtParser's multiplier detection only recognizes "NX" at the very
+      // start of the combined text. Prepending the orphan ahead of it (as for a plain "Ø10.5"
+      // target) would bury the multiplier mid-string and silently drop the repeated-feature
+      // count. Inserting the orphan as the second line instead reproduces the exact ISO 286
+      // stacked order (nominal, upper deviation, lower deviation) GdtParser's stacked-limit rule
+      // already parses correctly for the non-multiplied case.
+      const hasMultiplierPrefix = /^\d+\s*[xX]\s+/.test(target.lines[0]);
+      const lines = hasMultiplierPrefix
+        ? [target.lines[0], ...singleton.lines, ...target.lines.slice(1)]
+        : [...singleton.lines, ...target.lines];
       result.push({
         combinedText: lines.join(' / '),
         lines,

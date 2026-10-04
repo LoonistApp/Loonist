@@ -230,6 +230,12 @@ export interface ProjectProperties {
   drawingNumber: string;
   drawingRevision: string;
   cageCode: string;
+  // The issuing company/organization name, when the title block carries an explicit label for
+  // it ("Company:", "Manufacturer:", "Firma:", etc.) — distinct from cageCode (a formal CAGE
+  // code may be absent, e.g. on a non-US/NATO drawing, while the company name is still printed).
+  // Left blank, never fabricated, when the title block has no such label — an unlabeled
+  // logo/address block is not a reliable general signal and is not guessed at.
+  organizationName?: string;
   lotSize: number;
   samplingLevel: string;
   samplingType: string;
@@ -248,6 +254,15 @@ export interface TitleBlockTolerancePreset {
   // linear tolerances are resolved by dimension SIZE bracket, not decimal
   // precision - the oneDecimal..fourDecimals fields above are not used for it.
   iso2768Class?: 'f' | 'm' | 'c' | 'v';
+  // The ISO 2768-1 linear class actually DECLARED on the drawing's own general-tolerance note
+  // (e.g. "m" from a printed "ISO 2768-mK"), when one could be detected — used ONLY as the
+  // class for a bare-integer dimension's fallback size-bracket resolution (ToleranceEngine
+  // .resolveTitleBlockTolerance's existing precision-0 branch, which already called
+  // resolveMetricIso2768Tolerance for every integer mm dimension regardless, previously always
+  // defaulting to 'm' whether or not the drawing said so). Deliberately NOT the same thing as
+  // `iso2768Class` above: setting that field switches EVERY dimension (any decimal precision)
+  // to size-bracket resolution, a much larger behavior change this field does not make.
+  declaredIso2768Class?: 'f' | 'm' | 'c' | 'v';
 }
 
 export const DEFAULT_AEROSPACE_TOLERANCES: TitleBlockTolerancePreset = {

@@ -123,6 +123,18 @@ export class ToleranceEngine {
   }
 
   /**
+   * Detects the ISO 2768-1 linear tolerance class (f/m/c/v) declared on the drawing's own
+   * general-tolerance note (e.g. "ISO 2768-mK" or "ISO 2768-m / ISO 8015" -> 'm'). The trailing
+   * letter(s) after the class (K/L/H in "-mK") are ISO 2768-2's separate GEOMETRIC tolerance
+   * class — a different axis of the standard this engine does not model — and are intentionally
+   * ignored here rather than folded into the linear class.
+   */
+  public static detectIso2768Class(drawingText: string): 'f' | 'm' | 'c' | 'v' | null {
+    const match = drawingText.match(/ISO\s*2768[\s-]*([fmcvFMCV])/);
+    return match ? (match[1].toLowerCase() as 'f' | 'm' | 'c' | 'v') : null;
+  }
+
+  /**
    * Computes decimal precision from a numeric string.
    * e.g. "2.5" -> 1, "2.50" -> 2, "2.500" -> 3, "2.5000" -> 4
    */
@@ -196,7 +208,9 @@ export class ToleranceEngine {
         if (preset.unit === 'mm') {
           const nomNum = parseFloat(nominalStr);
           if (!isNaN(nomNum) && nomNum > 0) {
-            return this.resolveMetricIso2768Tolerance(nomNum);
+            // Use the class the drawing itself declared (e.g. "ISO 2768-mK" -> 'm') when one was
+            // detected; resolveMetricIso2768Tolerance's own 'm' default otherwise still applies.
+            return this.resolveMetricIso2768Tolerance(nomNum, preset.declaredIso2768Class);
           }
         }
         return {

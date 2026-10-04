@@ -134,6 +134,57 @@ function runTests() {
   }, /Corrupted or incompatible project package/);
   console.log('  [PASS] Structurally malformed characteristic data rejected before entering app state.\n');
 
+  // Test 5: titleBlockFields (material/treatment/scale/mass/sheet/format) round-trips through
+  // save -> serialize -> deserialize, schema version 2.2.0+.
+  console.log('Test 5: titleBlockFields (material/treatment) survives save -> close -> reopen');
+  const pkgWithTitleBlockFields = ProjectArchiveService.createPackage(
+    props,
+    chars,
+    blueprintDoc,
+    dummyBuffer,
+    'Turbine_Rotor_Disc.pdf',
+    0,
+    1.5,
+    90,
+    undefined,
+    { material: 'Cu-ETP H12', treatment: 'Sn 5 (I) / Cu', scale: '1:2', mass: '881.87 g', sheet: '1 / 1', format: 'A1' }
+  );
+  assert.strictEqual(pkgWithTitleBlockFields.version, '2.2.0', 'New packages are written as schema version 2.2.0');
+  const serializedWithFields = ProjectArchiveService.serialize(pkgWithTitleBlockFields);
+  assert.ok(serializedWithFields.includes('Sn 5 (I) / Cu'), 'Treatment value preserved in the serialized JSON');
+  const reopenedWithFields = ProjectArchiveService.deserialize(serializedWithFields);
+  assert.strictEqual(reopenedWithFields.titleBlockFields?.material, 'Cu-ETP H12', 'Material survives save -> close -> reopen');
+  assert.strictEqual(reopenedWithFields.titleBlockFields?.treatment, 'Sn 5 (I) / Cu', 'Treatment survives save -> close -> reopen');
+  assert.strictEqual(reopenedWithFields.titleBlockFields?.format, 'A1', 'Format survives save -> close -> reopen');
+  // Nothing else in the package may be disturbed by adding this field.
+  assert.strictEqual(reopenedWithFields.projectProps.partNumber, 'TRD-9002-REV-B', 'Existing project data untouched by the new field');
+  assert.strictEqual(reopenedWithFields.characteristics.length, 1, 'Existing characteristics untouched by the new field');
+  console.log('  [PASS] Material and treatment survive a full save -> close -> reopen cycle, with no other project data disturbed.\n');
+
+  // Test 6: Backward compatibility — a project file saved by a PRE-2.2.0 app version (no
+  // titleBlockFields key at all, exactly as Test 4's payload shape but otherwise valid) must
+  // still open cleanly, with the missing field defaulting safely rather than being rejected.
+  console.log('Test 6: Pre-2.2.0 project file (no titleBlockFields key) opens cleanly');
+  const oldFormatJson = JSON.stringify({
+    format: 'LOONIST_PROJECT_V1',
+    version: '2.1.0',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    projectProps: props,
+    blueprintDoc,
+    characteristics: chars,
+    activeSheetIndex: 0,
+    scale: 1,
+    rotation: 0
+    // Deliberately no `titleBlockFields` key — simulates a file written before this field existed.
+  });
+  const reopenedOldFormat = ProjectArchiveService.deserialize(oldFormatJson);
+  assert.strictEqual(reopenedOldFormat.format, 'LOONIST_PROJECT_V1', 'Old-format file still recognized');
+  assert.strictEqual(reopenedOldFormat.titleBlockFields, undefined, 'Missing titleBlockFields defaults to undefined, not an error');
+  assert.strictEqual(reopenedOldFormat.projectProps.partNumber, 'TRD-9002-REV-B', 'No existing project data lost when the field is absent');
+  assert.strictEqual(reopenedOldFormat.characteristics.length, 1, 'No existing characteristics lost when the field is absent');
+  console.log('  [PASS] Pre-2.2.0 project file opens cleanly; missing titleBlockFields defaults safely, no data lost.\n');
+
   console.log('=== All .loonist Project Archiver Tests PASSED Successfully! ===');
 }
 

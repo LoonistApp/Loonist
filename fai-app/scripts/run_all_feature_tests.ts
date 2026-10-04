@@ -240,6 +240,30 @@ const testSuites: TestSuite[] = [
     sprint: 'Sprint 9 / Export',
     script: 'scripts/test_ppap_export.ts',
     description: 'Verifies the Part Submission Warrant, auto-derived dimensional conformance result, Dimensional Results sheet evaluations, and the 18-element submission status checklist against AIAG PPAP submission-level defaults'
+  },
+  {
+    name: 'Independent FAI/AS9102 QA Review Fixes',
+    sprint: 'Engine Hardening / QA Review',
+    script: 'scripts/test_qa_review_fixes.ts',
+    description: 'Unit-level coverage for the 2026-10-05 independent QA review fixes: bare ISO 13715 chamfer-leg symbols, negative-nominal sign preservation through tolerancing, declared ISO 2768 class detection, and real-zone-ruler interpolation in GridZoneCalculator'
+  },
+  {
+    name: 'Already-Ballooned PDF Detection & Rejection',
+    sprint: 'Engine Hardening / QA Review',
+    script: 'scripts/test_already_ballooned_detection.ts',
+    description: 'Verifies that re-extracting from a PDF this engine already ballooned (a real round trip through MarkedPdfExporter, not a synthetic file) is refused with a clear error via the primary structural badge-shape detector — and that a legitimate drawing with 20 real sequential small-integer dimensions is never falsely rejected'
+  },
+  {
+    name: 'Organization Name Detection Across Title-Block Layouts',
+    sprint: 'Engine Hardening / Production Hardening',
+    script: 'scripts/test_organization_name_detection.ts',
+    description: 'Verifies the generalized organization-name detector works both with and without a PHONE/FAX-labeled address block, and correctly stays blank (never guesses) on genuinely ambiguous or sparse title blocks'
+  },
+  {
+    name: 'GD&T Symbol Font Registry',
+    sprint: 'Engine Hardening / Production Hardening',
+    script: 'scripts/test_gdt_symbol_registry.ts',
+    description: 'Covers every symbol in the explicit, verified CAD symbol-font glyph registry (Position, Profile-of-a-Line) plus the negative case: an unregistered glyph must stay unknown/needs_review rather than being guessed'
   }
 ];
 

@@ -1,5 +1,5 @@
 import type * as pdfjsLib from 'pdfjs-dist';
-import { Util } from 'pdfjs-dist';
+import { Util, OPS } from 'pdfjs-dist';
 import type { 
   EngineeringCharacteristic, 
   InspectionMethod,
@@ -32,6 +32,39 @@ export interface ExtractionProgress {
   totalFound: number;
 }
 
+/**
+ * Thrown when the source PDF is detected to already carry Loonist-generated balloon
+ * annotations (see DrawingExtractionService.detectExistingBalloonBadges, the primary detector,
+ * and detectExistingBalloonNumbering, its fallback). Extraction is refused outright rather than
+ * silently proceeding, because every balloon's own item-number label reads as a plausible
+ * bare-integer "dimension" to the text-based extractor — re-running extraction on an
+ * already-ballooned export corrupts the result with one phantom characteristic per balloon. The
+ * caller should surface `message` directly to the user.
+ */
+export class AlreadyBalloonedPdfError extends Error {
+  public readonly sequenceStart: number;
+  public readonly sequenceEnd: number;
+  public readonly detectionMethod: 'badge' | 'sequence';
+
+  constructor(sequenceStart: number, sequenceEnd: number, detectionMethod: 'badge' | 'sequence' = 'sequence') {
+    const evidence = detectionMethod === 'badge'
+      ? `${sequenceStart} small white-filled, stroked circular badges were found, each centered directly ` +
+        `on its own short number — the literal vector shape this engine's own MarkedPdfExporter draws for ` +
+        `every balloon, not something real drawing geometry produces`
+      : `a dense numbered sequence from ${sequenceStart} to ${sequenceEnd} was found rendered in a single ` +
+        `consistent font object — the signature of this engine's own balloon numbering, not real drawing content`;
+    super(
+      `This PDF appears to already contain Loonist-generated balloon numbers (${evidence}). ` +
+      `Extracting from an already-ballooned drawing would misread every balloon's number as a phantom ` +
+      `dimension. Please run extraction on the original, unballooned drawing file instead.`
+    );
+    this.name = 'AlreadyBalloonedPdfError';
+    this.sequenceStart = sequenceStart;
+    this.sequenceEnd = sequenceEnd;
+    this.detectionMethod = detectionMethod;
+  }
+}
+
 export class DrawingExtractionService {
   /**
    * Primary extraction pipeline: extracts all dimensions, GD&T, notes and specs
@@ -54,17 +87,17 @@ export class DrawingExtractionService {
     projectProps: ProjectProperties;
     titleBlockWarning?: string;
     // Supplementary title-block fields that aren't part of the persisted ProjectProperties
-    // model (material, scale, mass, sheet count, paper format) — recognized by the same
-    // structural label/value matching as the 4 core identity fields, surfaced separately so
-    // they don't ripple into the forms/exports wired to ProjectProperties.
-    titleBlockFields?: Partial<Record<'material' | 'scale' | 'mass' | 'sheet' | 'format', string>>;
+    // model (material, special-process treatment, scale, mass, sheet count, paper format) —
+    // recognized by the same structural label/value matching as the 4 core identity fields,
+    // surfaced separately so they don't ripple into the forms/exports wired to ProjectProperties.
+    titleBlockFields?: Partial<Record<'material' | 'treatment' | 'scale' | 'mass' | 'sheet' | 'format', string>>;
   }> {
     const characteristics: EngineeringCharacteristic[] = [];
     const sheetsMeta: Array<{ pageNumber: number; width: number; height: number }> = [];
     const step = Math.max(1, settings?.incrementStep ?? 1);
     const subDelim = settings?.subDelimiter ?? '.';
     const extractedProps: Partial<ProjectProperties> = {};
-    const extractedTitleBlockFields: Partial<Record<'material' | 'scale' | 'mass' | 'sheet' | 'format', string>> = {};
+    const extractedTitleBlockFields: Partial<Record<'material' | 'treatment' | 'scale' | 'mass' | 'sheet' | 'format', string>> = {};
     const drawingTextObstaclesBySheet = new Map<number, Array<{ x: number; y: number; width: number; height: number }>>();
 
     // If extracting a specific target sheet, retain characteristics belonging to all other sheets
@@ -116,7 +149,7 @@ export class DrawingExtractionService {
         const textContent = await page.getTextContent();
 
         // 1. Scan text elements in the vector drawing
-        const rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number; source: 'vector' | 'ocr' }> = [];
+        const rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number; source: 'vector' | 'ocr'; fontId?: string }> = [];
         for (const item of textContent.items) {
           if ('str' in item && item.str.trim().length > 0) {
             const box = this.textItemToViewportBox(item as any, viewport);
@@ -126,7 +159,11 @@ export class DrawingExtractionService {
               y: Math.max(0, box.y),
               width: box.width,
               height: box.height,
-              source: 'vector'
+              source: 'vector',
+              // pdf.js's own internal font key (e.g. "g_d0_f7") — not a human-readable font
+              // name, but every glyph drawn with the SAME embedded font object shares it
+              // exactly, which is what detectExistingBalloonNumbering below relies on.
+              fontId: 'fontName' in item ? (item as any).fontName : undefined
             });
           }
         }
@@ -282,6 +319,9 @@ export class DrawingExtractionService {
                   extractedProps.partName = value;
                   extractedProps.drawingName = value;
                   break;
+                case 'organizationName':
+                  extractedProps.organizationName = value;
+                  break;
                 default:
                   extractedTitleBlockFields[field] = value;
                   break;
@@ -290,10 +330,47 @@ export class DrawingExtractionService {
               break;
             }
           }
+
+          // Fallback: no explicit "Company:"/"Manufacturer:" label exists on many European
+          // title blocks (ISO 7200 has no mandatory numbered field for it either) — the
+          // organization name is identified structurally instead (see detectOrganizationName:
+          // an address-block-anchored signal when PHONE/FAX is present, and a general title-
+          // block font-size-outlier signal when it isn't) rather than left blank just because it
+          // has no text label. Never guesses when neither signal reaches a confident, singular
+          // answer.
+          if (!extractedProps.organizationName) {
+            const orgName = DrawingExtractionService.detectOrganizationName(rawStrings, consumedTitleBlockBoxes, boxItems);
+            if (orgName) extractedProps.organizationName = orgName;
+          }
         }
 
         // 4. Identify drawing border grid coordinates using sequence & alignment analysis (ASME Y14.1 / ISO 5457)
-        const borderGridKeySet = DrawingExtractionService.findBorderGridLabels(normalizedStrings, viewport.width, viewport.height);
+        const borderGrid = DrawingExtractionService.findBorderGridLabels(normalizedStrings, viewport.width, viewport.height);
+        const borderGridKeySet = borderGrid.excludedKeys;
+        const pageZoneRuler = { columns: borderGrid.columns, rows: borderGrid.rows };
+
+        // 4z. Refuse to extract from a PDF that already carries this engine's own balloon
+        // markup — see AlreadyBalloonedPdfError. Checked AFTER border-grid labels are known so
+        // the zone ruler's own legitimate "1, 2, 3...16" column sequence (and "A, B, C...L" rows)
+        // is excluded from the candidate pool, never mistaken for balloon numbering itself.
+        //
+        // PRIMARY signal: the actual drawn vector shape of a Loonist balloon badge (see
+        // detectExistingBalloonBadges) — a small white-filled, stroked circle immediately paired
+        // with its own centered number, which is the literal structure MarkedPdfExporter draws
+        // and essentially never occurs by coincidence in real drawing geometry.
+        const badgeDetection = await DrawingExtractionService.detectExistingBalloonBadges(page, normalizedStrings, borderGridKeySet);
+        if (badgeDetection) {
+          throw new AlreadyBalloonedPdfError(badgeDetection.count, badgeDetection.count, 'badge');
+        }
+
+        // FALLBACK signal: if operator-list inspection found no badges (e.g. a future pdf.js
+        // version changes how it reports paths, or the PDF was flattened/re-saved by another
+        // tool in a way that lost the vector badge shapes but kept the text), still catch the
+        // numbering-scheme signature as a safety net rather than silently extracting.
+        const existingBalloons = DrawingExtractionService.detectExistingBalloonNumbering(normalizedStrings, borderGridKeySet);
+        if (existingBalloons) {
+          throw new AlreadyBalloonedPdfError(existingBalloons.sequenceStart, existingBalloons.sequenceEnd, 'sequence');
+        }
 
         // Filter candidates: Exclude only outer borders, true title block metadata, and view headers
         const candidateStrings = normalizedStrings.filter(s => {
@@ -379,11 +456,18 @@ export class DrawingExtractionService {
           extractedProps.units = explicitUnits;
         }
 
-        const dynamicPreset: TitleBlockTolerancePreset = 
+        const basePreset: TitleBlockTolerancePreset =
           ToleranceEngine.parseCustomTitleBlockTolerances(allPageText, detectedUnit) ||
           (explicitUnits === 'mm'
             ? DEFAULT_METRIC_ISO_TOLERANCES
             : (settings?.tolerances || (detectedUnit === 'mm' ? DEFAULT_METRIC_ISO_TOLERANCES : DEFAULT_AEROSPACE_TOLERANCES)));
+
+        // Spread into a fresh object — basePreset may be a shared default/settings constant, and
+        // must never be mutated in place.
+        const declaredIso2768Class = ToleranceEngine.detectIso2768Class(allPageText) || undefined;
+        const dynamicPreset: TitleBlockTolerancePreset = declaredIso2768Class
+          ? { ...basePreset, declaredIso2768Class }
+          : basePreset;
 
         // 3b. Split any fused adjacent standalone numbers (e.g. "65 35" in a dimension chain)
         const refinedCandidates: Array<{ text: string; x: number; y: number; width: number; height: number }> = [];
@@ -439,21 +523,35 @@ export class DrawingExtractionService {
 
           // Check if it's a general engineering note
           const noteMatch = t.match(/^(\d+)\.\s+(.*)/);
-          if (noteMatch) {
+          // A standalone caption citing a recognized process/finish standard (e.g. "Outside
+          // edge according to ISO13715 :") is just as real an inspectable requirement as a
+          // numbered note — it simply isn't formatted as a numbered list item. Recognized
+          // generically by the presence of a real standard citation (ISO/ASTM/MIL/AMS/DIN/BS/EN
+          // followed by a 2-6 digit spec number) rather than by this drawing's specific wording,
+          // so it also covers e.g. "Surface finish per ASTM B456" on an unrelated drawing.
+          const standardCitationMatch = !noteMatch
+            ? t.match(/\b((?:ISO|ASTM|MIL(?:-[A-Z])?|AMS|DIN|BS|EN)[\s-]?\d{2,6}(?:-\d+)?)\b/i)
+            : null;
+          if (noteMatch || standardCitationMatch) {
             if (settings?.autoBalloonNotes === false) {
               continue;
             }
-            const noteNum = noteMatch[1];
-            const noteContent = noteMatch[2].trim();
+            const noteNum = noteMatch ? noteMatch[1] : null;
+            const noteContent = noteMatch ? noteMatch[2].trim() : t;
 
             // Under SAE AS9102 Section 3.8, verify it contains an authentic physical/material inspection requirement
-            const hasInspectableRequirement = 
+            const hasInspectableRequirement =
               /\b(?:MATERIAL|FINISH|BURR|EDGE|HEAT\s+TREAT|ANODIZE|COAT|PLATE|PLATING|HARDNESS|TORQUE|SURFACE|Ra|MAX|MIN|SPEC|AMS|ASTM|MIL)\b/i.test(noteContent) ||
-              /\d+(?:\.\d+)?\s*(?:MAX|MIN|Ra|RC|HB)/i.test(noteContent);
+              /\d+(?:\.\d+)?\s*(?:MAX|MIN|Ra|RC|HB)/i.test(noteContent) ||
+              !!standardCitationMatch;
 
             if (!hasInspectableRequirement) {
               continue;
             }
+
+            const noteId = noteNum ?? standardCitationMatch![1].replace(/\s+/g, '');
+            const noteZoneLabel = noteNum ? `NOTE ${noteNum}` : `NOTE (${standardCitationMatch![1].replace(/\s+/g, '')})`;
+            const toleranceSourceLabel = noteNum ? `General Note #${noteNum}` : `Drawing Note (${standardCitationMatch![1].replace(/\s+/g, '')})`;
 
             // Industry Standard Clean Canvas Rule:
             // Legitimate drawing notes (e.g. Material AMS 4928, Surface Finish 32 Ra, Deburr 0.015 MAX)
@@ -461,10 +559,10 @@ export class DrawingExtractionService {
             // but their visual balloon rendering on the CAD sheet is suppressed (skipBalloonRender: true)
             // to avoid visual number collision with drawing notes and keep the blueprint canvas clean.
             pageNoteChars.push({
-              id: `char-sheet-${pageNum}-note-${noteNum}`,
+              id: `char-sheet-${pageNum}-note-${noteId}`,
               itemNumber: 0, // Assigned sequentially after drawing dimensions
               sheetNumber: pageNum,
-              drawingZone: `NOTE ${noteNum}`,
+              drawingZone: noteZoneLabel,
               type: 'note',
               displayType: 'Note',
               subType: 'General Note',
@@ -482,7 +580,7 @@ export class DrawingExtractionService {
               lowerLimit: null,
               units: detectedUnit,
               isToleranceInherited: false,
-              toleranceSource: `General Note #${noteNum}`,
+              toleranceSource: toleranceSourceLabel,
               quantity: 1,
               inspectionMethod: /SURFACE|Ra/i.test(t) ? 'Optical Comparator' : /BURR|EDGE/i.test(t) ? 'Optical Comparator' : 'Visual / Visual Inspection',
               confidenceScore: isScannedSheet ? 0.88 : 0.98,
@@ -509,7 +607,8 @@ export class DrawingExtractionService {
                 cluster.boundingBox.x + cluster.boundingBox.width / 2,
                 cluster.boundingBox.y + cluster.boundingBox.height / 2,
                 viewport.width,
-                viewport.height
+                viewport.height,
+                pageZoneRuler
               );
 
             // Determine specific GD&T subType label
@@ -654,7 +753,8 @@ export class DrawingExtractionService {
                 cluster.boundingBox.x + cluster.boundingBox.width / 2,
                 cluster.boundingBox.y + cluster.boundingBox.height / 2,
                 viewport.width,
-                viewport.height
+                viewport.height,
+                pageZoneRuler
               );
 
             const isRef = parsed.enclosure === 'reference';
@@ -855,6 +955,76 @@ export class DrawingExtractionService {
           }
         }
 
+        // A standalone standard-citation caption (e.g. "Outside edge according to ISO13715 :")
+        // can legitimately sit inside the title-block corner region ASME Y14.1 reserves for
+        // part identity — getTitleBlockBoxSize's exclusion zone correctly keeps real title-block
+        // fields (part number, revision, etc.) out of the dimension candidate pool, but that
+        // same exclusion means a genuine process/finish requirement captioned near it is never
+        // even considered above. Scanned separately here, directly against the unfiltered text
+        // (not `candidateStrings`), excluding only what was already consumed as an actual
+        // title-block label/value pair — never widening the title-block box itself, which would
+        // risk the identity-field leakage that box was built to prevent.
+        const alreadyNotedText = new Set(pageNoteChars.map(n => n.rawText));
+        for (const s of normalizedStrings) {
+          const t = s.text.trim();
+          if (alreadyNotedText.has(t)) continue;
+          if (consumedTitleBlockBoxes.some(b =>
+            !(s.x + s.width < b.x || s.x > b.x + b.width || s.y + s.height < b.y || s.y > b.y + b.height)
+          )) continue;
+
+          // A real standard citation (e.g. "ISO13715") plus an inspectable-requirement keyword is
+          // checked BEFORE, and instead of, isProseOrInstructionalText: that heuristic's generic
+          // "2+ common grammatical words" rule (tuned for actual tutorial/book prose) also fires
+          // on short, perfectly legitimate captions like "Outside edge according to ISO13715 :"
+          // purely for containing the word "to" — a real citation is a far stronger, more
+          // specific signal that this is engineering content, not prose. isAdministrativeBoilerplate
+          // is still checked, since e.g. "INTERPRET DRAWING IN ACCORDANCE WITH ASME Y14.5" should
+          // stay excluded even though it also happens to cite a standard.
+          const citation = t.match(/\b((?:ISO|ASTM|MIL(?:-[A-Z])?|AMS|DIN|BS|EN)[\s-]?\d{2,6}(?:-\d+)?)\b/i);
+          const hasInspectableRequirement = !!citation &&
+            /\b(?:MATERIAL|FINISH|BURR|EDGE|HEAT\s+TREAT|ANODIZE|COAT|PLATE|PLATING|HARDNESS|TORQUE|SURFACE|Ra|MAX|MIN|SPEC)\b/i.test(t);
+          if (!hasInspectableRequirement) continue;
+          if (GdtParser.isAdministrativeBoilerplate(t)) continue;
+
+          const citationId = citation[1].replace(/\s+/g, '');
+          alreadyNotedText.add(t);
+          pageNoteChars.push({
+            id: `char-sheet-${pageNum}-note-${citationId}-${pageNoteChars.length}`,
+            itemNumber: 0,
+            sheetNumber: pageNum,
+            drawingZone: `NOTE (${citationId})`,
+            type: 'note',
+            displayType: 'Note',
+            subType: 'General Note',
+            classification: 'Major',
+            enclosure: 'standard',
+            rawText: t,
+            cleanNominal: null,
+            upperTol: 0,
+            lowerTol: 0,
+            minLimit: null,
+            maxLimit: null,
+            plusTol: null,
+            minusTol: null,
+            upperLimit: null,
+            lowerLimit: null,
+            units: detectedUnit,
+            isToleranceInherited: false,
+            toleranceSource: `Drawing Note (${citationId})`,
+            quantity: 1,
+            inspectionMethod: /SURFACE|Ra/i.test(t) ? 'Optical Comparator' : /BURR|EDGE/i.test(t) ? 'Optical Comparator' : 'Visual / Visual Inspection',
+            confidenceScore: isScannedSheet ? 0.88 : 0.98,
+            verificationStatus: isScannedSheet ? 'needs_review' : 'auto_accepted',
+            extractionSource: isScannedSheet ? 'ocr' : 'vector',
+            extractionConfidence: isScannedSheet ? 0.88 : 0.98,
+            isBasic: false,
+            forReference: false,
+            sourceCaptureOrSheet: `Sheet ${pageNum}`,
+            boundingBox: { x: s.x, y: s.y, width: s.width, height: s.height },
+            skipBalloonRender: true
+          });
+        }
+
         // Industry Standard: Append general inspectable notes sequentially after drawing dimensions
         // so that blueprint balloons are numbered consecutively (1, 2, 3...) on drawing geometry,
         // while notes are recorded with subsequent item numbers in AS9102 Form 3.
@@ -911,6 +1081,7 @@ export class DrawingExtractionService {
         drawingNumber: extractedProps.drawingNumber || '',
         drawingRevision: extractedProps.drawingRevision || '',
         cageCode: extractedProps.cageCode || '',
+        organizationName: extractedProps.organizationName || '',
         lotSize: 200,
         samplingLevel: 'II',
         samplingType: 'NORMAL',
@@ -1257,12 +1428,21 @@ export class DrawingExtractionService {
         const viewport = page.getViewport({ scale: 1.0 });
         const textContent = await page.getTextContent();
 
-        // Calculate drawing zone
+        // Calculate drawing zone, preferring the drawing's own printed zone ruler (see
+        // findBorderGridLabels) over a pixel-size-based guess, same as the main extraction path.
+        const allItemBoxes = textContent.items
+          .filter((item): item is typeof item & { str: string } => 'str' in item && item.str.trim().length > 0)
+          .map(item => {
+            const b = this.textItemToViewportBox(item as any, viewport);
+            return { text: item.str.trim(), x: b.x, y: Math.max(0, b.y), width: b.width, height: b.height };
+          });
+        const manualCaptureRuler = DrawingExtractionService.findBorderGridLabels(allItemBoxes, viewport.width, viewport.height);
         zone = GridZoneCalculator.calculateZone(
           box.x + box.width / 2,
           box.y + box.height / 2,
           viewport.width,
-          viewport.height
+          viewport.height,
+          { columns: manualCaptureRuler.columns, rows: manualCaptureRuler.rows }
         );
 
         // Find glyphs within or overlapping box
@@ -1462,18 +1642,32 @@ export class DrawingExtractionService {
    * variants; German and French add the standard DIN/NF labels for the same field.
    *
    * `partNumber`/`partRevision`/`cageCode`/`partName` are the 4 persisted ProjectProperties
-   * identity fields; `material`/`scale`/`mass`/`sheet`/`format` are supplementary fields
-   * surfaced via the separate `titleBlockFields` result (see extractCharacteristics) rather
-   * than written into ProjectProperties, since that model is wired into forms/exports this
-   * change doesn't touch.
+   * identity fields; `material`/`treatment`/`scale`/`mass`/`sheet`/`format` are supplementary
+   * fields surfaced via the separate `titleBlockFields` result (see extractCharacteristics)
+   * rather than written into ProjectProperties, since that model is wired into forms/exports
+   * this change doesn't touch.
    *
    * "REFERENCE" and "DESIGNATION" (French) were verified against a real customer fixture in
    * this repo (CINH91CDB11-B.pdf) rather than guessed — see isBilingualLabelResidue() for how
    * a bilingual caption like "Référence / Part number" (label text in two languages glued into
    * one run, value in a separate cell) is told apart from a real inline value.
+   *
+   * `treatment` (surface/special-process treatment, e.g. "Sn 5 (I) / Cu" tin plating) was
+   * added after an independent FAI QA review of CINH91CDB11-B.pdf found Form 2 (materials &
+   * special processes) came out completely empty even though the drawing's title block
+   * labels this field explicitly ("Traitement / Treatment") right next to "Matière / Raw
+   * material", which this engine already recognized — the gap was simply that this label had
+   * no synonym entry at all, not a parsing failure.
+   *
+   * `organizationName` is a 5th persisted ProjectProperties identity field (alongside
+   * partNumber/partRevision/cageCode/partName): the issuing company, when the title block
+   * labels it explicitly. That same QA review found CINH91CDB11-B.pdf's company name
+   * ("Amphenol") is NOT behind any such label — it is bare text next to an unlabeled logo
+   * image — so this drawing will correctly keep reporting it blank rather than have a
+   * position-based "logo block" heuristic guess at it from one fixture's layout.
    */
   private static readonly TITLE_BLOCK_FIELD_SYNONYMS: Record<
-    'partNumber' | 'partRevision' | 'cageCode' | 'partName' | 'material' | 'scale' | 'mass' | 'sheet' | 'format',
+    'partNumber' | 'partRevision' | 'cageCode' | 'partName' | 'organizationName' | 'material' | 'treatment' | 'scale' | 'mass' | 'sheet' | 'format',
     string[]
   > = {
     partNumber: [
@@ -1484,7 +1678,9 @@ export class DrawingExtractionService {
     cageCode: ['CAGE CODE', 'CAGE CD', 'CODE CAGE', 'CAGE'],
     partRevision: ['REVISION', 'INDICE', 'REV'], // "Indice" is the standard French revision-index label
     partName: ['PART NAME', 'DESCRIPTION', 'BENENNUNG', 'DESIGNATION', 'TITLE'],
+    organizationName: ['ORGANIZATION NAME', 'ORGANIZATION', 'COMPANY NAME', 'COMPANY', 'MANUFACTURER', 'FIRMA', 'SOCIETE'],
     material: ['RAW MATERIAL', 'MATERIAL', 'MATIERE', 'WERKSTOFF'],
+    treatment: ['SURFACE TREATMENT', 'TREATMENT', 'TRAITEMENT', 'BEHANDLUNG', 'FINISH'],
     scale: ['SCALE', 'ECHELLE', 'MASSTAB'],
     mass: ['ESTIMATED MASS', 'MASS', 'MASSE ESTIMEE', 'WEIGHT', 'GEWICHT'],
     sheet: ['SHEET', 'FEUILLET', 'FEUILLE', 'BLATT'],
@@ -1573,7 +1769,7 @@ export class DrawingExtractionService {
    */
   private static fuzzyMatchTitleBlockLabel(
     text: string,
-    field: 'partNumber' | 'partRevision' | 'cageCode' | 'partName'
+    field: keyof typeof DrawingExtractionService.TITLE_BLOCK_FIELD_SYNONYMS
   ): { value: string } | undefined {
     const collapsed = text.replace(/\s+/g, ' ').trim();
     const upper = this.stripDiacritics(collapsed).toUpperCase();
@@ -1639,6 +1835,87 @@ export class DrawingExtractionService {
     return true;
   }
 
+  /**
+   * Finds the issuing organization's name when the title block has no explicit field label for
+   * it (common on European title blocks — ISO 7200 has no mandatory numbered field for company
+   * name either). Two independent structural signals are tried, in order of precision; neither
+   * depends on an explicit "Company:"/"Manufacturer:" label, and both return null (never guess)
+   * rather than pick an ambiguous or low-confidence candidate:
+   *
+   * 1. Address-block anchored (most precise, when available): a company name is printed
+   *    directly above/beside its own address block, in a visibly larger font than that block's
+   *    fine-print contact lines. The address block is identified by language-agnostic PHONE/
+   *    FAX/TEL labels (every country's title block has some variant of these two, abbreviated
+   *    the same way) — not by position on the sheet, so this works regardless of which corner
+   *    the company block sits in.
+   *
+   * 2. Font-outlier within the title block (general fallback, no PHONE/FAX required): within
+   *    the already-identified title-block search zone(s), a real, populated title block is a
+   *    dense cluster of same-sized "data" text (part numbers, dates, revision letters, etc.) —
+   *    the one piece of text that's a clear, singular OUTLIER in size (>=1.6x the block's
+   *    median font height) is the company name/logo text in virtually every title-block
+   *    convention, since nothing else in that block is typically styled that much larger. Only
+   *    fires when the block is populated enough (>=5 other items) for "median" and "outlier" to
+   *    be meaningful, and only when there is exactly one such outlier — multiple equally-large
+   *    candidates (e.g. the designation and the part number are often both large) means this
+   *    can't tell which one is the company name, so it stays blank rather than guess.
+   */
+  private static detectOrganizationName(
+    rawStrings: Array<{ text: string; x: number; y: number; width: number; height: number }>,
+    consumedTitleBlockBoxes: Array<{ x: number; y: number; width: number; height: number }>,
+    titleBlockZoneItems: Array<{ text: string; x: number; y: number; width: number; height: number }>
+  ): string | null {
+    const contactLabelPattern = /\b(?:PHONE|TEL|T[ÉE]L[ÉE]PHONE|FAX|T[ÉE]L[ÉE]COPIE)\s*:/i;
+
+    const looksLikeAddressOrDataLine = (t: string) =>
+      contactLabelPattern.test(t) ||
+      /\d{4,}/.test(t) || // postal codes, phone numbers, street numbers, long part numbers
+      /\b(?:RUE|STREET|AVENUE|ROAD|STRASSE|Z\.?\s*I\.?|CEDEX)\b/i.test(t) ||
+      /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(t); // dates
+
+    // Another title-block field (part number, revision, paper-format code, ...) can easily sit
+    // near either anchor in a compact title block — excluded here because it's already been
+    // positively identified as something else, not because of where it sits.
+    const overlapsConsumedField = (s: { x: number; y: number; width: number; height: number }) =>
+      consumedTitleBlockBoxes.some(b =>
+        !(s.x + s.width < b.x || s.x > b.x + b.width || s.y + s.height < b.y || s.y > b.y + b.height)
+      );
+
+    const isPlausibleNameShape = (t: string) =>
+      t.length >= 2 && t.length <= 40 && /^[A-Za-zÀ-ÿ]/.test(t) && !looksLikeAddressOrDataLine(t);
+
+    // --- Signal 1: address-block anchored ---
+    const contactItems = rawStrings.filter(s => contactLabelPattern.test(s.text));
+    if (contactItems.length > 0) {
+      const addressFontSize = contactItems.reduce((sum, s) => sum + s.height, 0) / contactItems.length;
+      const anchorX = contactItems.reduce((sum, s) => sum + s.x, 0) / contactItems.length;
+      const anchorY = contactItems.reduce((sum, s) => sum + s.y, 0) / contactItems.length;
+      const RADIUS = 120; // PDF points — a tight, same-block proximity, not "same corner of sheet"
+
+      const candidates = rawStrings.filter(s => {
+        if (s.height < addressFontSize * 1.5) return false;
+        if (overlapsConsumedField(s)) return false;
+        const dist = Math.hypot(s.x - anchorX, s.y - anchorY);
+        if (dist > RADIUS) return false;
+        return isPlausibleNameShape(s.text.trim());
+      });
+      if (candidates.length === 1) return candidates[0].text.trim();
+    }
+
+    // --- Signal 2: font-size outlier within the title block, no PHONE/FAX required ---
+    const unconsumed = titleBlockZoneItems.filter(s => !overlapsConsumedField(s));
+    if (unconsumed.length >= 5) {
+      const heights = [...unconsumed.map(s => s.height)].sort((a, b) => a - b);
+      const medianHeight = heights[Math.floor(heights.length / 2)];
+      if (medianHeight > 0) {
+        const outliers = unconsumed.filter(s => s.height >= medianHeight * 1.6 && isPlausibleNameShape(s.text.trim()));
+        if (outliers.length === 1) return outliers[0].text.trim();
+      }
+    }
+
+    return null;
+  }
+
   private static titleBlockFieldAlreadySet(
     props: Partial<ProjectProperties>,
     extraFields: Partial<Record<string, string>>,
@@ -1649,6 +1926,7 @@ export class DrawingExtractionService {
       case 'partRevision': return !!props.partRevision;
       case 'cageCode': return !!props.cageCode;
       case 'partName': return !!props.partName;
+      case 'organizationName': return !!props.organizationName;
       default: return !!extraFields[field];
     }
   }
@@ -1869,8 +2147,19 @@ export class DrawingExtractionService {
     // sides is treated as a decimal separator, so datum/letter lists like "A, B, C" or
     // "A,B-C" are left untouched.
     t = t.replace(/(\d),(\d)/g, '$1.$2');
-    t = t.replace(/(\d+(?:\.\d+)?)c\b/g, '$1°');
-    t = t.replace(/(\d+(?:\.\d+)?)c\s/g, '$1° ');
+    // "c" as a degree-sign substitute (e.g. "45c X 3" for a 45° chamfer angle) only applies
+    // when this token is actually paired with an angle/chamfer context — an "x" multiplication
+    // sign or a CHAMFER/CSINK keyword elsewhere in the same string. A BARE "Nc" with neither
+    // (e.g. ISO 13715's standalone chamfer-leg symbol "2c", meaning a 2mm chamfer with an
+    // unstated angle) is not a degree value at all; converting it to "2°" here pre-empted
+    // GdtParser's own chamfer detection (which already accepts literal "c" directly in its
+    // angle-paired patterns, so this conversion was never actually needed for those) and
+    // misreported a chamfer size as an angular dimension.
+    const hasChamferAngleContext = /[xX×]/.test(t) || /\b(?:CHAMFER|CHAM|C'?SINK|COUNTERSINK)\b/i.test(t);
+    if (hasChamferAngleContext) {
+      t = t.replace(/(\d+(?:\.\d+)?)c\b/g, '$1°');
+      t = t.replace(/(\d+(?:\.\d+)?)c\s/g, '$1° ');
+    }
     t = t.replace(/\bP(\d+(?:\.\d+)?)/g, 'Ø$1');
     t = t.replace(/\bdia\s+(\d+(?:\.\d+)?)/i, 'Ø$1');
     return t;
@@ -2005,8 +2294,8 @@ export class DrawingExtractionService {
    * Merges fragmented adjacent text items on the same horizontal text line (e.g. standalone symbol + dimension).
    */
   private static mergeHorizontalLineItems(
-    rawItems: Array<{ text: string; x: number; y: number; width: number; height: number }>
-  ): Array<{ text: string; x: number; y: number; width: number; height: number }> {
+    rawItems: Array<{ text: string; x: number; y: number; width: number; height: number; fontId?: string }>
+  ): Array<{ text: string; x: number; y: number; width: number; height: number; fontId?: string }> {
     if (rawItems.length === 0) return [];
 
     // Sort by y baseline (within 4 pt), then left-to-right by x
@@ -2121,8 +2410,8 @@ export class DrawingExtractionService {
    * surface as its own fabricated "characteristic".
    */
   private static reattachOrphanMultipliers(
-    merged: Array<{ text: string; x: number; y: number; width: number; height: number }>
-  ): Array<{ text: string; x: number; y: number; width: number; height: number }> {
+    merged: Array<{ text: string; x: number; y: number; width: number; height: number; fontId?: string }>
+  ): Array<{ text: string; x: number; y: number; width: number; height: number; fontId?: string }> {
     const isOrphanMultiplier = (t: { text: string }) => /^\d+\s*[xX]$/.test(t.text.trim());
     const isFeatureLeading = (t: { text: string }) => /^Ø/.test(t.text) || /^\d/.test(t.text);
 
@@ -2181,18 +2470,219 @@ export class DrawingExtractionService {
   }
 
   /**
+   * PRIMARY already-ballooned detector: recognizes the literal vector shape
+   * MarkedPdfExporter.generateMarkedPdf draws for every balloon badge — `page.drawCircle` with a
+   * solid white fill and a colored stroke — immediately paired with its own centered short
+   * number, by reading the PDF's actual drawing commands (pdf.js's operator list), not just its
+   * text. This is structural evidence a real drawing's geometry does not produce by coincidence:
+   * an ordinary dimension is never drawn as a small solid-white disc with a stroked outline
+   * sitting exactly behind its own number.
+   *
+   * Verified empirically against this engine's own exporter output: a real marked PDF shows
+   * `setFillRGBColor("#ffffff")` → `setStrokeRGBColor(<any color>)` → `setLineWidth(<border
+   * width>)` → `constructPath` (bounding box square, diameter matching one of
+   * MarkedPdfExporter's three badge radii: 10/12/15pt → 20/24/30pt diameter, allowing a margin)
+   * within a handful of operators of each other, for every single balloon — confirmed by reading
+   * a known badge's own operator-list bounding box directly against its drawn radius. Badge
+   * colors are intentionally NOT matched (the user's configured balloon color/appearance can be
+   * anything), only the fill/stroke/width/shape/size STRUCTURE, which `MarkedPdfExporter` always
+   * produces regardless of color.
+   *
+   * A confirmed badge requires BOTH the shape (this function) AND a real showText nearby whose
+   * string matches a balloon-number shape — shape alone is not enough, since real drawings
+   * occasionally do have small round witness-circles or hole-leader bubbles with no number in
+   * them (never mistaken as a balloon for lack of a paired number).
+   */
+  public static async detectExistingBalloonBadges(
+    page: pdfjsLib.PDFPageProxy,
+    textItems: Array<{ text: string; x: number; y: number; width: number; height: number; fontId?: string }>,
+    excludedKeys: Set<string>
+  ): Promise<{ count: number } | null> {
+    const MIN_CONFIRMED_BADGES = 5;
+
+    const opList = await page.getOperatorList();
+    const fn = opList.fnArray;
+    const args = opList.argsArray;
+
+    const isWhiteFill = (v: unknown) => typeof v === 'string' && /^#f{5,6}$/i.test(v);
+
+    let lastWhiteFillAt = -Infinity;
+    let lastStrokeColorAt = -Infinity;
+    let lastLineWidth: number | null = null;
+    const MAX_OP_GAP = 10;
+
+    const viewport = page.getViewport({ scale: 1.0 });
+    const badgeBoxesViewportSpace: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = [];
+
+    for (let i = 0; i < fn.length; i++) {
+      const op = fn[i];
+      if (op === OPS.setFillRGBColor) {
+        lastWhiteFillAt = isWhiteFill(args[i]?.[0]) ? i : -Infinity;
+      } else if (op === OPS.setStrokeRGBColor) {
+        lastStrokeColorAt = i;
+      } else if (op === OPS.setLineWidth) {
+        lastLineWidth = args[i]?.[0] ?? null;
+      } else if (op === OPS.constructPath) {
+        const withinWindow = i - lastWhiteFillAt <= MAX_OP_GAP && i - lastStrokeColorAt <= MAX_OP_GAP;
+        const plausibleBorderWidth = lastLineWidth !== null && lastLineWidth >= 0.5 && lastLineWidth <= 4;
+        if (withinWindow && plausibleBorderWidth) {
+          const bbox = args[i]?.[2];
+          if (bbox && bbox.length >= 4) {
+            const w = bbox[2] - bbox[0];
+            const h = bbox[3] - bbox[1];
+            const diameter = (w + h) / 2;
+            const squareness = Math.abs(w - h) / Math.max(w, h, 1);
+            // MarkedPdfExporter's three fit presets: badgeRadius 10, 12, or 15 -> diameter
+            // 20/24/30pt. A margin either side absorbs minor path-approximation variance.
+            if (diameter >= 16 && diameter <= 36 && squareness < 0.15) {
+              // drawCircle's coordinates are written in native PDF page space (via
+              // viewport.convertToPdfPoint in MarkedPdfExporter), not the viewport space
+              // `textItems` uses — converted back here so the two can be compared directly.
+              const [vx1, vy1] = viewport.convertToViewportPoint(bbox[0], bbox[1]);
+              const [vx2, vy2] = viewport.convertToViewportPoint(bbox[2], bbox[3]);
+              badgeBoxesViewportSpace.push({
+                minX: Math.min(vx1, vx2), maxX: Math.max(vx1, vx2),
+                minY: Math.min(vy1, vy2), maxY: Math.max(vy1, vy2)
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (badgeBoxesViewportSpace.length < MIN_CONFIRMED_BADGES) return null;
+
+    const balloonNumberPattern = /^[A-Za-z]{0,3}-?\d{1,4}(?:[.\-]\d{1,3})?$/;
+    let confirmed = 0;
+    for (const box of badgeBoxesViewportSpace) {
+      const match = textItems.find(s => {
+        if (excludedKeys.has(`${Math.round(s.x)}_${Math.round(s.y)}_${s.text}`)) return false;
+        const t = s.text.trim();
+        if (!balloonNumberPattern.test(t) || t.length > 8) return false;
+        const cx = s.x + s.width / 2;
+        const cy = s.y + s.height / 2;
+        return cx >= box.minX && cx <= box.maxX && cy >= box.minY && cy <= box.maxY;
+      });
+      if (match) confirmed++;
+    }
+
+    return confirmed >= MIN_CONFIRMED_BADGES ? { count: confirmed } : null;
+  }
+
+  /**
+   * Detects whether this PDF already carries Loonist-generated balloon item-number annotations
+   * (see MarkedPdfExporter) by recognizing the specific, verified structural signature those
+   * balloons leave in the text layer: every balloon number on a sheet is drawn with the SAME
+   * embedded font object (pdf.js exposes this as a per-glyph internal key, e.g. "g_d0_f7" — not
+   * a human-readable name, but identical across every balloon since they share one
+   * `pdfDoc.embedFont(...)` call), and together they form a complete, gapless integer sequence
+   * starting at 1 or 2 (the balloon numbering convention — see RenumberingService/
+   * formatBalloonNumber). Real drawing content essentially never produces this: a real
+   * dimension's text is never grouped with a dozen+ OTHER short bare integers under one
+   * identical font object that, together, enumerate every integer from 1 to N without a single
+   * gap — zone-grid ruler labels are the one legitimate case that could otherwise look similar,
+   * which is why `excludedKeys` (from findBorderGridLabels, computed just before this runs) is
+   * required and subtracted first.
+   *
+   * Deliberately NOT a per-item filter: this is a one-time, whole-sheet signature check with a
+   * single pass/fail outcome for the document, so it never touches how any individual small
+   * integer dimension is parsed when it correctly passes (see AlreadyBalloonedPdfError).
+   *
+   * FALLBACK ONLY — detectExistingBalloonBadges (the actual drawn badge shape) is the primary
+   * signal and runs first; this is a safety net for if that ever fails to find anything (e.g. a
+   * future pdf.js version changes how it reports vector paths), not a standalone detector in its
+   * own right. The threshold here is set deliberately high: a genuinely plausible real drawing
+   * CAN have a dozen-plus small sequential integer dimensions sharing one font (e.g. a hole
+   * pattern dimensioned 1-15mm from a datum) without being ballooned — a real FAI balloon count,
+   * by contrast, routinely exceeds 25-30 on a non-trivial part. Never fires at a count low enough
+   * to risk rejecting that legitimate case (see the regression test covering it).
+   */
+  public static detectExistingBalloonNumbering(
+    strings: Array<{ text: string; x: number; y: number; fontId?: string }>,
+    excludedKeys: Set<string>
+  ): { sequenceStart: number; sequenceEnd: number; fontId: string } | null {
+    const MIN_SEQUENCE_LENGTH = 25;
+
+    // Candidate balloon-number tokens: bare digits, optionally with a short (<=3 char) alpha
+    // prefix and/or a ".N"/"-N" sub-characteristic suffix (formatBalloonNumber's own shapes,
+    // e.g. "1", "A-4", "7.2") — and short overall, since a real multi-part dimension string
+    // never collapses to this shape on its own.
+    const tokenPattern = /^[A-Za-z]{0,3}-?(\d{1,4})(?:[.\-]\d{1,3})?$/;
+
+    const byFont = new Map<string, Set<number>>();
+    for (const s of strings) {
+      if (!s.fontId) continue;
+      if (excludedKeys.has(`${Math.round(s.x)}_${Math.round(s.y)}_${s.text}`)) continue;
+      const t = s.text.trim();
+      if (t.length === 0 || t.length > 8) continue;
+      const m = t.match(tokenPattern);
+      if (!m) continue;
+      const n = parseInt(m[1], 10);
+      if (!byFont.has(s.fontId)) byFont.set(s.fontId, new Set());
+      byFont.get(s.fontId)!.add(n);
+    }
+
+    // Density, not strict unbroken contiguity: a handful of balloon numbers can legitimately
+    // fail to survive as their own standalone token (e.g. a balloon sitting close enough to
+    // other text that mergeHorizontalLineItems's generic adjacency rule fuses it with a
+    // neighbor) without that meaning this ISN'T a balloon-numbered sheet. Real engineering
+    // dimension text sharing one font, by contrast, is never densely packed into a small
+    // low-numbered range — its values are whatever the part's real geometry calls for, scattered
+    // arbitrarily across a wide range (see the legitimate ~5% density example in this function's
+    // own doc comment / regression test). Requiring BOTH a low starting point and high density
+    // over a wide-enough span is what tells the two apart.
+    const MIN_DENSITY = 0.7;
+
+    for (const [fontId, numSet] of byFont) {
+      const distinct = [...numSet].sort((a, b) => a - b);
+      if (distinct.length < MIN_SEQUENCE_LENGTH) continue;
+
+      const min = distinct[0];
+      const max = distinct[distinct.length - 1];
+      const span = max - min + 1;
+      const density = distinct.length / span;
+
+      if (min <= 3 && density >= MIN_DENSITY) {
+        return { sequenceStart: min, sequenceEnd: max, fontId };
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Identifies true drawing border grid coordinate labels (ASME Y14.1 / ISO 5457).
    * Border grids are sequential rows or columns of coordinates (e.g., 1, 2, 3... or A, B, C...)
    * aligned along the outer peripheral margins of the drawing sheet.
    * Isolated part dimensions located near drawing margins (e.g., a lone "3" near a section view)
    * are preserved and never falsely classified as grid coordinates.
+   *
+   * Also returns the validated labels themselves with their sheet positions (`columns`/`rows`)
+   * — the drawing's own printed zone ruler. A zone grid's size (4, 6, 8, 12, 16+ divisions per
+   * side) is a company/drafting-standard choice that cannot be reliably guessed from rendered
+   * pixel dimensions, so this real, per-drawing ruler is what GridZoneCalculator.calculateZone
+   * should interpolate against instead of a fixed-bucket pixel-size estimate. Previously this
+   * data was computed, used only to build the `excludedKeys` exclusion set below, then
+   * discarded — an audit found CINH91CDB11-B.pdf's real 16-column/12-row grid was being
+   * reported as an assumed 8-column/8-row grid, making every Form 3 "Reference Location" zone
+   * on that drawing wrong (columns off by roughly half; `ROW_LABELS` also silently reused 'A'
+   * beyond row H, a separate latent bug on any drawing with more than 8 row zones).
    */
   public static findBorderGridLabels(
     strings: Array<{ text: string; x: number; y: number; width: number; height: number }>,
     sheetWidth: number,
     sheetHeight: number
-  ): Set<string> {
+  ): {
+    excludedKeys: Set<string>;
+    columns: Array<{ label: string; position: number }>;
+    rows: Array<{ label: string; position: number }>;
+  } {
     const gridIds = new Set<string>();
+    // label -> all observed positions (a ruler printed on both the top and bottom, or both the
+    // left and right, margin yields one validated group per occurrence; averaging reconciles
+    // them instead of just keeping whichever was found last).
+    const columnPositions = new Map<string, number[]>();
+    const rowPositions = new Map<string, number[]>();
 
     const isGridCandidate = (t: string) => /^[A-Z]$|^[1-9]$|^1[0-6]$/.test(t);
 
@@ -2234,9 +2724,13 @@ export class DrawingExtractionService {
         const uniqueTexts = new Set(row.map(c => c.text));
         if (uniqueTexts.size < 3) continue;
 
-        // Validated border grid row
+        // Validated border grid row — these are the COLUMN number labels (they run
+        // horizontally, each one marking a distinct column position).
         for (const c of row) {
           gridIds.add(`${Math.round(c.x)}_${Math.round(c.y)}_${c.text}`);
+          const positions = columnPositions.get(c.text) || [];
+          positions.push(c.x);
+          columnPositions.set(c.text, positions);
         }
       }
     };
@@ -2269,9 +2763,13 @@ export class DrawingExtractionService {
         const uniqueTexts = new Set(col.map(c => c.text));
         if (uniqueTexts.size < 3) continue;
 
-        // Validated border grid column
+        // Validated border grid column — these are the ROW letter labels (they run
+        // vertically, each one marking a distinct row position).
         for (const c of col) {
           gridIds.add(`${Math.round(c.x)}_${Math.round(c.y)}_${c.text}`);
+          const positions = rowPositions.get(c.text) || [];
+          positions.push(c.y);
+          rowPositions.set(c.text, positions);
         }
       }
     };
@@ -2279,7 +2777,15 @@ export class DrawingExtractionService {
     validateHorizontalGroup(candidates);
     validateVerticalGroup(candidates);
 
-    return gridIds;
+    const average = (vals: number[]) => vals.reduce((a, b) => a + b, 0) / vals.length;
+    const columns = Array.from(columnPositions.entries())
+      .map(([label, positions]) => ({ label, position: average(positions) }))
+      .sort((a, b) => a.position - b.position);
+    const rows = Array.from(rowPositions.entries())
+      .map(([label, positions]) => ({ label, position: average(positions) }))
+      .sort((a, b) => a.position - b.position);
+
+    return { excludedKeys: gridIds, columns, rows };
   }
 }
 

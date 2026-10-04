@@ -34,12 +34,21 @@ const engineeringCharacteristicSchema = z.object({
   })
 }).passthrough();
 
+// Supplementary title-block fields (material, special-process treatment, scale, mass, sheet
+// count, paper format) — see DrawingExtractionService.extractCharacteristics. Added in schema
+// version 2.2.0; `.optional()` so a project saved by an older app version (which never wrote
+// this key at all) still deserializes cleanly — ProjectArchiveService.createPackage's caller
+// defaults a missing value to `{}` on load (see App.tsx), never treating "field absent" as an
+// error.
+const titleBlockFieldsSchema = z.record(z.string(), z.string()).optional();
+
 const loonistProjectPackageSchema = z.object({
   format: z.literal('LOONIST_PROJECT_V1'),
   version: z.string().min(1),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
   projectProps: z.record(z.string(), z.any()),
+  titleBlockFields: titleBlockFieldsSchema,
   blueprintDoc: z.record(z.string(), z.any()).nullable(),
   characteristics: z.array(engineeringCharacteristicSchema),
   settings: z.record(z.string(), z.any()).optional(),
@@ -50,12 +59,18 @@ const loonistProjectPackageSchema = z.object({
   rotation: z.number()
 }).passthrough();
 
+export type TitleBlockSupplementaryFields = Partial<Record<'material' | 'treatment' | 'scale' | 'mass' | 'sheet' | 'format', string>>;
+
 export interface LoonistProjectPackage {
   format: 'LOONIST_PROJECT_V1';
   version: string;
   createdAt: string;
   updatedAt: string;
   projectProps: ProjectProperties;
+  // Optional (not just "possibly empty") specifically so a project file saved by a pre-2.2.0
+  // app version — which never had this key — round-trips through deserialize() without the
+  // schema rejecting it as malformed. See titleBlockFieldsSchema above.
+  titleBlockFields?: TitleBlockSupplementaryFields;
   blueprintDoc: BlueprintDocument | null;
   characteristics: EngineeringCharacteristic[];
   settings?: ProjectSettings;
@@ -105,14 +120,20 @@ export class ProjectArchiveService {
     activeSheetIndex: number = 0,
     scale: number = 1.0,
     rotation: number = 0,
-    settings?: ProjectSettings
+    settings?: ProjectSettings,
+    titleBlockFields?: TitleBlockSupplementaryFields
   ): LoonistProjectPackage {
     return {
       format: 'LOONIST_PROJECT_V1',
-      version: '2.1.0',
+      // 2.2.0: adds the optional titleBlockFields key (material/treatment/scale/mass/sheet/
+      // format). A 2.1.0 reader encountering this field falls through its own permissive
+      // passthrough handling; a 2.2.0+ reader opening a 2.1.0 (or older) file simply gets
+      // titleBlockFields === undefined, defaulted safely to {} by the caller — see App.tsx.
+      version: '2.2.0',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       projectProps,
+      titleBlockFields,
       blueprintDoc,
       characteristics,
       settings,

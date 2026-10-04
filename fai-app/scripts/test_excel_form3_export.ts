@@ -173,4 +173,24 @@ const binary = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
 assert(binary.length > 1000, 'Excel output binary too small');
 console.log(`✓ Certified OpenXML XLSX binary generated successfully: ${binary.length} bytes`);
 
+// 5. Form 2 material/special-process rows (added 2026-10-05, FAI QA review fix): title-block
+// material and treatment, when extracted, must actually reach Form 2 — previously
+// buildWorkbook() had no parameter for this at all, so Form 2 was always header-only regardless
+// of what the extraction engine had already read off the drawing's title block.
+const wbWithMaterial = As9102ExcelExporter.buildWorkbook(characteristics, projectProps, undefined, {
+  material: 'Cu-ETP H12',
+  treatment: 'Sn 5 (I) / Cu'
+});
+const form2WithMaterialText = JSON.stringify(XLSX.utils.sheet_to_json(wbWithMaterial.Sheets['Form 2'], { header: 1 }));
+assert(form2WithMaterialText.includes('Cu-ETP H12'), 'Form 2 must contain the extracted raw material when supplied');
+assert(form2WithMaterialText.includes('Sn 5 (I) / Cu'), 'Form 2 must contain the extracted special-process treatment when supplied');
+console.log('✓ Form 2 correctly populates material and special-process treatment rows when the drawing\'s title block provided them');
+
+// 5b. Never fabricate: when no material/treatment was extracted (the parameter omitted, exactly
+// as every pre-existing caller of buildWorkbook still does), Form 2 must stay exactly as before
+// — header-only, nothing invented.
+const form2Json = XLSX.utils.sheet_to_json(wb.Sheets['Form 2'], { header: 1 }) as any[][];
+assert(form2Json.length === 5, `Expected Form 2 to stay header-only (5 rows) when no material/treatment was supplied, got ${form2Json.length} rows`);
+console.log('✓ Form 2 stays header-only (no fabricated material/process row) when none was extracted');
+
 console.log('>>> ALL AS9102 MULTI-SHEET EXCEL EXPORT TESTS PASSED! <<<');

@@ -2,6 +2,17 @@ import * as XLSX from 'xlsx';
 import type { EngineeringCharacteristic, ProjectProperties } from '../../types/characteristics';
 import { formatBalloonNumber } from '../../utils/balloonFormat';
 
+/**
+ * Material/special-process data read from the drawing's title block (e.g. "Matière / Raw
+ * material: Cu-ETP H12", "Traitement / Treatment: Sn 5 (I) / Cu"), surfaced for Form 2.
+ * Optional: a drawing may declare neither, in which case Form 2 stays header-only exactly as
+ * before — this never fabricates a material/process that isn't on the drawing.
+ */
+export interface TitleBlockMaterialFields {
+  material?: string;
+  treatment?: string;
+}
+
 export class As9102ExcelExporter {
   /**
    * Generates a fully formatted, genuine binary OpenXML multi-sheet AS9102 Rev B/C Excel Workbook (.xlsx)
@@ -12,9 +23,10 @@ export class As9102ExcelExporter {
     characteristics: EngineeringCharacteristic[],
     projectProps: ProjectProperties,
     fileName: string = `${projectProps.partNumber || 'AS9102'}_FAIR_Report.xlsx`,
-    balloonPrefix?: string
+    balloonPrefix?: string,
+    titleBlockMaterialFields?: TitleBlockMaterialFields
   ): void {
-    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps, balloonPrefix);
+    const wb = As9102ExcelExporter.buildWorkbook(characteristics, projectProps, balloonPrefix, titleBlockMaterialFields);
 
     // Generate binary XLSX buffer
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -72,7 +84,8 @@ export class As9102ExcelExporter {
   public static buildWorkbook(
     characteristics: EngineeringCharacteristic[],
     projectProps: ProjectProperties,
-    balloonPrefix?: string
+    balloonPrefix?: string,
+    titleBlockMaterialFields?: TitleBlockMaterialFields
   ): XLSX.WorkBook {
     const wb = XLSX.utils.book_new();
 
@@ -86,7 +99,12 @@ export class As9102ExcelExporter {
       ['1. Part Number:', projectProps.partNumber, '2. Part Name:', projectProps.partName],
       ['3. Serial Number:', '', '4. FAIR Identifier / Report Number:', `FAIR-${projectProps.partNumber}`],
       ['5. Part Revision Level:', projectProps.partRevision, '6. Drawing Number:', projectProps.drawingNumber],
-      ['7. Drawing Revision Level:', projectProps.drawingRevision, '8. Organization Name / CAGE:', projectProps.cageCode],
+      [
+        '7. Drawing Revision Level:',
+        projectProps.drawingRevision,
+        '8. Organization Name / CAGE:',
+        [projectProps.organizationName, projectProps.cageCode].filter(Boolean).join(' / ')
+      ],
       ['9. Manufacturing Process Reference:', '', '10. Purchase Order Number:', ''],
       ['11. Inspection Reason:', '', '12. FAI Complete (Yes/No):', ''],
       ['Lot Size:', projectProps.lotSize, 'Sampling Plan:', [projectProps.samplingLevel, projectProps.samplingType, projectProps.aql ? `AQL ${projectProps.aql}` : ''].filter(Boolean).join(' ')],
@@ -119,8 +137,19 @@ export class As9102ExcelExporter {
         '8. Special Process Supplier',
         '10. Certificate of Conformance #'
       ]
-      // Materials and special processes are entered by the inspector
     ];
+
+    // Pre-fill whatever the drawing's own title block declared (raw material, special-process
+    // treatment). Specification number, code, supplier, and C of C are never on the drawing
+    // itself (they come from a supplier cert/PO) and are left blank for the inspector, exactly
+    // as every other LOONIST-populated row already leaves inspector-only fields blank — this
+    // never fabricates a spec number or supplier that wasn't actually read.
+    if (titleBlockMaterialFields?.material) {
+      form2Data.push([titleBlockMaterialFields.material, '', '', '', '']);
+    }
+    if (titleBlockMaterialFields?.treatment) {
+      form2Data.push([titleBlockMaterialFields.treatment, '', '', '', '']);
+    }
 
     const wsForm2 = XLSX.utils.aoa_to_sheet(form2Data);
     wsForm2['!cols'] = [

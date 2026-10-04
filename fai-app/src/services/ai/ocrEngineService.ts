@@ -89,8 +89,17 @@ export class OcrEngineService {
     // 2. Tolerance plus-minus normalization
     t = t.replace(/\s*\+\s*-\s*/g, ' ± ');
 
-    // 3. Angular degree symbol: "45c", "30 deg", "45 DEG"
-    t = t.replace(/(\d+(?:\.\d+)?)c\b/gi, '$1°');
+    // 3. Angular degree symbol: "45c", "30 deg", "45 DEG". The "c"-as-degree-sign form only
+    // fires when actually paired with an angle/chamfer context (an "x" multiplication sign, or
+    // a CHAMFER/CSINK keyword) — a BARE "Nc" with neither is ISO 13715's standalone chamfer-leg
+    // symbol (e.g. "2c" = a 2mm chamfer, angle unstated), not a degree value. GdtParser's own
+    // chamfer patterns already accept literal "c" directly wherever this substitution actually
+    // matters, so gating it here costs nothing and avoids misreporting a chamfer size as an
+    // angle.
+    const hasChamferAngleContext = /[xX×]/i.test(t) || /\b(?:CHAMFER|CHAM|C'?SINK|COUNTERSINK)\b/i.test(t);
+    if (hasChamferAngleContext) {
+      t = t.replace(/(\d+(?:\.\d+)?)c\b/gi, '$1°');
+    }
     t = t.replace(/(\d+(?:\.\d+)?)\s*(?:deg|degrees)\b/gi, '$1°');
 
     // 4. Feature symbols: Depth, Counterbore, Countersink

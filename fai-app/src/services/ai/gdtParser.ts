@@ -201,7 +201,9 @@ export class GdtParser {
 
     // 7. Check for Reference Dimension ( 2.750 ) or "12.450 REF" (ASME Y14.5 § 1.3.33)
     if (this.isReferenceDimension(cleanText) || /\bREF\b/i.test(cleanText)) {
-      const numMatch = textToParse.match(/(?:\d+\.?\d*|\.\d+)/);
+      // Leading "-?" so a genuinely negative reference value (e.g. "-0.5 REF") keeps its sign
+      // instead of silently reporting the positive magnitude.
+      const numMatch = textToParse.match(/-?(?:\d+\.?\d*|\.\d+)/);
       const nominal = numMatch ? parseFloat(numMatch[0]) : null;
       return {
         rawText: text,
@@ -494,7 +496,11 @@ export class GdtParser {
       };
     }
 
-    const numMatch = textToParse.match(/(?:\d+\.?\d*|\.\d+)/);
+    // Leading "-?" so a bare negative dimension (e.g. "-0.1", a permissible edge-break/deviation
+    // value) keeps its sign through to calculateLimits below. Without it, "-0.1" matched as just
+    // "0.1" and a title-block ±0.1 tolerance then produced [0, 0.2] instead of the correct
+    // [-0.2, 0] — calculateLimits itself is sign-correct; the nominal fed into it was not.
+    const numMatch = textToParse.match(/-?(?:\d+\.?\d*|\.\d+)/);
     const nominal = numMatch ? parseFloat(numMatch[0]) : null;
     if (nominal === null || isNaN(nominal)) {
       return {
@@ -1004,6 +1010,12 @@ export class GdtParser {
     idx++;
 
     let hasDiameter = false;
+    // 'O' is the same class of verified symbol-font substitution as SYMBOL_FONT_GLYPH_REGISTRY
+    // above, for the diameter-modifier glyph specifically: confirmed against CINH91CDB11-B.pdf
+    // that "SolidEdgeANSI1Symbols" draws the in-frame ⌀ modifier at the plain letter "O" (code
+    // point 0x4F), immediately following the frame's leading symbol token. Kept as a dedicated
+    // check here (rather than folded into the registry) because it is positional — only the
+    // SECOND token of an already-structurally-confirmed frame — not a standalone symbol lookup.
     if (tokens[idx] === 'O' || tokens[idx] === 'Ø') {
       hasDiameter = true;
       idx++;
@@ -1144,7 +1156,47 @@ export class GdtParser {
     };
   }
 
+  /**
+   * Explicit, auditable table of verified CAD symbol-font glyph substitutions — PDFs exported
+   * from CAD packages sometimes draw GD&T frame symbols using a dingbat font that maps its own
+   * glyph shapes onto ordinary ASCII character codes rather than the real GD&T Unicode code
+   * points, so the extracted text layer literally contains a plain letter instead of the GD&T
+   * symbol that was actually drawn.
+   *
+   * Each entry here was added ONLY after being independently verified against a real customer
+   * drawing — never guessed from a font name or vendor documentation (confirmed by research: no
+   * publicly documented character-to-glyph table exists for these CAD dingbat fonts). An
+   * unlisted glyph correctly falls through to 'unknown' + needs_review rather than being
+   * guessed; see the per-entry verification note for how each one was confirmed.
+   *
+   * Why this is keyed by raw character alone, not by (font, character): pdf.js's public API
+   * (page.getTextContent()) does not expose a CAD font's real PostScript/base name — only a
+   * generic CSS fallback family ("sans-serif") — and the one API that does
+   * (page.commonObjs.get(fontId)) only resolves AFTER a canvas render pass, which is
+   * browser/Electron-only and not available at text-extraction time. Collision risk from this is
+   * mitigated structurally instead: normalizeGdtSymbol is only ever reached with a bare 1-3 char
+   * lowercase token after parseSpaceDelimitedFrame has already matched the full, specific
+   * feature-control-frame shape (symbol + optional diameter modifier + tolerance number + 1-3
+   * uppercase datum letters) — a shape ordinary prose or a real datum reference cannot produce.
+   */
+  private static readonly SYMBOL_FONT_GLYPH_REGISTRY: ReadonlyMap<string, { symbol: string; characteristic: string; verifiedAgainst: string }> = new Map([
+    ['l', {
+      symbol: '⌖',
+      characteristic: 'Position',
+      verifiedAgainst: 'CINH91CDB11-B.pdf — font "SolidEdgeANSI1Symbols" (confirmed via the PDF\'s embedded font dictionary, not pdf.js), cross-referenced against the rendered Position frames at that exact glyph position, and against the embedded font\'s own extracted cmap (code point 0x6C -> this glyph).'
+    }],
+    ['h', {
+      symbol: '⌓',
+      characteristic: 'Profile of a Line',
+      verifiedAgainst: 'CINH91CDB11-B.pdf — font "SolidEdgeANSI1Symbols" (same verification method as "l"), cross-referenced against the rendered Profile-of-a-Line frames (the sheared/laser-cut edge callouts) at that exact glyph position, and against the embedded font\'s own extracted cmap (code point 0x68 -> this glyph).'
+    }]
+  ]);
+
   private static normalizeGdtSymbol(raw: string): string {
+    const trimmedRaw = raw.trim();
+    const registryHit = GdtParser.SYMBOL_FONT_GLYPH_REGISTRY.get(trimmedRaw);
+    if (registryHit) return registryHit.symbol;
+
     const s = raw.toUpperCase();
     if (s.includes('⌖') || s.includes('POS')) return '⌖';
     if (s.includes('⏥') || s.includes('FLAT')) return '⏥';
@@ -1267,6 +1319,11 @@ export class GdtParser {
     // Pattern C: Two linear depths with CHAMFER keyword (e.g. "3 X 3 CHAMFER")
     const patternC = chamferBody.match(/^([0-9]*\.?[0-9]+)\s*(?:mm\s*)?[xX]\s*([0-9]*\.?[0-9]+)(?:\s*(?:mm)?\s*(?:CHAMFER|CHAM))$/i);
 
+    // Pattern D: Bare ISO 13715 chamfer-leg symbol, no paired angle (e.g. "2c", "0.5C") — the
+    // angle is simply never stated on the drawing for this form, so no angle sub-feature is
+    // fabricated for it (angStr stays null below).
+    const patternD = chamferBody.match(/^([0-9]*\.?[0-9]+)\s*[cC]$/);
+
     let nomStr = '';
     if (patternA) {
       nomStr = patternA[1];
@@ -1274,6 +1331,8 @@ export class GdtParser {
       nomStr = patternB[2];
     } else if (patternC) {
       nomStr = patternC[1];
+    } else if (patternD) {
+      nomStr = patternD[1];
     } else {
       return null;
     }
@@ -1374,6 +1433,16 @@ export class GdtParser {
   private static isChamferExpression(str: string): boolean {
     const s = str.trim();
     if (!s) return false;
+
+    // Bare ISO 13715 chamfer-leg symbol: a lone number directly suffixed with "C"/"c" and
+    // nothing else — e.g. "2c", "0.5C". This is the standard ISO 13715 edge-break shorthand for
+    // a chamfer of that leg size with an unstated (implied) angle, and — unlike every other
+    // chamfer form below — never pairs the leg size with a second "x angle" value, so it must
+    // not require an 'x' to be recognized. Without this, GdtParser's generic numeric fallback
+    // read the trailing "c" as a degree-sign substitute (real shorthand for "45c" meaning 45°,
+    // used elsewhere in this engine) and misreported a chamfer size as an angle in that
+    // class's title-block tolerance.
+    if (/^[0-9]*\.?[0-9]+\s*[cC]$/.test(s)) return true;
 
     // Must have 'x' or 'X' or '×'
     if (!/[xX×]/.test(s)) return false;

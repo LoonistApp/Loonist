@@ -90,6 +90,34 @@ function cell(ws: XLSX.WorkSheet, ref: string) {
   return ws[ref]?.v;
 }
 
+/**
+ * Resolves a sheet NAME to its physical worksheet file path by reading the same
+ * workbook.xml / rels relationship the production fillExcelTemplate uses — never assumes a
+ * fixed physical file index (e.g. "Form 3" being sheet2.xml), since that's just the template's
+ * current sheet order and shifts whenever a sheet is added/reordered (e.g. the Form 2 sheet
+ * added to the starter template on 2026-10-05).
+ */
+function resolveSheetPath(templateBytes: Uint8Array, sheetName: string): string {
+  const files = unzipSync(templateBytes);
+  const wb = strFromU8(files['xl/workbook.xml']);
+  const rels = strFromU8(files['xl/_rels/workbook.xml.rels']);
+  const targets = new Map<string, string>();
+  for (const m of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+    const id = m[0].match(/\bId="([^"]+)"/)?.[1];
+    const target = m[0].match(/\bTarget="([^"]+)"/)?.[1];
+    if (id && target) targets.set(id, target);
+  }
+  for (const m of wb.matchAll(/<sheet\b[^>]*>/g)) {
+    const name = m[0].match(/\bname="([^"]*)"/)?.[1];
+    const rid = m[0].match(/\br:id="([^"]+)"/)?.[1];
+    if (name === sheetName && rid && targets.has(rid)) {
+      const target = targets.get(rid)!;
+      return target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+    }
+  }
+  throw new Error(`Sheet "${sheetName}" not found in template`);
+}
+
 console.log('================================================================');
 console.log('          TEST: Custom Excel Export Templates                   ');
 console.log('================================================================\n');
@@ -127,7 +155,7 @@ assert(cell(f3, 'E6') === 'Ø.500 <MMC> & DATUM A', 'Special characters round-tr
 // 4. Styles and merges
 console.log('\n► [4] Styles & merged cells preserved');
 const files = unzipSync(starter);
-const form3Path = 'xl/worksheets/sheet2.xml';
+const form3Path = resolveSheetPath(starter, 'Form 3');
 let sheetXml = strFromU8(files[form3Path]);
 // Give every cell on the repeat row (row 5) a style and add merges on and below it
 sheetXml = sheetXml.replace(/(<row\b[^>]*\br="5"[^>]*>)([\s\S]*?)(<\/row>)/, (_m, open, inner, close) =>
@@ -181,6 +209,31 @@ assert(inspectTemplate(sstTemplate).repeatRowSheets.includes('Form 3'), 'Placeho
 const sstSheet = XLSX.read(fill(sstTemplate, chars), { type: 'array' }).Sheets['Form 3'];
 assert(cell(sstSheet, 'A7') === 3 && cell(sstSheet, 'E7') === '2X R.125', 'Shared-string template filled');
 assert(cell(sstSheet, 'A4') === 'Char No.', 'Plain shared-string text untouched');
+
+// 10. Form 2 material/treatment (production hardening, 2026-10-05): the starter template's own
+// Form 2 section, AND a custom template referencing the same tokens, must both fill from the
+// identical normalized title-block data buildProjectValues now accepts — no second,
+// independently-maintained data path, and nothing fabricated when a field wasn't extracted.
+console.log('\n► [10] Form 2 material/treatment tokens');
+const titleBlockFields = { material: 'Cu-ETP H12', treatment: 'Sn 5 (I) / Cu', scale: '1:2', mass: '881.87 g', sheet: '1 / 1', format: 'A1' };
+assert(!inspectTemplate(starter).unknownTokens.length, 'Starter template\'s new Form 2 tokens are all recognized, none unknown');
+const filledWithMaterial = XLSX.read(
+  fillExcelTemplate(starter, buildProjectValues(project, chars.length, titleBlockFields), chars.map(buildCharacteristicValues)),
+  { type: 'array' }
+);
+const f2 = filledWithMaterial.Sheets['Form 2'];
+assert(cell(f2, 'B4') === 'Cu-ETP H12', 'Form 2 material filled from titleBlockFields');
+assert(cell(f2, 'B5') === 'Sn 5 (I) / Cu', 'Form 2 treatment filled from titleBlockFields');
+assert(cell(f2, 'B2') === 'TMB-001', 'Form 2 also receives ordinary project-level tokens');
+
+// Never fabricated: when titleBlockFields is omitted entirely (a drawing where neither was
+// extracted), the tokens resolve to blank, not a stale/placeholder value.
+const filledWithoutMaterial = XLSX.read(
+  fillExcelTemplate(starter, buildProjectValues(project, chars.length), chars.map(buildCharacteristicValues)),
+  { type: 'array' }
+);
+assert(!cell(filledWithoutMaterial.Sheets['Form 2'], 'B4'), 'Material cell stays blank (not fabricated) when nothing was extracted');
+assert(!cell(filledWithoutMaterial.Sheets['Form 2'], 'B5'), 'Treatment cell stays blank (not fabricated) when nothing was extracted');
 
 console.log(`\n${passed}/${total} checks passed`);
 if (passed !== total) {

@@ -25,6 +25,7 @@ export const PROJECT_TOKENS: Record<string, string> = {
   drawingName: 'Drawing name',
   drawingRevision: 'Drawing revision',
   cageCode: 'CAGE code',
+  organizationName: 'Organization / company name',
   lotSize: 'Lot size',
   samplingLevel: 'Sampling level',
   samplingType: 'Sampling type',
@@ -32,7 +33,18 @@ export const PROJECT_TOKENS: Record<string, string> = {
   units: 'Drawing units (in / mm)',
   fairNumber: 'FAIR number (FAIR-<part number>)',
   date: 'Export date',
-  characteristicCount: 'Number of characteristics'
+  characteristicCount: 'Number of characteristics',
+  // AS9102 Form 2 (materials & special processes) — the same title-block fields the built-in
+  // exporter uses, exposed here so a custom template's own Form 2 section reads from the
+  // identical extraction data path instead of a second, divergent one. Blank (never fabricated)
+  // when the drawing's title block didn't declare them — see
+  // DrawingExtractionService.TITLE_BLOCK_FIELD_SYNONYMS.
+  material: 'Raw material (Form 2)',
+  treatment: 'Special-process treatment (Form 2)',
+  drawingScale: 'Drawing print scale (e.g. 1:2)',
+  estimatedMass: 'Estimated mass',
+  sheetCount: 'Sheet count (e.g. 1 / 1)',
+  paperFormat: 'Paper format (e.g. A1)'
 };
 
 export const CHARACTERISTIC_TOKENS: Record<string, string> = {
@@ -76,9 +88,19 @@ interface SheetEntry {
 // Public API
 // ---------------------------------------------------------------------------
 
+export interface TitleBlockSupplementaryFields {
+  material?: string;
+  treatment?: string;
+  scale?: string;
+  mass?: string;
+  sheet?: string;
+  format?: string;
+}
+
 export function buildProjectValues(
   projectProps: ProjectProperties,
-  characteristicCount: number
+  characteristicCount: number,
+  titleBlockFields?: TitleBlockSupplementaryFields
 ): Record<string, TemplateValue> {
   return {
     partNumber: projectProps.partNumber ?? '',
@@ -88,6 +110,7 @@ export function buildProjectValues(
     drawingName: projectProps.drawingName ?? '',
     drawingRevision: projectProps.drawingRevision ?? '',
     cageCode: projectProps.cageCode ?? '',
+    organizationName: projectProps.organizationName ?? '',
     lotSize: projectProps.lotSize ?? '',
     samplingLevel: projectProps.samplingLevel ?? '',
     samplingType: projectProps.samplingType ?? '',
@@ -95,7 +118,16 @@ export function buildProjectValues(
     units: projectProps.units ?? '',
     fairNumber: `FAIR-${projectProps.partNumber ?? ''}`,
     date: new Date().toLocaleDateString(),
-    characteristicCount
+    characteristicCount,
+    // Same normalized extraction data the built-in exporter's Form 2 reads from (see
+    // As9102ExcelExporter.buildWorkbook) — never a second, independently-maintained copy, so a
+    // future new extracted field only needs to be added once, here, to reach both exporters.
+    material: titleBlockFields?.material ?? '',
+    treatment: titleBlockFields?.treatment ?? '',
+    drawingScale: titleBlockFields?.scale ?? '',
+    estimatedMass: titleBlockFields?.mass ?? '',
+    sheetCount: titleBlockFields?.sheet ?? '',
+    paperFormat: titleBlockFields?.format ?? ''
   };
 }
 
@@ -141,6 +173,16 @@ export function buildStarterTemplate(): Uint8Array {
   ]);
   form1['!cols'] = [{ wch: 20 }, { wch: 28 }, { wch: 20 }, { wch: 36 }];
   XLSX.utils.book_append_sheet(wb, form1, 'Form 1');
+
+  const form2 = XLSX.utils.aoa_to_sheet([
+    ['FORM 2: MATERIALS & SPECIAL PROCESSES'],
+    ['Part Number', '{{partNumber}}'],
+    [],
+    ['Raw Material', '{{material}}'],
+    ['Special Process / Treatment', '{{treatment}}']
+  ]);
+  form2['!cols'] = [{ wch: 24 }, { wch: 36 }];
+  XLSX.utils.book_append_sheet(wb, form2, 'Form 2');
 
   const form3 = XLSX.utils.aoa_to_sheet([
     ['FORM 3: CHARACTERISTIC ACCOUNTABILITY'],

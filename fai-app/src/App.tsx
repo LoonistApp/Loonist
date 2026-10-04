@@ -8,7 +8,7 @@ import { ViewportCanvas, type ViewportCanvasHandle } from './components/viewport
 import { ViewportToolbar } from './components/viewport/ViewportToolbar';
 import { SheetTabs } from './components/viewport/SheetTabs';
 import { HorizontalSplitter, VerticalSplitter } from './components/layout/Splitter';
-import { DrawingExtractionService } from './services/ai/drawingExtractionService';
+import { DrawingExtractionService, AlreadyBalloonedPdfError } from './services/ai/drawingExtractionService';
 import { As9102ExcelExporter } from './services/export/as9102ExcelExporter';
 import { PpapExcelExporter } from './services/export/ppapExporter';
 import { PPAP_ELEMENTS, type PpapWarrantData } from './types/ppap';
@@ -50,6 +50,7 @@ interface DocumentCacheItem {
   blueprintDoc: BlueprintDocument;
   characteristics: EngineeringCharacteristic[];
   projectProps: ProjectProperties;
+  titleBlockFields?: Partial<Record<'material' | 'treatment' | 'scale' | 'mass' | 'sheet' | 'format', string>>;
   selectedCharId: string | null;
   activeSheetIndex: number;
   scale: number;
@@ -163,6 +164,11 @@ export function App() {
     aql: '1.0'
   });
 
+  // Supplementary title-block fields extracted alongside projectProps (material, special-process
+  // treatment, scale, mass, sheet count, paper format) — not part of the persisted
+  // ProjectProperties identity model, but material/treatment feed AS9102 Form 2 on export.
+  const [titleBlockFields, setTitleBlockFields] = useState<Partial<Record<'material' | 'treatment' | 'scale' | 'mass' | 'sheet' | 'format', string>>>({});
+
   // Project Settings Subsystem (2-Zone Industrial Defaults & Persistence)
   const [projectSettings, setProjectSettings] = useState<ProjectSettings>(() => {
     if (typeof window !== 'undefined') {
@@ -235,6 +241,7 @@ export function App() {
     if (existing) {
       existing.characteristics = characteristics;
       existing.projectProps = projectProps;
+      existing.titleBlockFields = titleBlockFields;
       existing.selectedCharId = selectedCharId;
       existing.activeSheetIndex = activeSheetIndex;
       existing.scale = scale;
@@ -242,7 +249,7 @@ export function App() {
       existing.blueprintDoc = blueprintDoc;
       existing.pdfDoc = pdfDoc;
     }
-  }, [activeFileId, characteristics, projectProps, selectedCharId, activeSheetIndex, scale, rotation, blueprintDoc, pdfDoc]);
+  }, [activeFileId, characteristics, projectProps, titleBlockFields, selectedCharId, activeSheetIndex, scale, rotation, blueprintDoc, pdfDoc]);
 
   // Ensure currently active document is stored in docCacheRef on mount or render
   useEffect(() => {
@@ -260,13 +267,14 @@ export function App() {
         blueprintDoc,
         characteristics,
         projectProps,
+        titleBlockFields,
         selectedCharId,
         activeSheetIndex,
         scale,
         rotation
       });
     }
-  }, [blueprintDoc, pdfDoc, activeFileId, characteristics, projectProps, selectedCharId, activeSheetIndex, scale, rotation]);
+  }, [blueprintDoc, pdfDoc, activeFileId, characteristics, projectProps, titleBlockFields, selectedCharId, activeSheetIndex, scale, rotation]);
 
   // Forward ref for mutually recursive callbacks
   const handleOpenBlueprintRef = useRef<() => Promise<void>>(async () => {});
@@ -281,6 +289,7 @@ export function App() {
       const current = docCacheRef.current.get(activeFileId)!;
       current.characteristics = characteristics;
       current.projectProps = projectProps;
+      current.titleBlockFields = titleBlockFields;
       current.selectedCharId = selectedCharId;
       current.activeSheetIndex = activeSheetIndex;
       current.scale = scale;
@@ -332,6 +341,7 @@ export function App() {
     setBlueprintDoc(target.blueprintDoc);
     setCharacteristics(target.characteristics);
     setProjectProps(target.projectProps);
+    setTitleBlockFields(target.titleBlockFields || {});
     setSelectedCharId(target.selectedCharId);
     const safeSheetIndex = Math.min(target.activeSheetIndex, Math.max(0, target.blueprintDoc.numSheets - 1));
     setActiveSheetIndex(safeSheetIndex);
@@ -378,6 +388,7 @@ export function App() {
           samplingType: 'NORMAL',
           aql: '1.0'
         });
+        setTitleBlockFields({});
       } else if (activeFileId === fileIdToClose || (blueprintDoc && (blueprintDoc.name === fileIdToClose || blueprintDoc.id === fileIdToClose))) {
         // If closed file was currently active, switch to next available drawing
         const nextFile = remaining[remaining.length - 1];
@@ -387,6 +398,7 @@ export function App() {
           setBlueprintDoc(target.blueprintDoc);
           setCharacteristics(target.characteristics);
           setProjectProps(target.projectProps);
+          setTitleBlockFields(target.titleBlockFields || {});
           setSelectedCharId(target.selectedCharId);
           const safeSheetIndex = Math.min(target.activeSheetIndex, Math.max(0, target.blueprintDoc.numSheets - 1));
           setActiveSheetIndex(safeSheetIndex);
@@ -433,6 +445,7 @@ export function App() {
           const current = docCacheRef.current.get(activeFileId)!;
           current.characteristics = characteristics;
           current.projectProps = projectProps;
+          current.titleBlockFields = titleBlockFields;
           current.selectedCharId = selectedCharId;
           current.activeSheetIndex = activeSheetIndex;
           current.scale = scale;
@@ -501,6 +514,7 @@ export function App() {
         blueprintDoc: newBlueprintDoc,
         characteristics: [],
         projectProps: newProps,
+        titleBlockFields: {},
         selectedCharId: null,
         activeSheetIndex: 0,
         scale: 1.0,
@@ -528,6 +542,7 @@ export function App() {
       setBlueprintDoc(newBlueprintDoc);
       setCharacteristics([]);
       setProjectProps(newProps);
+      setTitleBlockFields({});
       setSelectedCharId(null);
       setActiveSheetIndex(0);
       setScale(1.0);
@@ -540,6 +555,7 @@ export function App() {
           const result = await DrawingExtractionService.extractCharacteristics(loadedDoc, undefined, projectSettings, undefined, undefined, true);
           setCharacteristics(result.characteristics);
           setProjectProps(result.projectProps);
+          setTitleBlockFields(result.titleBlockFields || {});
           if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
             setProjectSettings(prev => ({
               ...prev,
@@ -757,6 +773,7 @@ export function App() {
       setCharacteristics(result.characteristics);
       lastExtractKeyRef.current = extractKey;
       setProjectProps(prev => ({ ...prev, ...result.projectProps }));
+      setTitleBlockFields(prev => ({ ...prev, ...result.titleBlockFields }));
       if (result.projectProps?.units && result.projectProps.units !== projectSettings.units) {
         setProjectSettings(prev => ({
           ...prev,
@@ -785,7 +802,11 @@ export function App() {
       }
     } catch (err) {
       console.error('Failed to run Smart Extract:', err);
-      await showLoonistDialog('Failed to extract characteristics. Please verify PDF stream.');
+      if (err instanceof AlreadyBalloonedPdfError) {
+        await showLoonistDialog(err.message);
+      } else {
+        await showLoonistDialog('Failed to extract characteristics. Please verify PDF stream.');
+      }
     } finally {
       setIsExtracting(false);
     }
@@ -918,7 +939,7 @@ export function App() {
     const { activeTemplateId, templates } = appOptions.templates;
     const customTemplate = templates.find(t => t.id === activeTemplateId && t.isCustom);
     if (!customTemplate || activeTemplateId === BUILT_IN_TEMPLATE_ID) {
-      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
+      As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix, titleBlockFields);
       return;
     }
 
@@ -928,12 +949,12 @@ export function App() {
         await showLoonistDialog(
           `The template file for "${customTemplate.name}" is missing. The report was exported with the built-in AS9102 layout instead. Re-upload the template in Options → Templates.`
         );
-        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix);
+        As9102ExcelExporter.exportToExcel(characteristics, projectProps, fileName, projectSettings.balloonPrefix, titleBlockFields);
         return;
       }
       const filled = fillExcelTemplate(
         templateBytes,
-        buildProjectValues(projectProps, characteristics.length),
+        buildProjectValues(projectProps, characteristics.length, titleBlockFields),
         characteristics.map((c) => buildCharacteristicValues(c, projectSettings.balloonPrefix))
       );
       As9102ExcelExporter.downloadXlsx(filled, fileName);
@@ -943,7 +964,7 @@ export function App() {
         `Could not fill the template "${customTemplate.name}". Check that it opens in Excel, or switch back to the built-in template in Options → Templates.`
       );
     }
-  }, [characteristics, projectProps, appOptions.templates, projectSettings, confirmExportReadiness]);
+  }, [characteristics, projectProps, titleBlockFields, appOptions.templates, projectSettings, confirmExportReadiness]);
 
   // Export AIAG PPAP Package (PSW, Dimensional Results, Element Submission Status)
   const handleExportPpap = useCallback((warrant: PpapWarrantData) => {
@@ -1183,7 +1204,8 @@ export function App() {
         activeSheetIndex,
         scale,
         rotation,
-        projectSettings
+        projectSettings,
+        titleBlockFields
       );
 
       const serialized = ProjectArchiveService.serialize(pkg);
@@ -1201,7 +1223,7 @@ export function App() {
       console.error('Failed to save LOONIST project:', err);
       await showLoonistDialog('Failed to save project package.');
     }
-  }, [activeFileId, blueprintDoc, projectProps, characteristics, activeSheetIndex, scale, rotation, projectSettings]);
+  }, [activeFileId, blueprintDoc, projectProps, titleBlockFields, characteristics, activeSheetIndex, scale, rotation, projectSettings]);
 
   // Sprint 4: Open LOONIST Self-Contained Project Package (*.loonist)
   const handleOpenProject = useCallback(async () => {
@@ -1232,9 +1254,12 @@ export function App() {
         );
       }
 
-      // Restore inspection state from the archive
+      // Restore inspection state from the archive. titleBlockFields is defaulted to {} both
+      // here and by loadPdfBufferRef above for a project saved before this field existed
+      // (schema version < 2.2.0) — never treated as an error, never fabricated.
       setCharacteristics(pkg.characteristics || []);
       setProjectProps(pkg.projectProps);
+      setTitleBlockFields(pkg.titleBlockFields || {});
       if (pkg.settings) {
         setProjectSettings(pkg.settings);
       }
