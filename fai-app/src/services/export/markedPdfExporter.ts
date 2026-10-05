@@ -1,7 +1,107 @@
-import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
+import {
+  PDFDocument, rgb, StandardFonts, degrees, type PDFPage, type Color,
+  moveTo, lineTo, closePath, appendBezierCurve, fillAndStroke,
+  setFillingColor, setStrokingColor, setLineWidth, setLineJoin, LineJoinStyle,
+  pushGraphicsState, popGraphicsState
+} from 'pdf-lib';
 import type * as pdfjsLib from 'pdfjs-dist';
-import type { EngineeringCharacteristic, BalloonAppearance } from '../../types/characteristics';
+import type { EngineeringCharacteristic, BalloonAppearance, BalloonShape } from '../../types/characteristics';
 import { formatBalloonNumber } from '../../utils/balloonFormat';
+
+/**
+ * Draws the balloon badge outline in the shape the user actually configured (circle, square,
+ * triangle, hexagon, or the "balloon" pin silhouette) instead of always burning a circle. Vertex
+ * geometry is lifted directly from ViewportCanvas's 36x36 SVG badge (the on-screen source of
+ * truth for each shape) so the marked PDF visually matches what the user sees and configures in
+ * the app — "s" rescales that geometry's ~16-unit half-extent to the requested badge radius, and
+ * the y-component of every offset is negated because the SVG is y-down while pdf-lib's native
+ * page space is y-up.
+ */
+function drawBadgeShape(
+  page: PDFPage, shape: BalloonShape, cx: number, cy: number, r: number,
+  fillColor: Color, strokeColor: Color, strokeWidth: number
+): void {
+  if (shape === 'circle') {
+    page.drawCircle({ x: cx, y: cy, size: r, color: fillColor, borderColor: strokeColor, borderWidth: strokeWidth });
+    return;
+  }
+
+  const s = r / 16;
+  const pt = (dx: number, dySvg: number): [number, number] => [cx + dx * s, cy - dySvg * s];
+
+  if (shape === 'square') {
+    const [x0, y0] = pt(-16, -16);
+    const [x1, y1] = pt(16, -16);
+    const [x2, y2] = pt(16, 16);
+    const [x3, y3] = pt(-16, 16);
+    page.pushOperators(
+      pushGraphicsState(), setFillingColor(fillColor), setStrokingColor(strokeColor),
+      setLineWidth(strokeWidth), setLineJoin(LineJoinStyle.Round),
+      moveTo(x0, y0), lineTo(x1, y1), lineTo(x2, y2), lineTo(x3, y3),
+      closePath(), fillAndStroke(), popGraphicsState()
+    );
+    return;
+  }
+
+  if (shape === 'triangle') {
+    const [x0, y0] = pt(0, -16);
+    const [x1, y1] = pt(16, 15);
+    const [x2, y2] = pt(-16, 15);
+    page.pushOperators(
+      pushGraphicsState(), setFillingColor(fillColor), setStrokingColor(strokeColor),
+      setLineWidth(strokeWidth), setLineJoin(LineJoinStyle.Round),
+      moveTo(x0, y0), lineTo(x1, y1), lineTo(x2, y2),
+      closePath(), fillAndStroke(), popGraphicsState()
+    );
+    return;
+  }
+
+  if (shape === 'hexagon') {
+    const verts: Array<[number, number]> = [
+      pt(-8, -16), pt(8, -16), pt(16, 0), pt(8, 16), pt(-8, 16), pt(-16, 0)
+    ];
+    page.pushOperators(
+      pushGraphicsState(), setFillingColor(fillColor), setStrokingColor(strokeColor),
+      setLineWidth(strokeWidth), setLineJoin(LineJoinStyle.Round),
+      moveTo(...verts[0]), ...verts.slice(1).map(([x, y]) => lineTo(x, y)),
+      closePath(), fillAndStroke(), popGraphicsState()
+    );
+    return;
+  }
+
+  // 'balloon' — the tapered teardrop bulb (string tail omitted; it reads as decorative clutter
+  // on a formal marked-up drawing and carries no inspection meaning of its own).
+  const start = pt(0, -16.5);
+  const c1a = pt(7.5, -16.5), c1b = pt(12, -12), c1e = pt(12, -6);
+  const c2a = pt(12, 1), c2b = pt(7, 6.5), c2e = pt(1.5, 9);
+  const l1 = pt(4.5, 11.5);
+  const l2 = pt(-4.5, 11.5);
+  const l3 = pt(-1.5, 9);
+  const c3a = pt(-7, 6.5), c3b = pt(-12, 1), c3e = pt(-12, -6);
+  const c4a = pt(-12, -12), c4b = pt(-7.5, -16.5), c4e = pt(0, -16.5);
+  page.pushOperators(
+    pushGraphicsState(), setFillingColor(fillColor), setStrokingColor(strokeColor),
+    setLineWidth(strokeWidth), setLineJoin(LineJoinStyle.Round),
+    moveTo(...start),
+    appendBezierCurve(...c1a, ...c1b, ...c1e),
+    appendBezierCurve(...c2a, ...c2b, ...c2e),
+    lineTo(...l1), lineTo(...l2), lineTo(...l3),
+    appendBezierCurve(...c3a, ...c3b, ...c3e),
+    appendBezierCurve(...c4a, ...c4b, ...c4e),
+    closePath(), fillAndStroke(), popGraphicsState()
+  );
+}
+
+/** Vertical text-baseline nudge (in local 36-unit-box units, SVG y-down) matching the per-shape
+ * offsets ViewportCanvas applies so the item number sits visually centered in each silhouette —
+ * triangle's label sits low (wide base), the balloon's sits high (within the bulb, above the
+ * taper). Returned in pdf-lib's y-up page units, already scaled to the badge radius. */
+function badgeTextYOffset(shape: BalloonShape, r: number): number {
+  const s = r / 16;
+  if (shape === 'triangle') return -3 * s;
+  if (shape === 'balloon') return 4.5 * s;
+  return 0;
+}
 
 export interface MarkedPdfExportOptions {
   highlightNonConformance?: boolean; // Color out-of-spec balloons in red
@@ -141,15 +241,20 @@ export class MarkedPdfExporter {
         }
       }
 
-      // White solid background circle (masks out drawing background under balloon)
-      page.drawCircle({
-        x: badgeCenterX,
-        y: badgeCenterY,
-        size: badgeRadius,
-        color: whiteColor,
-        borderColor: badgeStrokeColor,
-        borderWidth: 1.8
-      });
+      // Badge shape resolution — must mirror ViewportCanvas exactly (same precedence: per-balloon
+      // override, then an explicit non-circle global shape forces every balloon to it, then the
+      // circle default auto-varies by characteristic type) or the marked PDF silently diverges
+      // from what the user configured and sees on screen.
+      const isFlagNote = char.subType === 'FlagNote';
+      const isBasic = char.isBasic;
+      const resolvedShape: BalloonShape = char.customBalloonShape || (appearance?.shape
+        ? (appearance.shape === 'circle'
+            ? (isFlagNote ? 'triangle' : isBasic ? 'square' : 'circle')
+            : appearance.shape)
+        : (isFlagNote ? 'triangle' : isBasic ? 'square' : 'circle'));
+
+      // White solid background badge (masks out drawing background under it)
+      drawBadgeShape(page, resolvedShape, badgeCenterX, badgeCenterY, badgeRadius, whiteColor, badgeStrokeColor, 1.8);
 
       // 3. Draw Centered Characteristic / Balloon Number
       const itemLabel = formatBalloonNumber(char.itemNumber, char.subNumber, options.balloonPrefix);
@@ -158,7 +263,7 @@ export class MarkedPdfExporter {
 
       page.drawText(itemLabel, {
         x: badgeCenterX - textWidth / 2,
-        y: badgeCenterY - textHeight / 3,
+        y: badgeCenterY - textHeight / 3 + badgeTextYOffset(resolvedShape, badgeRadius),
         size: badgeFontSize,
         font: font,
         color: char.conformanceStatus === 'FAIL' ? failRed : borderDark

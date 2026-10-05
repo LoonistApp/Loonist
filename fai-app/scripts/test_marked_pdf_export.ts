@@ -139,6 +139,39 @@ async function run() {
   assert(pageCount > 0, 'Exported PDF must have at least 1 page');
   console.log(`✓ Vector Marked PDF verified by pdf-lib parser (${pageCount} pages, ${markedPdfBytes.length} bytes)`);
 
+  // Regression (2026-10-06): a real user reported that changing the balloon shape in the app
+  // (circle/square/triangle/hexagon/balloon) had no effect on the exported marked PDF — every
+  // badge still burned as a plain circle, only the color setting actually reached the export.
+  // Root cause: the exporter unconditionally called pdf-lib's drawCircle for every badge,
+  // ignoring appearance.shape and char.customBalloonShape entirely. Prove shape now actually
+  // changes the drawn output: two characteristics identical in every respect except
+  // customBalloonShape must not produce byte-identical PDFs.
+  console.log('► Regression: balloon shape must actually affect the exported badge geometry...');
+  const baseChar = testCharacteristics[0];
+  const asShape = (shape: EngineeringCharacteristic['customBalloonShape']): EngineeringCharacteristic[] => [
+    { ...baseChar, customBalloonShape: shape }
+  ];
+  const circleBytes = await MarkedPdfExporter.generateMarkedPdf(originalBuffer, asShape('circle'), appearance);
+  const squareBytes = await MarkedPdfExporter.generateMarkedPdf(originalBuffer, asShape('square'), appearance);
+  const triangleBytes = await MarkedPdfExporter.generateMarkedPdf(originalBuffer, asShape('triangle'), appearance);
+  const hexagonBytes = await MarkedPdfExporter.generateMarkedPdf(originalBuffer, asShape('hexagon'), appearance);
+  const balloonBytes = await MarkedPdfExporter.generateMarkedPdf(originalBuffer, asShape('balloon'), appearance);
+  const allBytes = [circleBytes, squareBytes, triangleBytes, hexagonBytes, balloonBytes];
+  const shapeNames = ['circle', 'square', 'triangle', 'hexagon', 'balloon'];
+  for (let i = 0; i < allBytes.length; i++) {
+    for (let j = i + 1; j < allBytes.length; j++) {
+      const identical = allBytes[i].length === allBytes[j].length &&
+        allBytes[i].every((b, k) => b === allBytes[j][k]);
+      assert(!identical, `"${shapeNames[i]}" and "${shapeNames[j]}" must produce different PDF bytes — identical output means the shape setting was ignored`);
+    }
+  }
+  // Every variant must still be a structurally valid, parseable single-page PDF.
+  for (let i = 0; i < allBytes.length; i++) {
+    const doc = await PDFDocument.load(allBytes[i]);
+    assert(doc.getPageCount() > 0, `"${shapeNames[i]}" export must still produce a valid, parseable PDF`);
+  }
+  console.log('  PASS: all 5 balloon shapes produce distinct, valid PDF output — shape setting reaches the export\n');
+
   console.log('>>> ALL MARKED PDF EXPORT TESTS PASSED! <<<');
 }
 
