@@ -266,6 +266,8 @@ export class As9102ExcelExporter {
     let result: string | number;
     if (char.measuredValue !== undefined && char.measuredValue !== null) {
       result = Number(char.measuredValue.toFixed(4));
+    } else if (char.conformanceStatus === 'N/A') {
+      result = 'N/A';
     } else if (isRef) {
       result = 'REFERENCE';
     } else {
@@ -284,6 +286,7 @@ export class As9102ExcelExporter {
     if (char.conformanceStatus === 'FAIL') status = 'REJECT';
     else if (char.conformanceStatus === 'MARGINAL') status = 'MARGINAL';
     else if (char.conformanceStatus === 'PASS') status = 'ACCEPT';
+    else if (char.conformanceStatus === 'N/A') status = 'N/A';
     else if (isRef) status = 'ACCEPT';
 
     return {

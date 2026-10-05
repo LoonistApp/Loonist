@@ -694,6 +694,10 @@ export const TableManager: React.FC<TableManagerProps> = ({
                             <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[9px] border border-red-300 animate-pulse" title="Out of tolerance specification">
                               FAIL
                             </span>
+                          ) : char.conformanceStatus === 'N/A' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[9px] border border-purple-200" title={char.comments ? `Not applicable to this part: ${char.comments}` : 'Not applicable to this part'}>
+                              N/A
+                            </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 font-medium text-[9px]">
                               PENDING

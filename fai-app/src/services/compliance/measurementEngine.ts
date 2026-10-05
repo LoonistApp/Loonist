@@ -12,6 +12,11 @@ export interface LotComplianceStatistics {
   passCount: number;
   marginalCount: number;
   failCount: number;
+  /** Deliberately marked out-of-scope for this physical part (e.g. a process-alternative
+   * callout that doesn't apply to how this unit was actually made) — excluded from both the
+   * measured and unmeasured buckets, and from the conformance rate, since it was never meant
+   * to be physically inspected. */
+  notApplicableCount: number;
   conformanceRatePercent: number;
   isLotConforming: boolean;
 }
@@ -96,10 +101,13 @@ export class MeasurementEngine {
     let passCount = 0;
     let marginalCount = 0;
     let failCount = 0;
+    let notApplicableCount = 0;
 
     for (const char of characteristics) {
       const status = char.conformanceStatus || 'UNMEASURED';
-      if (status !== 'UNMEASURED') {
+      if (status === 'N/A') {
+        notApplicableCount++;
+      } else if (status !== 'UNMEASURED') {
         measuredCount++;
         if (status === 'PASS') passCount++;
         else if (status === 'MARGINAL') marginalCount++;
@@ -107,10 +115,10 @@ export class MeasurementEngine {
       }
     }
 
-    const unmeasuredCount = total - measuredCount;
+    const unmeasuredCount = total - measuredCount - notApplicableCount;
     const conformingCount = passCount + marginalCount;
-    const conformanceRatePercent = measuredCount > 0 
-      ? Number(((conformingCount / measuredCount) * 100).toFixed(1)) 
+    const conformanceRatePercent = measuredCount > 0
+      ? Number(((conformingCount / measuredCount) * 100).toFixed(1))
       : 100;
 
     const isLotConforming = failCount === 0;
@@ -122,6 +130,7 @@ export class MeasurementEngine {
       passCount,
       marginalCount,
       failCount,
+      notApplicableCount,
       conformanceRatePercent,
       isLotConforming
     };

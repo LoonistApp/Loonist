@@ -4,10 +4,11 @@ import {
   Search, 
   ShieldCheck, 
   Layers, 
-  CheckCircle2, 
-  AlertTriangle, 
-  XCircle, 
-  Clock 
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Clock,
+  Ban
 } from 'lucide-react';
 import { RibbonGroup } from '../RibbonGroup';
 import { RibbonButton } from '../RibbonButton';
@@ -133,6 +134,12 @@ export const InspectionRibbonTab: React.FC<InspectionRibbonTabProps> = ({
               <Clock className="w-2.5 h-2.5" />
               <span>{stats.unmeasuredCount} Unm</span>
             </span>
+            {stats.notApplicableCount > 0 && (
+              <span className="flex items-center gap-0.5 text-purple-600 bg-purple-50 px-1 py-0.2 rounded border border-purple-200">
+                <Ban className="w-2.5 h-2.5" />
+                <span>{stats.notApplicableCount} N/A</span>
+              </span>
+            )}
           </div>
         </div>
       </RibbonGroup>

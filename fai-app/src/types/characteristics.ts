@@ -52,11 +52,19 @@ export type VerificationStatus =
   | 'needs_review'    // Confidence < 0.90 or syntax anomaly
   | 'verified';       // Human validated by Quality Engineer
 
-export type ConformanceStatus = 
+export type ConformanceStatus =
   | 'PASS'          // Measured within tolerance band
   | 'MARGINAL'      // Within 10% of upper or lower tolerance boundary
   | 'FAIL'          // Out of tolerance
-  | 'UNMEASURED';   // Pending physical measurement entry
+  | 'UNMEASURED'    // Pending physical measurement entry
+  // Standard AS9102 Form 3 Status column value (Comply / Reject / N/A) for a characteristic that
+  // is a real, toleranced requirement on the design record but does not apply to THIS physical
+  // part — e.g. one of two process-alternative callouts (sheared-edge vs. laser-edge spec) where
+  // only the process actually used applies. Distinct from UNMEASURED: N/A means an inspector
+  // deliberately determined it's out of scope, not that it's still pending. Requires `comments`
+  // to carry the inspector's justification (see characteristicExportGate's enforcement) — an N/A
+  // with no stated reason is exactly as opaque to an auditor as a silently fabricated value.
+  | 'N/A';
 
 export interface GdtFeatureControlFrame {
   characteristic: 

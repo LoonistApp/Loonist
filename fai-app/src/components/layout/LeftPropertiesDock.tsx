@@ -26,7 +26,8 @@ import {
   Split,
   ZoomIn,
   ZoomOut,
-  X 
+  X,
+  Ban
 } from 'lucide-react';
 
 export type LeftDockTab = 'inspector' | 'characteristic' | 'project' | 'excel';
@@ -971,6 +972,11 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                           FAIL
                         </span>
                       )}
+                      {selectedChar.conformanceStatus === 'N/A' && (
+                        <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[9px] border border-purple-200">
+                          N/A
+                        </span>
+                      )}
                       {(!selectedChar.conformanceStatus || selectedChar.conformanceStatus === 'UNMEASURED') && (
                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 font-medium text-[9px]">
                           UNMEASURED
@@ -1108,6 +1114,31 @@ export const LeftPropertiesDock: React.FC<LeftPropertiesDockProps> = ({
                           className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded p-1.5 text-xs resize-none placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-slate-500"
                         />
                       </div>
+
+                      {/* Not Applicable — a real design requirement that doesn't apply to THIS
+                          physical part (e.g. one of two process-alternative callouts). Gated on
+                          Comments above carrying the inspector's stated reason, mirroring the
+                          export gate's own enforcement — an N/A with no justification is treated
+                          the same as never having been resolved. */}
+                      {selectedChar.conformanceStatus === 'N/A' ? (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateCharacteristic({ ...selectedChar, measuredValue: null, conformanceStatus: undefined, deviation: null })}
+                          className="w-full flex items-center justify-center gap-1.5 text-[10px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded py-1 cursor-pointer"
+                        >
+                          <Ban className="w-3 h-3" /> Clear N/A (revert to Unmeasured)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!(selectedChar.comments || '').trim()}
+                          title={!(selectedChar.comments || '').trim() ? 'Enter a justification in Comments above first' : 'Mark this characteristic as not applicable to this part'}
+                          onClick={() => onUpdateCharacteristic({ ...selectedChar, measuredValue: null, conformanceStatus: 'N/A', deviation: null })}
+                          className="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed rounded py-1 border border-dashed border-slate-300 hover:border-purple-300 transition cursor-pointer"
+                        >
+                          <Ban className="w-3 h-3" /> Mark Not Applicable
+                        </button>
+                      )}
 
                       {/* Verification Status Banner */}
                       {(() => {

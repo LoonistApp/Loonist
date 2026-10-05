@@ -24,11 +24,12 @@ import { MeasurementEngine } from './services/compliance/measurementEngine';
 import { RenumberingService } from './services/ballooning/renumberingService';
 import { ProjectArchiveService, type LoonistProjectPackage } from './services/project/projectArchiveService';
 import { SpatialPlacementService } from './services/ballooning/spatialPlacementService';
-import { 
-  type EngineeringCharacteristic, 
-  type ProjectProperties, 
+import {
+  type EngineeringCharacteristic,
+  type ProjectProperties,
   type BalloonAppearance,
-  DEFAULT_AEROSPACE_TOLERANCES 
+  type ConformanceStatus,
+  DEFAULT_AEROSPACE_TOLERANCES
 } from './types/characteristics';
 import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings } from './types/settings';
 import { getPersistentSetting, setPersistentSetting } from './utils/persistentSettings';
@@ -1079,22 +1080,31 @@ export function App() {
 
   // Update characteristic in state with live measurement evaluation & audit logging
   const handleUpdateCharacteristic = useCallback((updated: EngineeringCharacteristic) => {
-    const evalRes = MeasurementEngine.evaluateMeasurement(updated, updated.measuredValue ?? null);
-    const evaluated: EngineeringCharacteristic = {
-      ...updated,
-      conformanceStatus: evalRes.status,
-      deviation: evalRes.deviation
-    };
+    // An explicit N/A disposition (no physical measurement — the inspector determined this
+    // characteristic doesn't apply to this part) must survive this update, not get silently
+    // re-derived back to UNMEASURED by the measurement evaluator below. Any caller that also
+    // supplies a real measuredValue takes precedence over a stale N/A (entering an actual
+    // measurement supersedes an earlier "doesn't apply" call) and falls through to normal
+    // evaluation instead.
+    const explicitNA = updated.conformanceStatus === 'N/A'
+      && (updated.measuredValue === null || updated.measuredValue === undefined);
+
+    const evaluated: EngineeringCharacteristic = explicitNA
+      ? { ...updated, measuredValue: null, conformanceStatus: 'N/A', deviation: null }
+      : (() => {
+          const evalRes = MeasurementEngine.evaluateMeasurement(updated, updated.measuredValue ?? null);
+          return { ...updated, conformanceStatus: evalRes.status, deviation: evalRes.deviation };
+        })();
 
     // Captured via an object property (not a reassigned `let`) outside the updater so the updater
     // itself stays pure (React may invoke it more than once, e.g. under StrictMode) — the audit
     // side effect fires exactly once, after commit.
-    const captured: { changed: { oldValue: number | null | undefined } | null } = { changed: null };
+    const captured: { changed: { oldValue: number | null | undefined; oldStatus: ConformanceStatus | undefined } | null } = { changed: null };
 
     setCharacteristics((prev) => {
       const oldChar = prev.find(c => c.id === updated.id);
-      if (oldChar && oldChar.measuredValue !== evaluated.measuredValue) {
-        captured.changed = { oldValue: oldChar.measuredValue };
+      if (oldChar && (oldChar.measuredValue !== evaluated.measuredValue || oldChar.conformanceStatus !== evaluated.conformanceStatus)) {
+        captured.changed = { oldValue: oldChar.measuredValue, oldStatus: oldChar.conformanceStatus };
       }
       return prev.map((c) => (c.id === evaluated.id ? evaluated : c));
     });
@@ -1109,7 +1119,11 @@ export function App() {
         previousValue: captured.changed.oldValue,
         newValue: evaluated.measuredValue,
         conformanceStatus: evaluated.conformanceStatus,
-        details: `Measurement updated to ${evaluated.measuredValue ?? 'null'} (${evaluated.conformanceStatus})`
+        details: evaluated.conformanceStatus === 'N/A'
+          ? `Marked Not Applicable — ${evaluated.comments || '(no justification provided)'}`
+          : captured.changed.oldStatus === 'N/A'
+          ? `Measurement entered, superseding prior N/A — now ${evaluated.measuredValue ?? 'null'} (${evaluated.conformanceStatus})`
+          : `Measurement updated to ${evaluated.measuredValue ?? 'null'} (${evaluated.conformanceStatus})`
       });
     }
   }, []);

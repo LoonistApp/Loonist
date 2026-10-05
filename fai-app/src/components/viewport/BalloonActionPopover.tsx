@@ -17,7 +17,8 @@ import {
   Triangle,
   Hexagon,
   Balloon,
-  Gauge
+  Gauge,
+  Ban
 } from 'lucide-react';
 import type {
   EngineeringCharacteristic,
@@ -83,6 +84,8 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'measure' | 'edit' | 'appearance' | 'split' | 'method'>('measure');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // null = not editing; a string (possibly empty) = the N/A justification draft is open
+  const [naJustificationDraft, setNaJustificationDraft] = useState<string | null>(null);
 
   const balloonNum = characteristic.subNumber || characteristic.itemNumber;
   const activeShape = characteristic.customBalloonShape || defaultShape;
@@ -102,6 +105,31 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
         measuredAt: new Date().toISOString()
       });
     }
+  };
+
+  // Mark the characteristic N/A (real design requirement, doesn't apply to this physical part —
+  // e.g. one of two process-alternative callouts). Requires a non-empty justification, committed
+  // into `comments` so it surfaces on Form 3 exactly where an auditor would look for it.
+  const handleConfirmNotApplicable = () => {
+    const justification = naJustificationDraft?.trim();
+    if (!justification) return;
+    onUpdateCharacteristic({
+      ...characteristic,
+      measuredValue: null,
+      conformanceStatus: 'N/A',
+      deviation: null,
+      comments: justification
+    });
+    setNaJustificationDraft(null);
+  };
+
+  const handleClearNotApplicable = () => {
+    onUpdateCharacteristic({
+      ...characteristic,
+      measuredValue: null,
+      conformanceStatus: undefined,
+      deviation: null
+    });
   };
 
   // Handle 1-click multiplier expand
@@ -305,6 +333,11 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
               <X className="w-3 h-3" /> FAIL
             </span>
           )}
+          {characteristic.conformanceStatus === 'N/A' && (
+            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200 flex items-center gap-1">
+              <Ban className="w-3 h-3" /> N/A
+            </span>
+          )}
           {(!characteristic.conformanceStatus || characteristic.conformanceStatus === 'UNMEASURED') && (
             <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-medium text-[10px]">
               UNMEASURED
@@ -356,6 +389,78 @@ export const BalloonActionPopover: React.FC<BalloonActionPopoverProps> = ({
           <span>Min: <b className="text-slate-700">{characteristic.minLimit?.toFixed(4) ?? '--'}</b></span>
           <span>Nom: <b className="text-slate-700">{characteristic.cleanNominal?.toFixed(4) ?? '--'}</b></span>
           <span>Max: <b className="text-slate-700">{characteristic.maxLimit?.toFixed(4) ?? '--'}</b></span>
+        </div>
+
+        {/* Not Applicable — for a real design requirement that doesn't apply to THIS physical
+            part (e.g. one of two process-alternative edge-spec callouts). Requires a stated
+            reason; the export gate blocks an N/A with no justification just like it blocks an
+            unresolved UNMEASURED item. */}
+        <div className="pt-1 border-t border-slate-100">
+          {naJustificationDraft !== null ? (
+            <div className="flex flex-col gap-1 p-1.5 rounded bg-purple-50 border border-purple-200">
+              <span className="text-[9px] font-bold text-purple-700 uppercase flex items-center gap-1">
+                <Ban className="w-3 h-3" /> Mark N/A — justification required
+              </span>
+              <textarea
+                autoFocus
+                rows={2}
+                value={naJustificationDraft}
+                onChange={(e) => setNaJustificationDraft(e.target.value)}
+                placeholder={'Why doesn\'t this apply to this part? e.g. "Made via laser process — see char 2 for the applicable edge spec"'}
+                className="w-full px-2 py-1 bg-white border border-purple-300 rounded text-[10px] font-mono resize-none focus:outline-hidden focus:border-purple-600"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNaJustificationDraft(null)}
+                  className="text-[10px] text-slate-500 hover:text-slate-700 px-2 py-0.5 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!naJustificationDraft.trim()}
+                  onClick={handleConfirmNotApplicable}
+                  className="text-[10px] font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded px-2 py-0.5 cursor-pointer"
+                >
+                  Confirm N/A
+                </button>
+              </div>
+            </div>
+          ) : characteristic.conformanceStatus === 'N/A' ? (
+            <div className="flex items-start justify-between gap-2 p-1.5 rounded bg-purple-50 border border-purple-200">
+              <div className="flex-1 min-w-0">
+                <span className="text-[9px] font-bold text-purple-700 uppercase flex items-center gap-1">
+                  <Ban className="w-3 h-3" /> Not Applicable
+                </span>
+                <p className="text-[10px] text-purple-900 mt-0.5 break-words">{characteristic.comments}</p>
+              </div>
+              <div className="flex flex-col gap-1 shrink-0 items-end">
+                <button
+                  type="button"
+                  onClick={() => setNaJustificationDraft(characteristic.comments || '')}
+                  className="text-[9px] text-purple-700 hover:underline cursor-pointer"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearNotApplicable}
+                  className="text-[9px] text-slate-500 hover:underline cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNaJustificationDraft('')}
+              className="w-full flex items-center justify-center gap-1 text-[10px] text-slate-500 hover:text-purple-700 hover:bg-purple-50 rounded py-1 border border-dashed border-slate-300 hover:border-purple-300 transition cursor-pointer"
+            >
+              <Ban className="w-3 h-3" /> Mark Not Applicable
+            </button>
+          )}
         </div>
       </div>
 

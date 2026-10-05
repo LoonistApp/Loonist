@@ -31,6 +31,15 @@ export function evaluateExportReadiness(characteristics: EngineeringCharacterist
       continue;
     }
 
+    // An N/A disposition without a stated reason is exactly as opaque to an auditor as a
+    // silently fabricated value — it must carry the inspector's justification (see
+    // ConformanceStatus's 'N/A' doc comment) or it's treated the same as never having been
+    // resolved at all.
+    if (char.conformanceStatus === 'N/A' && !(char.comments || '').trim()) {
+      blockers.push(char);
+      continue;
+    }
+
     if (typeof char.confidenceScore === 'number' && char.confidenceScore < LOW_CONFIDENCE_THRESHOLD) {
       warnings.push(char);
     }

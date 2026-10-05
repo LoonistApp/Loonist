@@ -264,6 +264,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Engine Hardening / Production Hardening',
     script: 'scripts/test_gdt_symbol_registry.ts',
     description: 'Covers every symbol in the explicit, verified CAD symbol-font glyph registry (Position, Profile-of-a-Line) plus the negative case: an unregistered glyph must stay unknown/needs_review rather than being guessed'
+  },
+  {
+    name: 'N/A Conformance Status & Justification Enforcement',
+    sprint: 'Engine Hardening / Production Hardening',
+    script: 'scripts/test_na_status.ts',
+    description: 'Verifies the N/A disposition (a real Form 3 requirement that does not apply to this physical part, e.g. a process-alternative edge-spec callout) is excluded from measured/unmeasured lot statistics, is blocked from export without a stated justification, survives the central characteristic-update path without being silently re-evaluated back to UNMEASURED, and renders correctly in both Form 3 export columns'
   }
 ];
 
