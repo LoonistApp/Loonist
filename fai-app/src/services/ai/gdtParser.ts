@@ -1069,7 +1069,7 @@ export class GdtParser {
       isToleranceInherited: false,
       toleranceSource: characteristic === 'unknown'
         ? `GD&T frame, symbol not recognized (raw glyph "${parsed.symbol}") — tolerance ${parsed.tolerance} to datum(s) ${parsed.datums.join(', ')}; verify characteristic type manually`
-        : `ASME Y14.5 GD&T Frame (${charSymbol} ${parsed.tolerance})`,
+        : `ASME Y14.5 GD&T Frame — ${this.getCharacteristicLabel(characteristic)} (${charSymbol}), ${parsed.tolerance}`,
       units: unit,
       gdtFrame,
       multiplier
@@ -1149,7 +1149,7 @@ export class GdtParser {
       type: 'gdt',
       enclosure: 'standard',
       isToleranceInherited: false,
-      toleranceSource: `ASME Y14.5 GD&T Frame (${upperTier.symbol} ${upperTier.toleranceValue})`,
+      toleranceSource: `ASME Y14.5 GD&T Frame — ${this.getCharacteristicLabel(upperTier.characteristic)} (${upperTier.symbol}), ${upperTier.toleranceValue}`,
       units: unit,
       gdtFrame,
       multiplier
@@ -1235,6 +1235,40 @@ export class GdtParser {
         // Never silently guess a specific GD&T characteristic for a symbol we didn't actually
         // recognize — see the 'unknown' doc comment on GdtFeatureControlFrame.characteristic.
         return 'unknown';
+    }
+  }
+
+  /**
+   * Plain-English name for a resolved GD&T characteristic — the single source of truth used
+   * both for the Form 3 "Additional Data / Tolerance Source" text and for
+   * DrawingExtractionService's displayed subType, so the two can never drift apart.
+   *
+   * Exists because the Unicode GD&T symbols themselves (⌖ U+2316, ⌓ U+2313, ⏥ U+26F6, etc.) sit
+   * in the "Miscellaneous Technical" / "Miscellaneous Symbols" blocks, which Excel's default UI
+   * fonts (Calibri/Segoe UI) do not fully cover — confirmed directly against a real exported
+   * FAIR report: the symbol rendered as an unreadable "□" tofu box in Excel despite being the
+   * correct character in the file. Embedding the symbol ALONE in the exported tolerance-source
+   * string therefore made the GD&T type unreadable to anyone opening the report in Excel,
+   * silently defeating the point of decoding it at all. The word is now always present; the
+   * symbol is kept alongside it for tools/fonts that do render it.
+   */
+  public static getCharacteristicLabel(characteristic: GdtFeatureControlFrame['characteristic']): string {
+    switch (characteristic) {
+      case 'position': return 'Position';
+      case 'flatness': return 'Flatness';
+      case 'straightness': return 'Straightness';
+      case 'circularity': return 'Circularity';
+      case 'cylindricity': return 'Cylindricity';
+      case 'perpendicularity': return 'Perpendicularity';
+      case 'parallelism': return 'Parallelism';
+      case 'angularity': return 'Angularity';
+      case 'profile_surface': return 'Profile of a Surface';
+      case 'profile_line': return 'Profile of a Line';
+      case 'circular_runout': return 'Circular Runout';
+      case 'total_runout': return 'Total Runout';
+      case 'concentricity': return 'Concentricity';
+      case 'symmetry': return 'Symmetry';
+      case 'unknown': return 'Unrecognized GD&T Symbol — Verify Manually';
     }
   }
 

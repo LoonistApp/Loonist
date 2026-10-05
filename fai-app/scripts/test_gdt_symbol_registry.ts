@@ -32,7 +32,12 @@ assert(position.gdtFrame?.characteristic === 'position', `Expected characteristi
 assert(position.gdtFrame?.symbol === '⌖', `Expected resolved symbol '⌖', got '${position.gdtFrame?.symbol}'`);
 assert(position.gdtFrame?.toleranceValue === 0.2, `Expected tolerance 0.2, got ${position.gdtFrame?.toleranceValue}`);
 assert(position.gdtFrame?.primaryDatum?.datum === 'A' && position.gdtFrame?.secondaryDatum?.datum === 'B', 'Expected datums A, B preserved');
-console.log('  PASS: "l 0.2 A B" -> Position, tolerance 0.2, datums A/B\n');
+// Production hardening (2026-10-06): a real exported FAIR report, opened in Excel, showed this
+// GD&T type as an unreadable "□" because the Unicode symbol alone (⌖, U+2316) isn't covered by
+// Excel's default UI font — the data was correct but invisible. The tolerance source must now
+// name the characteristic in plain English so it reads correctly regardless of font/platform.
+assert(/\bPosition\b/.test(position.toleranceSource), `Expected toleranceSource to name "Position" in plain English (font-independent), got "${position.toleranceSource}"`);
+console.log('  PASS: "l 0.2 A B" -> Position, tolerance 0.2, datums A/B, toleranceSource names the type in plain English\n');
 
 // 1b. Position with the in-frame diameter modifier ("O" -> Ø), same verified font.
 console.log('► Registered symbol: Position with diameter modifier ("l O")...');
@@ -49,7 +54,8 @@ assert(profileLine.type === 'gdt', `Expected type 'gdt', got '${profileLine.type
 assert(profileLine.gdtFrame?.characteristic === 'profile_line', `Expected characteristic 'profile_line', got '${profileLine.gdtFrame?.characteristic}'`);
 assert(profileLine.gdtFrame?.symbol === '⌓', `Expected resolved symbol '⌓', got '${profileLine.gdtFrame?.symbol}'`);
 assert(profileLine.gdtFrame?.toleranceValue === 0.4, `Expected tolerance 0.4, got ${profileLine.gdtFrame?.toleranceValue}`);
-console.log('  PASS: "h 0.4 A B-C B" -> Profile of a Line, tolerance 0.4, datums preserved\n');
+assert(/\bProfile of a Line\b/.test(profileLine.toleranceSource), `Expected toleranceSource to name "Profile of a Line" in plain English, got "${profileLine.toleranceSource}"`);
+console.log('  PASS: "h 0.4 A B-C B" -> Profile of a Line, tolerance 0.4, datums preserved, toleranceSource names the type in plain English\n');
 
 // 3. An UNREGISTERED glyph (e.g. "q", never verified against any real drawing) must still
 // resolve to 'unknown' + needs_review, not be guessed as some other characteristic — the
@@ -67,6 +73,22 @@ console.log('  PASS: "q 0.1 A" -> type=gdt, characteristic=unknown, tolerance/da
 console.log('► Real Unicode GD&T symbol (unaffected by the registry refactor)...');
 const unicodeFlatness = GdtParser.parseCallout('⏥ 0.05 A', DEFAULT_METRIC_ISO_TOLERANCES);
 assert(unicodeFlatness.gdtFrame?.characteristic === 'flatness', `Expected 'flatness' for a real ⏥ Unicode symbol, got '${unicodeFlatness.gdtFrame?.characteristic}'`);
-console.log('  PASS: "⏥ 0.05 A" -> Flatness, unaffected by the font-glyph registry\n');
+assert(/\bFlatness\b/.test(unicodeFlatness.toleranceSource), `Expected toleranceSource to name "Flatness" in plain English, got "${unicodeFlatness.toleranceSource}"`);
+console.log('  PASS: "⏥ 0.05 A" -> Flatness, unaffected by the font-glyph registry, toleranceSource names the type in plain English\n');
+
+// 5. GdtParser.getCharacteristicLabel is the single source of truth for every GD&T type name —
+// covers every entry in the union so a newly added characteristic can't silently fall through
+// to a blank/undefined label.
+console.log('► getCharacteristicLabel covers every GD&T characteristic...');
+const allCharacteristics: Array<Parameters<typeof GdtParser.getCharacteristicLabel>[0]> = [
+  'position', 'flatness', 'straightness', 'circularity', 'cylindricity', 'perpendicularity',
+  'parallelism', 'angularity', 'profile_surface', 'profile_line', 'circular_runout',
+  'total_runout', 'concentricity', 'symmetry', 'unknown'
+];
+for (const c of allCharacteristics) {
+  const label = GdtParser.getCharacteristicLabel(c);
+  assert(!!label && label.length > 0, `Expected a non-empty label for characteristic "${c}", got "${label}"`);
+}
+console.log(`  PASS: all ${allCharacteristics.length} GD&T characteristics resolve to a non-empty plain-English label\n`);
 
 console.log('>>> GD&T SYMBOL FONT REGISTRY TEST PASSED! <<<');
