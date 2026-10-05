@@ -270,6 +270,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Engine Hardening / Production Hardening',
     script: 'scripts/test_na_status.ts',
     description: 'Verifies the N/A disposition (a real Form 3 requirement that does not apply to this physical part, e.g. a process-alternative edge-spec callout) is excluded from measured/unmeasured lot statistics, is blocked from export without a stated justification, survives the central characteristic-update path without being silently re-evaluated back to UNMEASURED, and renders correctly in both Form 3 export columns'
+  },
+  {
+    name: 'Title-Block Trailing-Period Label & Date/Initials Fusion',
+    sprint: 'Engine Hardening / Production Hardening',
+    script: 'scripts/test_title_block_trailing_period_and_date_fusion.ts',
+    description: 'Two bugs found independently verifying against a real Pentair/SolidWorks drawing: a label ending in a bare period ("PART NO.") had its own trailing period swallowed as the captured value instead of falling through to the split adjacent value cell, and a revision-history date cell fused with trailing initials by pdf.js ("18/03/2014HDL") failed to parse as a date at all, silently breaking the whole revision lookup'
   }
 ];
 

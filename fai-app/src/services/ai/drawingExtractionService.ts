@@ -1701,7 +1701,14 @@ export class DrawingExtractionService {
         .sort((a, b) => b.length - a.length)
         .map(syn => this.escapeRegexLiteral(syn).replace(/ /g, '\\s*'))
         .join('|');
-      return { field, regex: new RegExp(`^\\s*(?:${alternation})\\s*[:\\-]?\\s*(.*)$`, 'i') };
+      // The separator class must include the literal period: US title blocks routinely
+      // abbreviate a label with a trailing period directly against the synonym itself
+      // ("PART NO.", "DWG NO.", "DRAWING NO.") with no space before it. Without "." here, a
+      // label run containing nothing but that abbreviation (value on a separate adjacent cell,
+      // the common CAD-export layout) has its own trailing period swallowed into the capture
+      // group as if it were the start of the value — producing a garbage one-character "."
+      // part number instead of falling through to the neighbor-cell search below.
+      return { field, regex: new RegExp(`^\\s*(?:${alternation})\\s*[:\\-.]?\\s*(.*)$`, 'i') };
     });
   }
 
@@ -2037,9 +2044,17 @@ export class DrawingExtractionService {
    * comparison. Falls back to MM/DD if the first component can't be a day (>12 and the second
    * can), since that's an unambiguous signal regardless of which convention produced it.
    * 2-digit years are assumed 2000+yy. Returns undefined if the text isn't a plausible date.
+   *
+   * Only start-anchored, not end-anchored: pdf.js's text-run segmentation sometimes merges a
+   * revision-table date cell with the immediately-following cell when the PDF places them with
+   * near-zero horizontal gap and no explicit space character between them (observed verbatim:
+   * "18/03/2014HDL", the date fused with the "Checked by" initials one column over). The year
+   * group's \d{2,4} is itself bounded, so it stops at the first non-digit character regardless —
+   * requiring the whole string to be nothing BUT the date was never necessary for correctness,
+   * and was silently failing the entire revision-table lookup whenever this fusion happened.
    */
   private static parseRevisionDate(text: string): number | undefined {
-    const m = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+    const m = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
     if (!m) return undefined;
     let [d, mo] = [parseInt(m[1], 10), parseInt(m[2], 10)];
     let y = parseInt(m[3], 10);
