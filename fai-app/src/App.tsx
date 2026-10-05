@@ -19,6 +19,7 @@ import { BUILT_IN_TEMPLATE_ID } from './types/applicationOptions';
 import { MarkedPdfExporter } from './services/export/markedPdfExporter';
 import { AuditLedgerService } from './services/compliance/auditLedgerService';
 import { evaluateExportReadiness } from './services/validation/characteristicExportGate';
+import { validateForm1Record } from './services/validation/form1ValidationService';
 import { MeasurementEngine } from './services/compliance/measurementEngine';
 import { RenumberingService } from './services/ballooning/renumberingService';
 import { ProjectArchiveService, type LoonistProjectPackage } from './services/project/projectArchiveService';
@@ -496,10 +497,14 @@ export function App() {
         drawingNumber: fileName.replace(/\.[^/.]+$/, ''),
         drawingRevision: '',
         cageCode: '',
-        lotSize: 100,
-        samplingLevel: 'II',
-        samplingType: 'NORMAL',
-        aql: '1.0'
+        // Same reasoning as cageCode above: lot size and sampling plan are inspector-supplied
+        // per-FAI data, never drawing content, so a plausible-looking default here would risk
+        // shipping invented values unnoticed. Left blank; confirmExportReadiness blocks export
+        // until the user fills these in via Backstage → Properties.
+        lotSize: 0,
+        samplingLevel: '',
+        samplingType: '',
+        aql: ''
       };
 
       // 3. Cache the new document
@@ -882,20 +887,28 @@ export function App() {
   const confirmExportReadiness = useCallback((exportLabel: string): boolean => {
     const { blockers } = evaluateExportReadiness(characteristics);
 
-    // A blank part name/number/CAGE code reaching a customer-facing export is exactly the
-    // failure mode the title-block fallback fix was meant to prevent — removing the fake demo
-    // identity only helps if something still stops the resulting blank from silently shipping.
-    const missingIdentityFields = [
-      !projectProps.partName && 'Part Name',
-      !projectProps.partNumber && 'Part Number',
-      !projectProps.cageCode && 'CAGE Code'
-    ].filter((f): f is string => !!f);
+    // A blank/placeholder Form 1 field reaching a customer-facing export is exactly the failure
+    // mode the title-block fallback fix was meant to prevent — removing fake identity/lot/sampling
+    // defaults at the source (drawingExtractionService, App.tsx's new-file seed) only helps if
+    // something still stops the resulting blank from silently shipping. Reuses the same
+    // validateForm1Record the Backstage "Properties" screen already enforces, so a user who
+    // exports directly from the ribbon without ever opening that screen gets the identical check
+    // instead of a weaker, duplicated one.
+    const FIELD_LABELS: Record<string, string> = {
+      partName: 'Part Name', partNumber: 'Part Number', partRevision: 'Part Revision',
+      drawingNumber: 'Drawing Number', drawingRevision: 'Drawing Revision', cageCode: 'CAGE Code',
+      lotSize: 'Lot Size', samplingLevel: 'Sampling Level', samplingType: 'Sampling Type', aql: 'AQL'
+    };
+    const { invalidFields } = validateForm1Record(projectProps);
+    const missingIdentityFields = Object.keys(invalidFields)
+      .filter((k) => invalidFields[k as keyof typeof invalidFields])
+      .map((k) => FIELD_LABELS[k] || k);
 
     if (blockers.length === 0 && missingIdentityFields.length === 0) return true;
 
     const messages: string[] = [];
     if (missingIdentityFields.length > 0) {
-      messages.push(`Missing: ${missingIdentityFields.join(', ')}. This ${exportLabel} will identify no part unless these are filled in.`);
+      messages.push(`Missing required Form 1 field(s): ${missingIdentityFields.join(', ')}. This ${exportLabel} will carry blank or placeholder values for these unless they are filled in (Backstage → Properties).`);
     }
     if (blockers.length > 0) {
       messages.push(`${blockers.length} characteristic${blockers.length === 1 ? '' : 's'} still need${blockers.length === 1 ? 's' : ''} review or measurement before this ${exportLabel} reflects verified inspection data.`);

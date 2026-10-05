@@ -12,6 +12,8 @@
 import { GdtParser } from '../src/services/ai/gdtParser';
 import { GridZoneCalculator } from '../src/services/ai/gridZoneCalculator';
 import { ToleranceEngine, DEFAULT_METRIC_ISO_TOLERANCES } from '../src/services/ai/toleranceEngine';
+import { validateForm1Record } from '../src/services/validation/form1ValidationService';
+import type { ProjectProperties } from '../src/types/characteristics';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -97,5 +99,38 @@ console.log('► GridZoneCalculator: fallback with no ruler detected...');
 const zoneNoRuler = GridZoneCalculator.calculateZone(8997, 817, 9536, 6736, null);
 assert(/^Zone [A-H]-[1-8]$/.test(zoneNoRuler), `Expected the pixel-bucket fallback (A-H, 1-8) when no ruler is available, got "${zoneNoRuler}"`);
 console.log(`  PASS: falls back to the coarse pixel-bucket estimate ("${zoneNoRuler}") when no ruler was detected\n`);
+
+// 6. Production hardening (2026-10-06): a re-exported real FAIR report showed "Lot Size: 200" /
+// "Sampling Plan: II NORMAL AQL 1.0" on Form 1 for a drawing whose text contains neither value
+// anywhere — these were plausible-looking hardcoded defaults (drawingExtractionService's
+// extraction result, and App.tsx's new-file seed), not extracted or user-entered data, so a
+// report could silently ship invented lot/sampling-plan data indistinguishable from the real
+// thing. Lot size and sampling plan are inherently NOT drawing content (they're inspector-
+// supplied, per-FAI planning data), so the fix is the same pattern already used for cageCode:
+// leave unset (lotSize 0, sampling fields '') rather than guess, and let validateForm1Record —
+// the same validator the Backstage "Properties" screen already enforces — flag it as missing.
+console.log('► Lot size / sampling plan: unset must be rejected, not silently plausible...');
+const unsetLotSampling: ProjectProperties = {
+  partName: 'Conductor', partNumber: 'CINH91CDB11', partRevision: 'B',
+  drawingName: 'CINH91CDB11', drawingNumber: 'CINH91CDB11', drawingRevision: 'B',
+  cageCode: '1A2B3',
+  lotSize: 0, samplingLevel: '', samplingType: '', aql: ''
+};
+const unsetResult = validateForm1Record(unsetLotSampling);
+assert(unsetResult.isValid === false, 'A record with unset lot size/sampling must not validate as complete');
+assert(unsetResult.invalidFields.lotSize === true, 'lotSize=0 (unset sentinel) must be flagged invalid, not accepted as a real quantity');
+assert(unsetResult.invalidFields.samplingLevel === true, 'Blank samplingLevel must be flagged invalid');
+assert(unsetResult.invalidFields.samplingType === true, 'Blank samplingType must be flagged invalid');
+assert(unsetResult.invalidFields.aql === true, 'Blank aql must be flagged invalid');
+console.log('  PASS: unset lot size (0) and blank sampling fields are correctly rejected, never silently exported as if real\n');
+
+// 6b. Once genuinely filled in (by the inspector, not guessed), the same record must validate
+// cleanly — confirms the fix only closes the fabrication gap, without making legitimate
+// user-entered data unexportable.
+console.log('► Lot size / sampling plan: genuinely filled-in values still validate...');
+const filledResult = validateForm1Record({ ...unsetLotSampling, lotSize: 200, samplingLevel: 'II', samplingType: 'NORMAL', aql: '1.0' });
+assert(filledResult.isValid === true, 'A fully filled-in record must validate as complete');
+assert(filledResult.validatedRecord?.lotSize === 200, 'Filled-in lotSize must pass through unchanged');
+console.log('  PASS: a record with real, user-entered lot size/sampling data validates normally\n');
 
 console.log('>>> QA REVIEW REGRESSION FIXES TEST PASSED! <<<');

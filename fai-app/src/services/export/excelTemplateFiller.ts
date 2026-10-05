@@ -111,7 +111,7 @@ export function buildProjectValues(
     drawingRevision: projectProps.drawingRevision ?? '',
     cageCode: projectProps.cageCode ?? '',
     organizationName: projectProps.organizationName ?? '',
-    lotSize: projectProps.lotSize ?? '',
+    lotSize: projectProps.lotSize > 0 ? projectProps.lotSize : '',
     samplingLevel: projectProps.samplingLevel ?? '',
     samplingType: projectProps.samplingType ?? '',
     aql: projectProps.aql ?? '',

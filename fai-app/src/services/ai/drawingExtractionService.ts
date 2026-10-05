@@ -611,25 +611,11 @@ export class DrawingExtractionService {
                 pageZoneRuler
               );
 
-            // Determine specific GD&T subType label
+            // Determine specific GD&T subType label — GdtParser.getCharacteristicLabel is the
+            // single source of truth for this (also used to build the exported Form 3 tolerance
+            // source text), so the displayed subType and the exported text can never drift apart.
             const gdtType = parsed.gdtFrame.characteristic;
-            const subTypeLabel = 
-              gdtType === 'position' ? 'Position' :
-              gdtType === 'flatness' ? 'Flatness' :
-              gdtType === 'straightness' ? 'Straightness' :
-              gdtType === 'circularity' ? 'Circularity' :
-              gdtType === 'cylindricity' ? 'Cylindricity' :
-              gdtType === 'perpendicularity' ? 'Perpendicularity' :
-              gdtType === 'parallelism' ? 'Parallelism' :
-              gdtType === 'angularity' ? 'Angularity' :
-              gdtType === 'profile_surface' ? 'Profile of a Surface' :
-              gdtType === 'profile_line' ? 'Profile of a Line' :
-              gdtType === 'circular_runout' ? 'Circular Runout' :
-              gdtType === 'total_runout' ? 'Total Runout' :
-              gdtType === 'concentricity' ? 'Concentricity' :
-              gdtType === 'symmetry' ? 'Symmetry' :
-              gdtType === 'unknown' ? 'Unrecognized GD&T Symbol — Verify Manually' :
-              'Geometric Feature';
+            const subTypeLabel = GdtParser.getCharacteristicLabel(gdtType);
 
             // Master Quality Inspector Tooling Selection
             let method: InspectionMethod = 'CMM';
@@ -1082,10 +1068,17 @@ export class DrawingExtractionService {
         drawingRevision: extractedProps.drawingRevision || '',
         cageCode: extractedProps.cageCode || '',
         organizationName: extractedProps.organizationName || '',
-        lotSize: 200,
-        samplingLevel: 'II',
-        samplingType: 'NORMAL',
-        aql: '1.0',
+        // Production lot size and sampling plan are not drawing content at all — AS9102 Form 1
+        // treats them as inspector-supplied, per-FAI planning data tied to the actual production
+        // run, not something a title block ever states. Seeding them with a plausible-looking
+        // number (as this previously did) let a real export silently ship invented lot/sampling
+        // data indistinguishable from genuine values. Left blank like cageCode above; the export
+        // gate (confirmExportReadiness) now blocks on these exactly like any other missing
+        // required Form 1 field.
+        lotSize: 0,
+        samplingLevel: '',
+        samplingType: '',
+        aql: '',
         units: extractedProps.units || (settings?.units || 'in')
       };
       const titleBlockWarning = (!allowDemoFallback && !titleBlockRecognized)

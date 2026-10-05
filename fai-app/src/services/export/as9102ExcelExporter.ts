@@ -107,7 +107,7 @@ export class As9102ExcelExporter {
       ],
       ['9. Manufacturing Process Reference:', '', '10. Purchase Order Number:', ''],
       ['11. Inspection Reason:', '', '12. FAI Complete (Yes/No):', ''],
-      ['Lot Size:', projectProps.lotSize, 'Sampling Plan:', [projectProps.samplingLevel, projectProps.samplingType, projectProps.aql ? `AQL ${projectProps.aql}` : ''].filter(Boolean).join(' ')],
+      ['Lot Size:', projectProps.lotSize > 0 ? projectProps.lotSize : '', 'Sampling Plan:', [projectProps.samplingLevel, projectProps.samplingType, projectProps.aql ? `AQL ${projectProps.aql}` : ''].filter(Boolean).join(' ')],
       [],
       ['13. Comments / Notes:', ''],
       ['14. Prepared By:', '', 'Date:', new Date().toLocaleDateString()]
