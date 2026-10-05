@@ -276,6 +276,12 @@ const testSuites: TestSuite[] = [
     sprint: 'Engine Hardening / Production Hardening',
     script: 'scripts/test_title_block_trailing_period_and_date_fusion.ts',
     description: 'Two bugs found independently verifying against a real Pentair/SolidWorks drawing: a label ending in a bare period ("PART NO.") had its own trailing period swallowed as the captured value instead of falling through to the split adjacent value cell, and a revision-history date cell fused with trailing initials by pdf.js ("18/03/2014HDL") failed to parse as a date at all, silently breaking the whole revision lookup'
+  },
+  {
+    name: 'Golden-File Real Pentair/SolidWorks Drawing Extraction',
+    sprint: 'Engine Hardening',
+    script: 'scripts/test_golden_pentair_flange_extraction.ts',
+    description: 'Second real-world ground truth alongside the CINH91CDB11 fixture, covering a genuinely different spectrum (US MIL-STD/ASME title-block convention, SolidWorks export) per the regression policy: every engine change must be verified against the full growing set of previously validated real drawings, not just the one that motivated it. Locks in the title-block fixes plus a third found-and-fixed bug (the general-tolerance legend table and NOTES list index markers leaking through as 6 fabricated dimensions), and deliberately documents one still-open limitation (vector-drawn GD&T symbols with no extractable text) so a future fix changes this file visibly rather than drifting unnoticed'
   }
 ];
 

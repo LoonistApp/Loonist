@@ -342,6 +342,25 @@ export class DrawingExtractionService {
             const orgName = DrawingExtractionService.detectOrganizationName(rawStrings, consumedTitleBlockBoxes, boxItems);
             if (orgName) extractedProps.organizationName = orgName;
           }
+
+          // General-tolerance legend table ("TOLERANCE UNLESS NOTED" / "ZERO PLACE X ±2.5" /
+          // "ONE PLACE .X ±0.8" / "TWO PLACE .XX ±0.38" / "HOLE DIA ±0.13" / "ANGLES ±2°" — the
+          // standard US MIL-STD/ASME Y14.5 title-block tolerance table, distinct from the
+          // single-citation style like "ISO 2768-mK" already handled elsewhere). The row LABEL
+          // never contains a digit so it's naturally rejected as a dimension candidate already,
+          // but its VALUE cell ("X ± 2.5", ".X ± 0.8") is syntactically indistinguishable from a
+          // real toleranced dimension and was leaking through as a fabricated characteristic
+          // with no corresponding feature anywhere on the part — confirmed on a real drawing
+          // (89108946.pdf) where it produced phantom "Major" dimensions. Consumed by bounding-
+          // box overlap exactly like a matched title-block field value, so it works regardless
+          // of where this table sits on the sheet.
+          const toleranceLegendRowLabel = /^(?:ZERO|ONE|TWO|THREE|FOUR)\s*PLACE(?:\s*DECIMAL)?$|^HOLE\s*DIA(?:METER)?$|^ANGLES?$|^ANGULAR$/i;
+          for (const s of boxItems) {
+            if (!toleranceLegendRowLabel.test(s.text.trim())) continue;
+            consumedTitleBlockBoxes.push({ x: s.x, y: s.y, width: s.width, height: s.height });
+            const neighbor = this.findNeighborValueText(s, boxItems, this.TITLE_BLOCK_FIELD_PATTERNS);
+            if (neighbor) consumedTitleBlockBoxes.push(...neighbor.consumed);
+          }
         }
 
         // 4. Identify drawing border grid coordinates using sequence & alignment analysis (ASME Y14.1 / ISO 5457)
@@ -418,11 +437,19 @@ export class DrawingExtractionService {
 
           // 4e. Exclude Title Block metadata fields & tolerance block headers
           if (/^(?:PART\s*(?:NO\.?|NUMBER|NAME)|P\/N|REV(?:ISION)?|CAGE(?:\s*CODE|\s*CD)?|DWG\s*(?:NO\.?|NUMBER)|DRAWING\s*(?:NO\.?|NUMBER)|TITLE|DESCRIPTION)\b/i.test(t)) return false;
-          if (t.includes('TOLERANCES UNLESS NOTED') || t.includes('UNLESS OTHERWISE SPECIFIED')) return false;
+          if (/TOLERANCES?\s+UNLESS\s+NOTED/i.test(t) || t.includes('UNLESS OTHERWISE SPECIFIED')) return false;
           if (/SHEET\s+\d+\s+OF\s+\d+/i.test(t) || /^\d+\s+OF\s+\d+$/i.test(t)) return false;
           if (/\b(?:SHEET\s+\d+|\bOF\s+\d+)\b/i.test(t)) return false;
           if (/\b(?:FILE NAME|DESCRIPTION)\b/i.test(t)) return false;
           if (t === 'ALL DIMENSIONS' || t === 'ARE IN MILLIMETERS') return false;
+          // A bare "1." / "2." with nothing else is a numbered-notes list index, never a real
+          // dimension — a genuine decimal dimension always has digits AFTER the point ("1.25",
+          // "0.4"); only a list marker is a lone digit immediately followed by a period and
+          // nothing else. Confirmed leaking through as fabricated "characteristics" on a real
+          // drawing (89108946.pdf) whose NOTES list items get tokenized separately from their
+          // own sentence text (which isProseOrInstructionalText already correctly rejects,
+          // leaving only the bare index marker to slip through).
+          if (/^\d{1,2}\.$/.test(t.trim())) return false;
 
           // 4f. Adaptive Title block bounding box:
           // In standard drafting (ASME Y14.1 / ISO 5457), the title block is strictly non-dimensional metadata (Part Name, Number, Sheet, File Name)
