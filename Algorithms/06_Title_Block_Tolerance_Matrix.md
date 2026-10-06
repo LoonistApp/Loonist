@@ -39,18 +39,8 @@ For inch-based drawings (`unit = 'in'`), LOONIST queries the following standard 
 | **4** | `.5000` or `1.2500` | $\pm 0.0005\text{ in}$ | Title Block (.XXXX) |
 | **Angular** | `45°` or `30 DEG` | $\pm 0.5^\circ$ | Title Block (Angles) |
 
-### 2.3 Metric ISO 2768-m Precision Matrix
-For metric drawings (`unit = 'mm'`), ISO 2768-m specifies nominal-range dependent general tolerances:
-
-| Nominal Linear Range ($L\text{ mm}$) | ISO 2768-m Permissible Deviation |
-| :---: | :---: |
-| $0.5 \le L \le 3$ | $\pm 0.10\text{ mm}$ |
-| $3 < L \le 6$ | $\pm 0.10\text{ mm}$ |
-| $6 < L \le 30$ | $\pm 0.20\text{ mm}$ |
-| $30 < L \le 120$ | $\pm 0.30\text{ mm}$ |
-| $120 < L \le 400$ | $\pm 0.50\text{ mm}$ |
-| $400 < L \le 1000$ | $\pm 0.80\text{ mm}$ |
-| $1000 < L \le 2000$ | $\pm 1.20\text{ mm}$ |
+### 2.3 Metric ISO 2768 Precision Matrix
+**(Sprint 9 correction — see [Algorithm 14](./14_Drawing_Unit_Detection_And_ISO_2768.md) §4 for the authoritative, current table.)** ISO 2768-1 specifies nominal-size-bracket-dependent general tolerances across four classes (f/m/c/v), not just `m`, and bands through 4000mm, not 2000mm. This section previously stopped at 2000mm and covered only class `m`; both gaps are now closed in `ISO_2768_TABLE` (`toleranceEngine.ts`). Resolution is no longer gated to integer-mm nominals either — any project whose tolerance preset declares an `iso2768Class` resolves by size bracket regardless of decimal precision.
 
 ### 2.4 Dynamic Title Block OCR / Vector Detection
 LOONIST features an automated regex parser that extracts custom Title Block matrices printed on the drawing:
@@ -71,7 +61,7 @@ $$\text{LowerLimit} = \text{round}(N - T_l, \text{decimals})$$
 
 ## 4. Source Code Reference
 
-Implemented in [`toleranceEngine.ts`](file:///c:/Users/hy376/OneDrive/Desktop/Startup/fai-app/src/services/ai/toleranceEngine.ts#L45-L110):
+The pseudocode below previously stood in for `resolveTitleBlockTolerance()`; it omitted the ISO 2768 size-bracket branch entirely (decimal place `0` fell through to `.X` rather than resolving by size). See [Algorithm 14](./14_Drawing_Unit_Detection_And_ISO_2768.md) §3 for the real, current control flow — the ISO 2768 branch is checked *before* the decimal-place switch below whenever the preset declares a class:
 
 ```typescript
 export class ToleranceEngine {
@@ -83,6 +73,9 @@ export class ToleranceEngine {
     if (isAngular) {
       return { upperTol: preset.angles, lowerTol: preset.angles, source: 'Title Block (Angles)' };
     }
+
+    // (Sprint 9) If preset.iso2768Class is set, resolve by ISO 2768 size bracket here
+    // instead — see Algorithm 14 §3/§4 — regardless of decimal precision below.
 
     const parts = numStr.split('.');
     const decimals = parts.length > 1 ? parts[1].length : 0;

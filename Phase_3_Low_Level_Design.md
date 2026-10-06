@@ -326,6 +326,8 @@ Over 60% of aerospace drawing dimensions do not print explicit tolerances and in
   - `X.XXXX` (4 decimal places) $\rightarrow$ Default $\pm 0.0005$ in ($\pm 0.01$ mm)
   - `Angles` $\rightarrow$ Default $\pm 0.5^\circ$
 - **Override Hierarchy:** Explicit dimension tolerances ($\pm .002$, limit tolerances) supersede title block defaults. The general tolerance block is fully editable per project.
+- **ISO 2768 bypass:** When a project's tolerance preset declares an ISO 2768 class (f/m/c/v), metric nominals resolve by true ISO 2768-1 size bracket instead of this decimal-place matrix — see `Algorithms/14_Drawing_Unit_Detection_And_ISO_2768.md`.
+- **(Sprint 9) Legend-table guard:** The title block's own general-tolerance legend (e.g. a "ZERO PLACE / ONE PLACE / TWO PLACE" table) is matched structurally as title-block *metadata*, not as inspectable dimensions — this previously fabricated several phantom characteristics directly from the legend text.
 
 ### 17.2 ASME Y14.5 Dimension Enclosure Semantics
 The parser classifies dimension types based on standard CAD drafting enclosures:
@@ -335,8 +337,8 @@ The parser classifies dimension types based on standard CAD drafting enclosures:
 - **Bilateral / Unilateral:** `1.500 ± .005` or `1.500 +0.010 / -0.000` parsed into distinct nominal and limit bounds.
 
 ### 17.3 Drawing Grid Zone Mapping & Quantity Multipliers (`NX`)
-- **Automated Grid Zone Calculation:** Blueprint coordinates $(x, y)$ are projected onto standard aerospace border grids (A–H vertically, 1–8 horizontally). Auto-populates AS9102 Form 3 Column 7 (e.g. `Zone C-4, Sheet 1`) with zero manual input.
-- **Quantity Multipliers (`NX`):** Patterns like `4X`, `6 PLACES`, or `8X HOLES` are detected. The system sets `count = N` and enables 1-click sub-balloon expansion (`1.1, 1.2, 1.3, 1.4`) so inspectors can record individual physical measurements for each feature.
+- **Automated Grid Zone Calculation (rewritten Sprint 9):** `GridZoneCalculator.calculateZone()` first calls `findBorderGridLabels()` to look for the drawing's *own* printed zone ruler (real column/row label + position pairs along the border). When at least 3 columns and 3 rows of ruler labels are detected, zones are resolved by nearest-label interpolation against that ruler. Only when no ruler can be read (e.g. a scanned sheet with no extractable ruler text) does the system fall back to a normalized-grid estimate (4–8 rows/columns sized to the sheet, not a fixed 8×8/A–H grid). The previous implementation always guessed a fixed grid from pixel size alone, which produced systematically wrong Form 3 "Reference Location" values whenever a drawing's actual printed zone grid didn't match the guessed density. Auto-populates AS9102 Form 3 Column 7 (e.g. `Zone C-4, Sheet 1`) with zero manual input.
+- **Quantity Multipliers (`NX`):** Patterns like `4X`, `6 PLACES`, or `8X HOLES` are detected. The system sets `count = N` and enables 1-click sub-balloon expansion (`1.1, 1.2, 1.3, 1.4`) so inspectors can record individual physical measurements for each feature. (Sprint 9) A repeated-feature multiplier can no longer orphan onto a neighboring feature, and a multiplier-prefixed nominal's stacked ISO 286 deviation line reattaches instead of surfacing as a duplicate characteristic.
 
 ### 17.4 AI Confidence Scoring & HITL Review Pipeline
 1. **Confidence Thresholding:** Every token and bounding box produces an AI confidence score ($0.0 - 1.0$).
@@ -349,7 +351,7 @@ The parser classifies dimension types based on standard CAD drafting enclosures:
 In modern manufacturing, blueprints arrive in two distinct representations: native vector PDFs (exported directly from 3D CAD platforms like SolidWorks, CATIA, NX, Inventor) and raster image drawings (scanned paper prints, legacy microfilms, or exploded vector font curves). LOONIST enforces a deterministic **Dual-Path Hybrid Architecture**:
 
 #### 17.5.1 Ingestion Router: Path A (Vector Maths) vs. Path B (Vision & Deep Learning OCR)
-- **Routing Decision Engine:** On drawing load, `AiExtractionService` inspects the initial text content stream via `pdfjsLib.getPage(n).getTextContent()`.
+- **Routing Decision Engine:** On drawing load, `DrawingExtractionService` (renamed from `AiExtractionService` in Sprint 9 — the pipeline is deterministic parsing with OCR as a raster fallback, not an AI/LLM call) inspects the initial text content stream via `pdfjsLib.getPage(n).getTextContent()`.
   - **Path A (Native Vector Maths):** If text token count $\ge 5$ (covering $>85\%$ of modern CAD drawings), dimensions and annotations are extracted in $<50\text{ms}$ with 100% mathematical precision and zero OCR hallucination.
   - **Path B (Vision Pipeline & Deep Learning OCR):** If token count $< 5$ (scanned blueprint, legacy microfilm) or when the quality engineer drags an optical marquee box (`box-capture`), LOONIST engages the multi-stage Vision Pipeline.
 
@@ -365,7 +367,7 @@ Scanned drawings suffer from scanner sensor noise, paper yellowing, uneven light
 - **Aspect-Preserving Margin Padding:** Injects an 8–16px clean white border around cropped regions to prevent bounding box clipping during OCR tokenization.
 
 #### 17.5.3 100% Offline Deep Learning OCR Runtime (`OcrEngineService`)
-- **Local WebAssembly Execution:** Manages a cached background Tesseract.js WebAssembly worker pool constrained to an engineering-whitelisted character dictionary: `0123456789.+-xX/°ØRrcCA-Za-z(),#:%|=`. Satisfies 100% ITAR and defense air-gap compliance with zero cloud calls.
+- **Local WebAssembly Execution:** Manages a cached background Tesseract.js WebAssembly worker pool constrained to an engineering-whitelisted character dictionary (widened in Sprint 9 to include accented Latin characters, which were previously dropped silently and corrupted non-English scanned drawings). **Asset bundling (Sprint 9):** until `717e04a`, tesseract.js's documented default behavior was to fetch its worker script, WASM core, and language trained-data model from `cdn.jsdelivr.net` at runtime — meaning on a genuinely air-gapped workstation, OCR would hang indefinitely waiting on a network that doesn't exist. `scripts/copy-tesseract-assets.mjs` now copies the WASM core (`tesseract.js-core`) and English trained-data model (`@tesseract.js-data/eng`) into `public/tessdata` at build time, and `ocrEngineService.ts` passes explicit local `workerPath` / `corePath` / `langPath` options, mirroring the same bundling pattern already used for PDF.js runtime assets (cmaps, standard fonts, ICC profiles). Only with this change does the pipeline satisfy 100% ITAR and defense air-gap compliance with zero cloud calls — verified by a packaged-app network sweep showing no outbound requests during OCR.
 - **Dual-Orientation Pass ($0^\circ$ & $90^\circ$):** Blueprint leader lines frequently orient callouts vertically along the Y-axis. If bounding box height exceeds width or horizontal confidence $< 70\%$, the crop is rotated $90^\circ$ counter-clockwise. The system evaluates both passes and selects the candidate with superior confidence.
 - **Aerospace CAD Symbol Normalizer:** Reconstructs standard ASME Y14.5 drafting glyphs distorted by optical rasterization:
   - Diameter: `O` or `0` before decimal numbers $\to$ `Ø` (e.g. `O.750` $\to$ `Ø.750`, `dia 25` $\to$ `Ø25.0`).
@@ -376,7 +378,8 @@ Scanned drawings suffer from scanner sensor noise, paper yellowing, uneven light
   - Countersink: `CSINK` / `CS` $\to$ `⌵`.
 - **Confidence Telemetry:** Emits normalized extraction confidence ($0.00$ to $1.00$) recorded directly in the characteristic model and surfaced in the inspector HUD.
 
-#### 17.5.4 Prose & Tutorial Sentence Exclusion Engine (`GdtParser` & `AiExtractionService`)
+#### 17.5.4 Prose & Tutorial Sentence Exclusion Engine (`GdtParser` & `DrawingExtractionService`)
+*(Sprint 9: `aiExtractionService.ts` was renamed `drawingExtractionService.ts` — the pipeline is deterministic parsing with OCR as a raster fallback, not an AI/LLM call, and the old name was misleading.)*
 - **Problem Statement:** Untoleranced dimension fallback logic previously matched isolated digits within narrative prose (e.g. Autodesk Inventor tutorial cover sheets: *"This PDF contains 24 detailed drawings of miscellaneous parts..."* generated Balloon #1 with nominal 24, and *"practice with Autodesk Inventor (or any 3D CAD package...)"* generated Balloon #2 with nominal 3).
 - **Multi-Layered Solution Architecture:**
   1. **Prose & Disclaimer Keyword Heuristics (`GdtParser.isProseOrInstructionalText`):** Scans for 60+ software, tutorial, and book disclaimer tokens (`autodesk`, `inventor`, `solidworks`, `catia`, `tutorial`, `workbook`, `handbook`, `practice with`, `apologies in advance`, `luck in your pursuits`, `miscellaneous parts`, `detailed drawings`, `copyright`, `rights reserved`).
@@ -486,7 +489,20 @@ To prevent inspectors from losing in-progress inspection state and to enable off
 An AS9102 Form 3 characteristic accountability report requires physical verification of manufactured parts. LOONIST provides a dedicated real-time measurement calculation engine (`MeasurementEngine`):
 * **Data Model & Type Definitions:**
   ```typescript
-  export type ConformanceStatus = 'PENDING' | 'PASS' | 'MARGINAL' | 'FAIL';
+  export type ConformanceStatus =
+    | 'PASS'       // Measured within tolerance band
+    | 'MARGINAL'   // Within 10% of upper or lower tolerance boundary
+    | 'FAIL'       // Out of tolerance
+    | 'UNMEASURED' // Pending physical measurement entry
+    | 'N/A';       // (Sprint 9) Real, toleranced requirement that does not apply to THIS physical
+                    // part (e.g. one of two process-alternative callouts). Requires non-empty
+                    // `comments` as written justification, enforced at the export gate exactly
+                    // like an unresolved UNMEASURED item. `MeasurementEngine.computeLotStatistics`
+                    // tracks N/A as its own `notApplicableCount` bucket, excluded from both the
+                    // measured/unmeasured counts and the conformance-rate denominator. An explicit
+                    // N/A is preserved across unrelated characteristic edits and is only superseded
+                    // by a real measurement — it is no longer silently re-derived back to
+                    // UNMEASURED on every field update.
 
   export interface MeasurementRecord {
     id: string;
@@ -520,29 +536,31 @@ An AS9102 Form 3 characteristic accountability report requires physical verifica
     \end{cases}$$
 * **Non-Conformance Tracking:** Any characteristic evaluated as `FAIL` automatically provisions a unique Discrepancy Number (e.g. `NC-2026-001`) and populates AS9102 Form 3 Column 11 for aerospace MRB (Material Review Board) review.
 
-### 20.4 Cryptographic SHA-256 Tamper-Evident Audit Ledger (`AuditLedgerService`)
-To satisfy stringent AS9100 / FAA Part 21 data provenance requirements and eliminate unauthorized inspection tampering:
-- **Ledger Block Architecture:**
+### 20.4 Cryptographic SHA-256 Tamper-Evident Audit Ledger (`AuditLedgerService` / `DBManager`)
+To satisfy stringent AS9100 / FAA Part 21 data provenance requirements and eliminate unauthorized inspection tampering. **(Sprint 9 — authority moved to the main process.)** Previously the chain existed only as an in-memory renderer array and vanished on every restart; the real, current architecture is:
+- **Ledger Entry Shape (`auditLedgerService.ts`):**
   ```typescript
-  export interface AuditBlock {
-    index: number;
+  export interface AuditLedgerEntry {
+    id: string;
     timestamp: string;
-    action: 'CREATE' | 'UPDATE_MEASUREMENT' | 'OVERRIDE_STATUS' | 'DELETE' | 'EXPORT_PACKAGE';
-    actor: string;
-    entityId: string;
+    action: 'MEASUREMENT_LOGGED' | 'TOLERANCE_MODIFIED' | 'BALLOON_REPOSITIONED' | 'CHARACTERISTIC_DELETED' | 'REPORT_EXPORTED';
+    charId?: string;
     details: Record<string, unknown>;
+    inspector: string;
     previousHash: string;
-    currentHash: string;
+    hash: string;
   }
   ```
+- **Main-process authority (`electron/database.ts`):** `DBManager.appendAuditEvent()` / `getAuditEvents()` / `verifyAuditChain()` write to and verify the `AuditEvent` SQLite table using Node's native `crypto`, surviving app restart (proven by a close/reopen-the-database test that simulates one). The renderer's `AuditLedgerService` is now a thin client with a synchronous local mirror for immediate UI feedback — not the source of truth.
 - **Cryptographic Invariants:**
-  - Genesis block: $H_0 = \text{SHA256}(\text{"GENESIS_LOONIST_"} + \text{projectId})$.
-  - Subsequent blocks:
-    $$H_n = \text{SHA256}\left(H_{n-1} + \text{timestamp}_n + \text{action}_n + \text{actor}_n + \text{entityId}_n + \text{JSON.stringify}(\text{details}_n)\right)$$
+  - Genesis hash: a fixed 68-character string of zeros (`'0000...0000'`), not a computed hash of the project ID.
+  - Subsequent entries:
+    $$\text{hash}_n = \text{SHA256}\left(\text{id}_n \,\|\, \text{timestamp}_n \,\|\, \text{action}_n \,\|\, \text{charId}_n \,\|\, \text{JSON.stringify}(\text{details}_n) \,\|\, \text{inspector}_n \,\|\, \text{previousHash}_n\right)$$
+    where $\|$ is literal `|`-delimited string concatenation. This exact payload shape is computed identically on both sides (renderer mirror and main-process authority) so an entry verifies the same regardless of which side wrote it.
 - **Tamper-Evident Verification Algorithm:**
-  - At any point (and mandatorily prior to AS9102 Excel / PDF export), `AuditLedgerService.verifyChain()` executes a sequential linear traversal:
-  - Recomputes $H_k'$ from block contents and verifies $H_k' \equiv H_k$ and $H_k.\text{previousHash} \equiv H_{k-1}.\text{currentHash}$.
-  - If any recorded entry, timestamp, or actual value has been modified out-of-band in SQLite, verification terminates immediately with `{ valid: false, errorIndex: k }`, blocking export compilation.
+  - `AuditLedgerService.verifyChain()` (local mirror) and `DBManager.verifyAuditChain()` (authoritative) both execute a sequential linear traversal, recomputing each entry's hash from its payload and checking it against the stored `hash`, and checking `previousHash` against the prior entry's `hash`.
+  - If any recorded entry, timestamp, or detail has been modified out-of-band, verification returns `{ isValid: false, brokenIndex: k }`.
+  - **(Sprint 9) Export gate:** Form 3 / marked-PDF export is blocked while any characteristic remains `needs_review` or unmeasured; an inspector override of that gate is itself written to the audit ledger rather than silently bypassing it.
 - **Export Package Inclusion:** The full ledger chain is packaged as `audit_trail.json` alongside marked PDFs and AS9102 workbooks for compliance auditors.
 
 ---
@@ -606,10 +624,18 @@ In addition to AS9102 Excel packages, aerospace machine shops require physical o
   - **PASS:** Border `rgb(0.13, 0.77, 0.36)`, fill opacity $0.15$
   - **MARGINAL:** Border `rgb(0.96, 0.62, 0.04)`, fill opacity $0.18$
   - **FAIL:** Border `rgb(0.94, 0.27, 0.24)`, fill opacity $0.20$
-  - **PENDING:** Border `rgb(0.14, 0.47, 0.88)`, fill opacity $0.15$
+  - **UNMEASURED / N/A:** Border `rgb(0.14, 0.47, 0.88)` (default blue — no distinct status color), fill opacity $0.15$
 - **Leader Line Vector Primitives:**
   When a balloon is positioned offset from its feature bounding box, `pdfPage.drawLine()` paints a leader line and terminal triangular arrowhead pointing directly at the feature anchor.
+- **Badge shape (Sprint 9 fix):** `drawBadgeShape()` burns the configured shape (circle/square/triangle/hexagon) into the badge, mirroring `ViewportCanvas`'s on-screen precedence exactly (per-balloon override → explicit non-circle global shape → type-based default). Previously this always burned a circle regardless of the configured shape or the on-screen appearance.
 - **Output:** Returns an immutable, vector-sharp marked blueprint byte stream (`Uint8Array`) saved atomically to disk.
+
+### 22.3 Automotive AIAG PPAP Package Exporter (`PpapExporter`, Sprint 9)
+Generates a 3-sheet `.xlsx` workbook distinct from the AS9102 package, for customers requiring AIAG PPAP (4th Edition) submission:
+- **Sheet 1 — Part Submission Warrant (Element 18):** Organization/customer/submittal info; 5 submission reasons (incl. `Other` with a required explanation); 5 submission levels, each with an AIAG-default element-status pattern (`defaultElementStatusesForLevel()`); a dimensional-conformance result **auto-derived from measured characteristic data**, never a manual checkbox; material/functional/appearance/statistical-package sub-results; declaration, disposition, and signature blocks.
+- **Sheet 2 — Dimensional Results (Element 9):** Built from the same `buildForm3Row()` row builder the AS9102 exporter uses, so the two packages never disagree on a characteristic's reported values.
+- **Sheet 3 — Submission Status Checklist:** 18-element AIAG checklist (Submitted / Retained / Not Applicable) covering the elements LOONIST doesn't itself capture (material certs, appearance approval, etc.). The export surfaces a standing warning that only Elements 9 and 18 are generated here — the others must be attached separately by the submitter.
+- **Shared fixes (same commit):** `cascadeRenumber()` previously keyed compound sub-item groups by item number alone, so a numbering collision across two different sheets could merge unrelated characteristics into one group — now keyed by `(sheet, item number)`. Balloon-number display formatting was centralized in `utils/balloonFormat.ts` and threaded through the AS9102 exporter, the PPAP exporter, the marked PDF exporter, and the UI, so a displayed and an exported balloon number can no longer diverge.
 
 ### 22.2 Programmatic AS9102 Rev B / Rev C Multi-Sheet Excel Exporter (`As9102ExcelExporter`)
 Aerospace Tier-1 primes (Boeing, Lockheed Martin, Northrop Grumman) require strict compliance with SAE AS9102 Form 1, Form 2, and Form 3 report formats. LOONIST implements a high-speed, zero-native-dependency OpenXML SpreadsheetML compiler:
@@ -628,7 +654,7 @@ Aerospace Tier-1 primes (Boeing, Lockheed Martin, Northrop Grumman) require stri
        - Col 4: Dimension / Specification Requirement (Nominal, Units, Enclosure type)
        - Col 5: Upper / Lower Tolerance Limits
        - Col 6: Measured Results / Actual Physical Value
-       - Col 7: Conformance Status (`ACCEPT` / `REJECT` / `MARGINAL`)
+       - Col 7: Conformance Status (`ACCEPT` / `REJECT` / `MARGINAL` / `N/A` with required justification, Sprint 9)
        - Col 8: Measurement Tooling Code (e.g. `CAL-004 CMM Zeiss Prismo`, `MIC-012 Mitutoyo 0-1"`)
        - Col 9: Non-Conformance Discrepancy Number (auto-generated for failed features)
 - **Air-Gapped Native Generation:**
@@ -975,8 +1001,7 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
 1. **Visual Drawing Revision Comparison Engine (Rev A vs. Rev B):**
    - High-speed visual overlay diff highlighting added features in green, deleted features in red, and modified dimensions in amber.
    - Automatically preserves existing approved balloon numbers between drawing revisions and flags newly added dimensions for incremental auto-ballooning.
-2. **Automotive AIAG PPAP Report Compiler:**
-   - Pre-mapped Excel templates generating AIAG PPAP Form 18 Dimensional Results, Material Test Results, and Appearance Approvals from the same underlying characteristic database.
+2. ~~Automotive AIAG PPAP Report Compiler~~ — **shipped in Sprint 9**, see §22.3.
 3. **Bluetooth Direct Gage Interface (WebHID / WebSerial):**
    - Direct wireless integration with Mitutoyo, Fowler, and Starrett digital calipers and micrometers for 1-click measurement entry into the inspection ledger.
 
@@ -999,8 +1024,8 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
 ### 38.2 Deep Learning OCR Worker Pool & Normalization (`OcrEngineService`)
 - **WASM Worker Lifecycle:**
   - Instantiates a persistent WebAssembly worker thread pool via Tesseract.js.
-  - Constrained character set: `tessedit_char_whitelist = "0123456789.+-xX/°ØRrcCA-Za-z(),#:%|="`.
-  - Zero cloud calls, 100% offline ITAR compliance.
+  - Constrained character set: `tessedit_char_whitelist = "0123456789.+-xX/°ØRrcCA-Za-z(),#:%|="`, widened in Sprint 9 to include accented Latin characters (previously dropped silently, corrupting non-English scanned drawings).
+  - Zero cloud calls, 100% offline ITAR compliance — only true since Sprint 9 (`717e04a`): `workerPath` / `corePath` / `langPath` now point at locally bundled assets (`scripts/copy-tesseract-assets.mjs` → `public/tessdata`); before this, tesseract.js's documented default fetched its worker, WASM core, and language model from `cdn.jsdelivr.net` at runtime, which would hang indefinitely on a genuinely air-gapped machine.
 - **Dual-Orientation Evaluation:**
   - Evaluates bounding box aspect ratio $\text{AR} = \frac{W}{H}$. If $\text{AR} < 0.8$ or horizontal confidence $< 70\%$, executes a $90^\circ$ counter-clockwise rotated pass.
   - Emits the result maximizing OCR confidence.
@@ -1013,7 +1038,7 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
   - `/\b(?:CBORE|CB)\s*([0-9.]+)/gi` $\to$ `⌴ $1`
   - `/\b(?:CSINK|CS)\s*([0-9.]+)/gi` $\to$ `⌵ $1`
 
-### 38.3 Prose & Tutorial Sentence Exclusion Subsystem (`GdtParser` & `AiExtractionService`)
+### 38.3 Prose & Tutorial Sentence Exclusion Subsystem (`GdtParser` & `DrawingExtractionService`)
 - **Keyword Heuristic Dictionary (60+ tokens):**
   `autodesk`, `inventor`, `solidworks`, `catia`, `tutorial`, `workbook`, `handbook`, `practice with`, `apologies in advance`, `luck in your pursuits`, `miscellaneous parts`, `detailed drawings`, `simple sketches`, `designer's choice`, `answers here`, `copyright`, `rights reserved`.
 - **Syntactic Sentence Grammar Analysis:**
@@ -1030,14 +1055,16 @@ Following commercial release of v1.0, LOONIST will execute Phase 2 enhancements 
 ### 39.1 Project Settings (`types/settings.ts`, `ProjectSettingsModal.tsx`)
 - **Schema groups:** Blueprint & Tolerances (`units`, `tolerancePreset`, `tolerances`), Extraction Behaviour (`multiplierBehavior`, `autoBalloonNotes`, `autoDetectZones`, `skipReferenceDimensions`, `skipBasicDimensions`, `ocrConfidenceThreshold`), Numbering (`startingNumber`, `incrementStep`, `balloonPrefix`, `leadingZeros`, `subDelimiter`), Compliance & Export (`as9102Revision`, `exportFormat`, `watermark`, `highResPdfExport`, `samplingStandard`, `aqlLevel`, `inspectionLevel`).
 - **Presets:** `asme-precision` (default), `asme-commercial`, `sheet-metal-inch`, `iso-fine`, `iso-medium`, `sheet-metal-metric`, `custom`.
-- **Consumers:** `AiExtractionService.extractCharacteristics(doc, sheet, settings)` reads `units`, `tolerances`, `startingNumber`, `incrementStep`, `subDelimiter`, `skipReferenceDimensions`, `skipBasicDimensions`. `ViewportCanvas` and `MarkedPdfExporter` read `watermark`.
+- **Consumers:** `DrawingExtractionService.extractCharacteristics(doc, sheet, settings)` reads `units`, `tolerances`, `startingNumber`, `incrementStep`, `subDelimiter`, `skipReferenceDimensions`, `skipBasicDimensions`. `ViewportCanvas` and `MarkedPdfExporter` read `watermark`.
 - **Persistence:** `ProjectArchiveService` serialises `settings?: ProjectSettings` inside the `.loonist` package.
-- **Not yet consumed (Sprint 8):** `balloonPrefix`, `leadingZeros`, `multiplierBehavior`, `ocrConfidenceThreshold`, `autoBalloonNotes`, `autoDetectZones`, `as9102Revision`, `exportFormat = 'NET_INSPECT'`, `highResPdfExport`.
+- **Wired in Sprint 9:** `multiplierBehavior` (single balloon vs. split sub-balloons — standard dimensions previously always split regardless of setting, GD&T frames never split), `autoBalloonNotes`, `autoDetectZones`, `ocrConfidenceThreshold` (the pipeline previously used two hardcoded, mutually inconsistent thresholds — 0.90 bulk, 0.85 manual-capture — instead of this setting).
+- **Still not consumed:** `balloonPrefix`, `leadingZeros`, `as9102Revision`, `exportFormat = 'NET_INSPECT'` (the Net-Inspect exporter itself was never implemented and the Options tab was removed in Sprint 9), `highResPdfExport`.
 
 ### 39.2 Application Options Store (`types/applicationOptions.ts`, `stores/useApplicationOptionsStore.ts`)
 - Module-level reactive state exposed through `useApplicationOptions()`; persisted to `localStorage` key `loonist_app_options_v1`, falling back to `DEFAULT_APPLICATION_OPTIONS` when storage is empty or unreadable.
-- **Sections:** `workspace` (wheel zoom inversion, middle-click pan, canvas background, decimal separator, table columns & preset views), `masterData` (inspection methods, manufacturing operations, classifications, custom fields), `templates`, `netInspect` (field mappings), `licensing`, `itarPrivacy`.
+- **Sections:** `workspace` (wheel zoom inversion, middle-click pan, canvas background, decimal separator, table columns & preset views), `masterData` (inspection methods, manufacturing operations, classifications, custom fields), `templates`, `licensing`. **(Sprint 9)** `netInspect` (field mappings) was removed — it was unwired placeholder UI with no exporter behind it; `itarPrivacy` was rebuilt as `privacy` (**Privacy & About**) — a factual data-handling statement plus real Electron/Chromium/Node runtime version info (via `ipc-app-info`) and license status, replacing switches that had no effect.
 - **Consumers:** `App.tsx` (canvas background), `ViewportCanvas.tsx`, `TableManager.tsx` (columns), `LeftPropertiesDock.tsx` (inspection methods, decimal formatting via `utils/numberFormat.ts`).
+- **Durability caveat (Sprint 9):** `localStorage` was found not to reliably survive an app restart for this renderer's `file://` origin. Application Options remain `localStorage`-keyed as above, but theme and default-project-settings now persist through a separate main-process file-backed JSON store (`userData/settings/renderer-settings.json`, via `ipc-settings-get` / `ipc-settings-set`) — the same durability pattern already used for the license key.
 
 ### 39.3 Licensing Client (`services/license/licenseClient.ts`)
 - **Keys:** `ed25519.utils.randomSecretKey()` → `getPublicKey()`; hex-encoded device keypair.
@@ -1063,9 +1090,16 @@ Since Sprint 8 these channels, like all others, are registered through `handleIp
 - **Evaluation order in `GdtParser.parseCallout()`:** prose rejection → **chamfer (early)** → quantity multipliers → **compound deconstruction** → GD&T / hole / thread rules → chamfer fallback → untoleranced fallback + residual word check. Full specification: `Algorithms/13_Chamfer_And_Compound_Callout_Deconstruction.md`.
 - **`isPrimaryNumberAngular()`** prevents trailing countersink angles from converting a primary diameter to degrees.
 - **Sub-features:** `DeconstructedSubFeature[]` with `isSecondarySub`; secondaries get `skipBalloonRender = true` so only one balloon renders per leader while all rows remain in Form 3 and exports.
-- **Units:** `ToleranceEngine.detectDrawingUnits()` now returns `'in' | 'mm' | null`; precedence notes → project units → settings → `'in'`. **ISO 2768-m** size bands apply to integer mm nominals via `resolveMetricIso2768Tolerance()` (bands above 1000 mm not yet implemented). Full specification: `Algorithms/14_Drawing_Unit_Detection_And_ISO_2768.md`.
+- **Units:** `ToleranceEngine.detectDrawingUnits()` now returns `'in' | 'mm' | null`; precedence notes → project units → settings → `'in'`. **(Sprint 9 correction)** ISO 2768 size bands apply whenever a tolerance preset declares an `iso2768Class`, regardless of decimal precision (previously gated to integer-mm nominals only) — resolved by true ISO 2768-1 size bracket across all four classes, with bands now implemented through 4000mm (previously missing above 1000mm):
+  ```
+  f: [3,0.05] [6,0.05] [30,0.1] [120,0.15] [400,0.2] [1000,0.3] [2000,0.5] [4000,0.8]
+  m: [3,0.1]  [6,0.1]  [30,0.2] [120,0.3]  [400,0.5] [1000,0.8] [2000,1.2] [4000,2]
+  c: [3,0.2]  [6,0.3]  [30,0.5] [120,0.8]  [400,1.2] [1000,2]   [2000,3]   [4000,4]
+  v: [6,0.5]  [30,1]   [120,1.5][400,2.5]  [1000,4]  [2000,6]   [4000,8]
+  ```
+  (bracket upper bound in mm, tolerance in ±mm). Full specification: `Algorithms/14_Drawing_Unit_Detection_And_ISO_2768.md`.
 - **Extraction:** `isCoverOrIntroductorySheet()` skips cover/prose-only sheets; fused standalone numbers (`65 35`) are split; single-sheet re-extraction preserves characteristics on other sheets and re-sorts by `(sheetNumber, itemNumber)`.
-- **Manual capture:** `AiExtractionService.captureBox()` throws a descriptive ASME Y14.5 / AS9102 error when the captured text is prose or boilerplate; blank geometry captures remain allowed.
+- **Manual capture:** `DrawingExtractionService.captureBox()` throws a descriptive ASME Y14.5 / AS9102 error when the captured text is prose or boilerplate; blank geometry captures remain allowed.
 
 ### 39.6 Placement, Rendering & Export
 - **`SpatialPlacementService`:** orientation-aware candidate generation — horizontal dimensions prefer NW/N/NE/SW/S/SE; vertical dimensions prefer W/NW/SW/E/NE/SE; in-line positions heavily penalised; a second, extended pull-out ring (×1.6 margin) for crowded regions; all dimension boxes on the sheet act as obstacles.
@@ -1121,6 +1155,54 @@ URL rule (`licenseApiUrlSchema`): `https://`, or `http://localhost` / `127.0.0.1
 - Production Worker secret `LICENSE_PRIVATE_KEY` not yet uploaded (public key `9bca5120…f61d33` is built in).
 - Feature gating by license state is not implemented.
 - Importing offline `.lic` certificates is not implemented.
+
+---
+
+## 41. Offline Hardening, Extraction Correctness & Compliance Features (Sprint 9)
+Sprint 9 followed a codebase audit and market-research pass (AI vision models for drawing extraction benchmark 8–80% accuracy; LOONIST's value proposition depends on deterministic parsing, not a brittle probabilistic one) against two real customer drawings — a Pentair/SolidWorks flange and a US-format aerospace FAIR — plus a true air-gap verification sweep of the packaged app. Feature-level detail for each item below is cross-referenced to where it already lives in this document; this section is the single index.
+
+### 41.1 True offline hardening
+- **Fonts & PDF.js runtime assets:** Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`) and PDF.js's own CDN-fetched cmaps/standard-fonts/ICC profiles were removed; `scripts/copy-pdfjs-assets.mjs` bundles them into `public/pdfjs` at build time; CSP tightened to drop the remaining font/CDN hosts. Bundled fonts were later dropped in favor of system fonts.
+- **Tesseract.js OCR assets:** see §17.5.3 / §38.2 — WASM core and English trained-data model bundled via `scripts/copy-tesseract-assets.mjs` into `public/tessdata`, with explicit `workerPath`/`corePath`/`langPath`.
+- **Preload packaging bug:** the preload script was emitted as an ES module, which sandboxed Electron preloads cannot load — `window.api` was silently missing in built/packaged runs (not caught by `npm run build`, which only type-checks). Fixed with a dedicated Vite sub-build emitting CommonJS `preload.cjs`.
+- **Verification:** a packaged-app network sweep shows zero outbound requests at startup or during drawing extraction/OCR.
+- **Dead/placeholder UI removed rather than left non-functional:** the "Air-Gapped Local" ribbon badge (cosmetic claim, no verification behind it), the Net-Inspect Gateway Options tab (§39.2), and the Help Center entry point (§17 intro / PRD §4.9) — each replaced with an explicit disabled state rather than shipped as a dead end.
+
+### 41.2 Extraction-engine correctness campaign
+Each item below was a silent wrong-answer path reaching, or capable of reaching, a customer's AS9102 record — not a crash:
+- Rotation-unsafe coordinates: a height-only y-flip (valid only on unrotated pages) corrupted every downstream heuristic on rotated pages; replaced with PDF.js's own rotation-aware viewport transform.
+- Fake-identity fallback: a title-block match miss was silently backfilled with the bundled demo part's name/number/CAGE code instead of surfacing failure; now stays blank with an explicit warning and blocks export.
+- Discarded ISO 286 limit tolerances on Ø-with-limit-tolerance holes; now recovered via bidirectional cluster-reattachment.
+- Cross-feature contamination: a GD&T frame absorbing a neighboring hole's deviation line; a repeated-feature multiplier (`18X`) orphaning onto the wrong feature; a multiplier-prefixed nominal's stacked ISO 286 line surfacing as a duplicate characteristic instead of reattaching.
+- Metric thread misrouting: `M6X1` routed into the compound-callout deconstructor, fabricating a nonexistent counterbore from the thread's own pitch digit.
+- Title-block matcher rebuilt around drawing structure rather than one hardcoded format: 5 search zones, EN/DE/FR label synonyms (diacritic-insensitive) across identity + 5 supplementary fields, text runs rejoined across split cells, revision read from the structurally-located Revision+Date table (latest date, not nearest label), fuzzy OCR-only fallback for scanned sheets.
+- US-label separator/date-fusion bugs: "PART NO." (with a trailing period as the separator) and a cell where pdf.js fused a date with trailing text (`18/03/2014HDL`) both previously failed to parse.
+- Overfitted prose filters: removed sample-PDF-specific literal strings *and* generic engineering words ("clearance", "holes", "units", "metric") that had been smuggled into the filter from one sample drawing's prose, which could misclassify real engineering notes as tutorial text.
+- Drawing-grid zone mapping rebuilt to prefer the drawing's own printed zone ruler (§17.3); chamfer-leg symbols ("2c") no longer misread as 2° angles; negative nominals keep sign through tolerance-limit math; GD&T symbol-font glyphs decoded via an explicit verified registry instead of surfacing raw glyphs; re-extracting an already-ballooned PDF detects the actual vector badge shape LOONIST itself draws (not just a number-sequence heuristic) to avoid phantom duplicate characteristics.
+- Fabricated dimensions: 5 came from the title block's own general-tolerance legend table (§17.1's legend-table guard); 2 came from NOTES list index markers (`1.`, `2.`) surviving as bare digit-period tokens — excluded because a real decimal always has digits after the point.
+- Permanent regression fixtures added (`2ef58e2`): rotation invariance at 0°/90°/180°/270°, metric thread parsing, multi-page mixed-rotation/German-language documents — alongside the two golden real-drawing fixtures.
+
+### 41.3 Compliance & export features
+- N/A conformance status: §20.3, §22.2 (Col 7).
+- Tamper-evident audit ledger moved to the main process: §20.4.
+- AIAG PPAP package exporter: §22.3.
+- Export gate (blocks export while `needs_review` / unmeasured characteristics remain; an override is itself audit-logged): §20.4.
+- Fabricated Lot Size / Sampling Plan defaults on export removed — left unset like `cageCode`, matching the no-fabrication principle applied to title-block identity fields; the ribbon export path's Form 1 validation was unified with the Backstage path's full `validateForm1Record()` (previously the ribbon path checked only 3 of 9 required fields).
+- GD&T Unicode symbols (⌖, ⌓) that rendered as "□" in Excel due to font coverage gaps now carry a plain-English label alongside the symbol (`GdtParser.getCharacteristicLabel()`).
+
+### 41.4 Settings, persistence & tolerance correctness
+- Settings durability and dead-toggle wiring: §39.1, §39.2.
+- ISO 2768 size-bracket correction: §39.5.
+- Named, durable custom tolerance presets; removed a duplicate-UI bug where Industry Presets buttons and a dropdown both selected the same 3 options.
+
+### 41.5 UI/UX and viewport fixes
+- Rotation now pivots around the drawing's own center rather than the top-left corner; Fit Page/Fit Width re-measures the real container and re-centers; holding Space to pan restores the previously active tool on release; double-click-to-pan and toolbar buttons fixed against touch double-tap-zoom/rapid-refire on touch-capable displays.
+- Broad dark-mode and style-token consistency pass across all modals; fixed invisible required-field borders, translucent-panel contrast, and native `<select>` contrast in dark mode; fixed broken disabled states, dead empty screens, and an orphaned Help tab across the main workspace.
+- Confirmation toast for Renumber Balloons; confirmation before redundant Auto Extract/Inspect re-runs; no-op Auto Reposition detection skips a pointless undo entry; removed a duplicate "New Project" entry in the FILE backstage rail.
+- Branding: real favicon/window icon replacing a placeholder; a meaningful icon on the Auto Extract button replacing a generic sparkle.
+
+### 41.6 Verification
+`npm test`: 45/45 feature test suites passed (up from 25 at the end of Sprint 8 — see §3.9 of the HLD for the full list of additions). `npm run build`: 0 TypeScript errors.
 
 ---
 

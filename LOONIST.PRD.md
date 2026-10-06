@@ -5,7 +5,7 @@
 | **Product Name** | `LOONIST` |
 | **Version** | v2.1 (Competitive Disruption Baseline — Desktop Enterprise SaaS) |
 | **Document Status** | Approved Master Baseline PRD |
-| **Last Updated** | 29 September 2026 |
+| **Last Updated** | 6 October 2026 |
 | **Product Owner (POC)** | Harsh Yadav |
 | **Architectural Model** | Offline-First Desktop App with Cloudflare Asymmetric Licensing Control Plane |
 | **Target Infrastructure** | Electron + React 19 + Local SQLite + Local ONNX/WASM AI + Cloudflare Workers Edge |
@@ -97,13 +97,13 @@
    * **Customer Excel Templates (Sprint 7):** Upload the customer's own FAIR workbook with `{{placeholders}}` in Options → Templates; LOONIST fills it on export and keeps all formatting.
    * **Form 3 CSV (Sprint 7):** Flat characteristic export selectable alongside `.xlsx` in the unified Export dialog.
    * **Security Watermark (Sprint 7):** Optional `ITAR RESTRICTED` / `COMPANY CONFIDENTIAL` / `PRELIMINARY FAIR` / `CUSTOMER APPROVED` watermark on the viewport and every page of the marked PDF.
-   * **Net-Inspect Portal CSV (Planned):** Field mapping is configurable in Options; the exporter itself is not yet implemented.
-   * **Automotive AIAG PPAP Package (Phase 2):** Form 18 Dimensional Results mapping.
+   * **Net-Inspect Portal CSV (Planned):** The Options tab was removed (Sprint 9) pending a real implementation; it was unwired placeholder UI with no exporter behind it. Shown as a disabled "Soon" entry.
+   * **Automotive AIAG PPAP Package (Sprint 9):** Generates a 3-sheet workbook — Part Submission Warrant (Element 18: organization/customer info, 5 submission reasons, 5 submission levels with AIAG-default element-status patterns, dimensional-conformance auto-derived from measured data, material/functional/appearance/statistical-package results, declaration, disposition, signature), Dimensional Results (Element 9, shares the AS9102 Form 3 row builder), and an 18-element Submission Status checklist. The export warns that only Elements 9 & 18 are generated — the other 16 PPAP elements must be attached separately.
 8. **Project File Archiving (`.loonist` format):**
    * Single-click save of the complete inspection state into a portable, versioned `.loonist` file for offline archival and team collaboration.
-9. **Configuration & In-App Help (Sprint 7):**
-   * **Application Options:** Workspace ergonomics, factory Master Data (inspection methods, operations, classifications, custom fields), AS9102 templates, Net-Inspect mapping, ITAR/Privacy, and Licensing.
-   * **Help Center:** Quick Start workflow, 14-symbol ASME Y14.5 GD&T library, AS9102 Form 1/2/3 field guide, keyboard shortcuts, diagnostics, and About.
+9. **Configuration & In-App Help:**
+   * **Application Options:** Workspace ergonomics, factory Master Data (inspection methods, operations, classifications, custom fields), AS9102 templates, a **Privacy & About** tab (Sprint 9 — replaced the ITAR/Privacy tab's non-functional switches with a factual data-handling statement, real Electron/Chromium/Node version info, and license status), and Licensing. The Net-Inspect mapping tab and the Help entry point were disabled in Sprint 9 (see below).
+   * **Help Center (disabled, Sprint 9):** The entry point opened a content-less Quick Start modal with no real guidance behind it, so it was disabled rather than ship a dead end. `helpData.ts`'s 14-symbol ASME Y14.5 GD&T library and AS9102 Form 1/2/3 field guide content still exist in code but have no live entry point pending real content.
 
 ---
 
@@ -206,6 +206,16 @@
 - [x] (Sprint 8) Renew and revoke requests signed with the device key and verified by the Worker; renew re-signs the license from D1.
 - [x] (Sprint 8) Stored licenses verified offline on start-up against an embedded server public key and bound to the workstation's device key.
 - [x] (Sprint 8) Production licensing key pair generated; public key built into `electron/licenseTrust.ts`.
+- [x] (Sprint 9) True offline hardening: fonts, pdf.js runtime assets (cmaps/standard-fonts/ICC profiles), and tesseract.js OCR assets (WASM core + English trained-data model) all bundled locally and loaded from explicit local paths; CSP tightened to drop remaining font/CDN hosts; Electron preload rebuilt as CommonJS (`preload.cjs`) after discovering the ES-module build silently failed to load in the packaged app.
+- [x] (Sprint 9) Automotive AIAG PPAP package export (Part Submission Warrant, Dimensional Results, Submission Status checklist) shipped; cross-sheet balloon renumbering collision fixed; balloon numbering formatting centralized across all export paths and the UI.
+- [x] (Sprint 9) N/A conformance status added to Form 3 Status (alongside Comply/Reject) with required written justification, enforced at the export gate; excluded from the measured/unmeasured conformance-rate denominator.
+- [x] (Sprint 9) Tamper-evident audit ledger moved from an in-memory renderer array to a main-process-authoritative, SQLite-persisted hash chain (`electron/database.ts`); survives app restart.
+- [x] (Sprint 9) Extraction-engine hardening against two real customer drawings (Pentair/SolidWorks and a US-format aerospace FAIR): rotation-safe coordinates, no fake-identity fallback on a title-block miss, title-block field matching rebuilt around drawing structure (5 search zones, EN/DE/FR label synonyms, structural revision-table parsing, fuzzy OCR fallback), drawing-grid zone mapping now interpolates against the drawing's own printed zone ruler instead of guessing a fixed grid, and removal of several silent wrong-answer / fabricated-value paths (discarded ISO 286 limit tolerances, metric-thread misrouting, chamfer-leg/sign bugs, fabricated dimensions sourced from title-block legend text or NOTES list markers, fabricated Lot Size/Sampling Plan defaults).
+- [x] (Sprint 9) Settings/persistence durability fix: theme and default project settings are now saved to a main-process file-backed store (`userData/settings/renderer-settings.json`) after `localStorage` was found not to reliably survive an app restart for this renderer's `file://` origin; three previously dead Settings toggles (auto-balloon notes, auto-detect zones, multiplier behaviour) wired into the extraction pipeline.
+- [x] (Sprint 9) ISO 2768 general-tolerance presets corrected to resolve by true ISO 2768-1 size bracket (across f/m/c/v classes, bands through 4000mm) rather than decimal-place grid.
+- [x] (Sprint 9) Net-Inspect Gateway Options tab and the Help Center entry point disabled rather than left as unwired placeholders; Help content remains in code pending a real content pass.
+- [x] (Sprint 9) Unified master test suite expanded to 45 feature test suites with 100% clean pass rate.
 - [ ] (Sprint 8) Upload the production private key to the Worker with `wrangler secret put LICENSE_PRIVATE_KEY` and deploy.
-- [ ] (Sprint 8) Wire remaining Project Settings into engines (balloon prefix, leading zeros, multiplier behaviour, OCR review floor, auto-balloon notes, auto zones, AS9102 revision) and implement the Net-Inspect CSV exporter.
+- [x] (Sprint 9) Wire remaining Project Settings into engines (auto-balloon notes, auto zones, multiplier behaviour, OCR confidence floor, skip basic dimensions). Balloon prefix, leading zeros, and AS9102 revision remain open.
+- [ ] (Sprint 9) Net-Inspect CSV exporter: the placeholder Options tab was removed rather than implemented; still not built.
 - [ ] (Sprint 8) Automated GitHub Actions build pipeline producing signed Windows `.exe` installers with EV Code Signing and RFC 3161 timestamps.

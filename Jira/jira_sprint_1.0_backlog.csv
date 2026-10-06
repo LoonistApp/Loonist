@@ -53,3 +53,15 @@ Issue ID,Parent ID,Issue Type,Summary,Description,Sprint
 52,5,Story,Protect device private key,"Move the Ed25519 device private key from localStorage to Electron safeStorage via the main process.",Sprint 8
 53,5,Story,Zod schemas for Sprint 7 IPC channels,"Add payload validation to window-control, message-box and exit IPC handlers.",Sprint 8
 54,42,Story,Wire remaining Project Settings,"Consume balloon prefix, leading zeros, multiplier behaviour, OCR floor, auto notes/zones, AS9102 revision; build Net-Inspect CSV exporter.",Sprint 8
+55,5,Story,Bundle PDF.js and Tesseract.js assets locally,"Remove CDN font/cmap/OCR asset fetches; bundle into public/pdfjs and public/tessdata; fix ES-module preload packaging bug.",Sprint 9
+56,12,Story,Extraction engine correctness hardening,"Fix rotation-unsafe coordinates, fake-identity fallback, discarded ISO 286 tolerances, metric thread misrouting, and fabricated title-block/NOTES dimensions against real customer drawings.",Sprint 9
+57,12,Story,Rebuild title-block field matching,"Search 5 zones with EN/DE/FR label synonyms, structural revision-table parsing, and fuzzy OCR fallback instead of one hardcoded layout.",Sprint 9
+58,12,Story,Drawing grid zone mapping from printed ruler,"Resolve Form 3 zones by nearest-label interpolation against the drawing's own printed zone ruler, falling back to a normalized grid guess.",Sprint 9
+59,25,Story,AIAG PPAP package export,"Generate Part Submission Warrant, Dimensional Results, and Submission Status checklist sheets; fix cross-sheet renumbering collision.",Sprint 9
+60,17,Story,N/A conformance status,"Add N/A to Form 3 Status with required justification, enforced at the export gate and excluded from the conformance rate.",Sprint 9
+61,9,Story,Move audit ledger to main process,"Persist the SHA-256 hash chain to the AuditEvent SQLite table so it survives app restart; renderer becomes a thin mirror.",Sprint 9
+62,42,Story,Settings persistence durability fix,"Move theme and default project settings off localStorage (doesn't survive restart for this renderer origin) to a main-process file-backed store; wire dead toggles.",Sprint 9
+63,12,Story,ISO 2768 size-bracket correction,"Resolve ISO 2768 f/m/c/v tolerances by true size bracket through 4000mm regardless of decimal precision.",Sprint 9
+64,25,Story,Export fabrication fixes,"Remove fabricated Lot Size/Sampling Plan defaults; burn the configured balloon shape into the marked PDF; make GD&T symbols Excel-font-safe.",Sprint 9
+65,19,Story,Viewport interaction fixes,"Rotate around drawing center, re-center Fit Page/Width, restore prior tool after Space-pan, fix touch double-tap-zoom.",Sprint 9
+66,21,Story,UI dark-mode and dead-UI stabilization,"Fix dark-mode contrast and broken disabled states; disable the Net-Inspect tab, Help entry point, and Air-Gapped badge rather than leave them non-functional.",Sprint 9
