@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/Status-Approved_SSOT-emerald.svg?style=for-the-badge&logo=checkmark)](./LOONIST.PRD.md)
 [![Compliance](https://img.shields.io/badge/Compliance-SAE_AS9102_Rev_B%2FC-orange.svg?style=for-the-badge&logo=shield)](./LOONIST.PRD.md)
 [![Platform](https://img.shields.io/badge/Platform-Desktop_App_(Electron)-purple.svg?style=for-the-badge&logo=electron)](./LOONIST.PRD.md)
-[![Owner](https://img.shields.io/badge/Product_Owner-Harsh_Yadav-black.svg?style=for-the-badge&logo=person)](./LOONIST.PRD.md)
+[![Owner](https://img.shields.io/badge/Product_Owner-iTelematics-Software-Private-Limited-black.svg?style=for-the-badge&logo=person)](./LOONIST.PRD.md)
 
 <p align="center">
   Automating First Article Inspection (FAI) for Aerospace, Automotive, Medical Devices, and Precision Machine Shops.
