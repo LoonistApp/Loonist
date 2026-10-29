@@ -19,7 +19,7 @@
 
 > [!IMPORTANT]
 > **SINGLE SOURCE OF TRUTH (SSOT)**  
-> This repository contains the official Master System Architecture and PRD for **LOONIST** (Product Owner: **Harsh Yadav**).  
+> This repository contains the official Master System Architecture and PRD for **LOONIST** (Product Owner: **iTelematics Software Private Limited**).  
 > Built strictly upon SAE AS9102 (Rev B/C) standards and ASME Y14.5 GD&T drafting specifications.
 
 ---
@@ -152,5 +152,5 @@ flowchart TD
 ---
 
 > [!NOTE]
-> **Repository Owner:** Harsh Yadav (Lead Product Owner)  
+> **Repository Owner:** Harsh Yadav 
 > **Repository Status:** Master System Architecture Approved Baseline
